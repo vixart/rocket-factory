@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Git pre-commit hook
+# Копировать в .git/hooks/pre-commit
+
+set -e
+
+echo "🧼 Форматирование кода..."
+task format
+
+echo "🔍 Проверка линтером..."
+task lint
+
+echo "✅ Всё чисто!"
