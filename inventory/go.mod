@@ -1,4 +1,3 @@
-// TODO: Поменяй имя модуля github.com/student на своё и обнови все импорты
 module github.com/vixart/rocket-factory/inventory
 
 go 1.26.0

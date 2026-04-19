@@ -12,11 +12,11 @@ service PaymentService {
 
 // Способ оплаты
 enum PaymentMethod {
-  PAYMENT_METHOD_UNSPECIFIED = 0;
-  PAYMENT_METHOD_CARD = 1;
-  PAYMENT_METHOD_SBP = 2;
-  PAYMENT_METHOD_CREDIT_CARD = 3;
-  PAYMENT_METHOD_INVESTOR_MONEY = 4;
+  UNSPECIFIED = 0;
+  CARD = 1;
+  SBP = 2;
+  CREDIT_CARD = 3;
+  INVESTOR_MONEY = 4;
 }
 
 // Запрос на оплату заказа
