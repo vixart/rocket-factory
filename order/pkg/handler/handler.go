@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	orderv1 "github.com/student/shared/pkg/openapi/order/v1"
-	inventoryv1 "github.com/student/shared/pkg/proto/inventory/v1"
-	paymentv1 "github.com/student/shared/pkg/proto/payment/v1"
+	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
+	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
+	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
 // Order представляет заказ на постройку космического корабля.
@@ -121,16 +123,126 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 //
 // CreateOrder реализует операцию createOrder
 // POST /api/v1/orders
-// func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
-//     // 1. Валидация: hull_uuid и engine_uuid обязательны
-//     // 2. Получить детали через InventoryService.GetPart
-//     // 3. Проверить stock_quantity > 0
-//     // 4. Вычислить total_price
-//     // 5. Сгенерировать order_uuid (UUID v4)
-//     // 6. Создать заказ со статусом PENDING_PAYMENT
-//     // 7. Сохранить в store
-//     // 8. Вернуть order_uuid и total_price
-// }
+func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
+	// 1. Валидация: hull_uuid и engine_uuid обязательны
+	// 2. Получить детали через InventoryService.GetPart
+	// 3. Проверить stock_quantity > 0
+	// 4. Вычислить total_price
+	// 5. Сгенерировать order_uuid (UUID v4)
+	// 6. Создать заказ со статусом PENDING_PAYMENT
+	// 7. Сохранить в store
+	// 8. Вернуть order_uuid и total_price
+	enginePart, err := h.getPart(ctx, req.GetEngineUUID().String())
+	if err != nil {
+		return mapError(err), nil
+	}
+
+	hullPart, err := h.getPart(ctx, req.GetHullUUID().String())
+	if err != nil {
+		return mapError(err), nil
+	}
+
+	var shieldPart, weaponPart *inventoryv1.Part
+
+	if v, ok := req.GetShieldUUID().Get(); ok {
+		shieldPart, err = h.getPart(ctx, v.String())
+		if err != nil {
+			return mapError(err), nil
+		}
+	}
+
+	if v, ok := req.GetWeaponUUID().Get(); ok {
+		weaponPart, err = h.getPart(ctx, v.String())
+		if err != nil {
+			return mapError(err), nil
+		}
+	}
+
+	totalPrice := enginePart.GetPrice() + hullPart.GetPrice()
+	if shieldPart != nil {
+		totalPrice += shieldPart.Price
+	}
+	if weaponPart != nil {
+		totalPrice += weaponPart.Price
+	}
+
+	orderUUID := uuid.New()
+	order := Order{
+		OrderUUID:  orderUUID,
+		HullUUID:   req.GetHullUUID(),
+		EngineUUID: req.GetEngineUUID(),
+		TotalPrice: totalPrice,
+		Status:     string(orderv1.OrderStatusPENDINGPAYMENT),
+		CreatedAt:  time.Now(),
+	}
+	if shieldPart != nil {
+		order.ShieldUUID = new(uuid.MustParse(shieldPart.GetUuid()))
+	}
+	if weaponPart != nil {
+		order.WeaponUUID = new(uuid.MustParse(weaponPart.GetUuid()))
+	}
+
+	h.store.orders[orderUUID] = order
+
+	return &orderv1.CreateOrderResponse{
+		OrderUUID:  orderUUID,
+		TotalPrice: totalPrice,
+	}, nil
+}
+
+func (h *OrderHandler) getPart(ctx context.Context, id string) (*inventoryv1.Part, error) {
+	resp, err := h.inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+		Uuid: id,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	part := resp.GetPart()
+
+	if part.GetStockQuantity() <= 0 {
+		return nil, status.Errorf(codes.FailedPrecondition, "детали нет на складе: %s - %s", part.Name, id)
+	}
+
+	return part, nil
+}
+
+func mapError(err error) orderv1.CreateOrderRes {
+	st, ok := status.FromError(err)
+	if !ok {
+		return &orderv1.CreateOrderInternalServerError{
+			Code:    http.StatusInternalServerError,
+			Message: "internal error",
+		}
+	}
+
+	switch st.Code() {
+	case codes.NotFound:
+		return &orderv1.CreateOrderNotFound{
+			Code:    http.StatusNotFound,
+			Message: st.Message(),
+		}
+
+	case codes.InvalidArgument:
+		return &orderv1.CreateOrderBadRequest{
+			Code:    http.StatusBadRequest,
+			Message: st.Message(),
+		}
+
+	case codes.FailedPrecondition:
+		return &orderv1.CreateOrderConflict{
+			Code:    http.StatusConflict,
+			Message: st.Message(),
+		}
+
+	default:
+		return &orderv1.CreateOrderInternalServerError{
+			Code:    http.StatusInternalServerError,
+			Message: st.Message(),
+		}
+	}
+}
+
 //
 // PayOrder реализует операцию payOrder
 // POST /api/v1/orders/{order_uuid}/pay

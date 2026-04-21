@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
+	"sort"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	inventoryv1 "github.com/student/shared/pkg/proto/inventory/v1"
+	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
 // Part представляет деталь космического корабля
@@ -39,7 +40,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Алюминиевый корпус",
 				Description:   "Лёгкий корпус для небольших кораблей",
 				Price:         500000, // 5000₽
-				PartType:      inventoryv1.PartType_PART_TYPE_HULL,
+				PartType:      inventoryv1.PartType_HULL,
 				StockQuantity: 10,
 				CreatedAt:     now,
 			},
@@ -48,7 +49,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Титановый корпус",
 				Description:   "Прочный корпус для средних кораблей",
 				Price:         1500000, // 15000₽
-				PartType:      inventoryv1.PartType_PART_TYPE_HULL,
+				PartType:      inventoryv1.PartType_HULL,
 				StockQuantity: 5,
 				CreatedAt:     now,
 			},
@@ -57,7 +58,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Ионный двигатель C",
 				Description:   "Базовый ионный двигатель класса C",
 				Price:         300000, // 3000₽
-				PartType:      inventoryv1.PartType_PART_TYPE_ENGINE,
+				PartType:      inventoryv1.PartType_ENGINE,
 				StockQuantity: 8,
 				CreatedAt:     now,
 			},
@@ -66,7 +67,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Ионный двигатель B",
 				Description:   "Улучшенный ионный двигатель класса B",
 				Price:         800000, // 8000₽
-				PartType:      inventoryv1.PartType_PART_TYPE_ENGINE,
+				PartType:      inventoryv1.PartType_ENGINE,
 				StockQuantity: 3,
 				CreatedAt:     now,
 			},
@@ -75,7 +76,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Энергетический щит",
 				Description:   "Стандартный энергетический щит",
 				Price:         400000, // 4000₽
-				PartType:      inventoryv1.PartType_PART_TYPE_SHIELD,
+				PartType:      inventoryv1.PartType_SHIELD,
 				StockQuantity: 6,
 				CreatedAt:     now,
 			},
@@ -84,7 +85,7 @@ func NewInventoryServer() *InventoryServer {
 				Name:          "Лазерная пушка",
 				Description:   "Точная лазерная пушка",
 				Price:         250000, // 2500₽
-				PartType:      inventoryv1.PartType_PART_TYPE_WEAPON,
+				PartType:      inventoryv1.PartType_WEAPON,
 				StockQuantity: 7,
 				CreatedAt:     now,
 			},
@@ -97,21 +98,31 @@ func (s *InventoryServer) GetPart(
 	ctx context.Context,
 	req *inventoryv1.GetPartRequest,
 ) (*inventoryv1.GetPartResponse, error) {
-	// TODO: Реализовать метод
-	// 1. Проверить, что uuid не пустой → INVALID_ARGUMENT
-	// 2. Валидировать формат UUID → INVALID_ARGUMENT
-	// 3. Найти деталь в map
-	// 4. Если не найдена → NOT_FOUND
-	// 5. Преобразовать в inventoryv1.Part
-	// 6. Вернуть деталь
+	if req.GetUuid() == "" {
+		return nil, status.Error(codes.InvalidArgument, "uuid не может быть пустым")
+	}
 
-	// TODO: Валидация формата UUID v4
-	// Можно использовать github.com/google/uuid:
-	// if _, err := uuid.Parse(req.GetUuid()); err != nil {
-	//     return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", req.GetUuid())
-	// }
+	id, err := uuid.Parse(req.GetUuid())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", req.GetUuid())
+	}
 
-	return nil, status.Error(codes.Unimplemented, "метод GetPart не реализован")
+	p, ok := s.parts[id]
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "деталь не найдена по uuid: %s", req.GetUuid())
+	}
+
+	return &inventoryv1.GetPartResponse{
+		Part: &inventoryv1.Part{
+			Uuid:          p.UUID,
+			Name:          p.Name,
+			Description:   p.Description,
+			Price:         p.Price,
+			PartType:      p.PartType,
+			StockQuantity: p.StockQuantity,
+			CreatedAt:     p.CreatedAt,
+		},
+	}, nil
 }
 
 // ListParts возвращает список деталей с опциональной фильтрацией по типу
@@ -119,13 +130,45 @@ func (s *InventoryServer) ListParts(
 	ctx context.Context,
 	req *inventoryv1.ListPartsRequest,
 ) (*inventoryv1.ListPartsResponse, error) {
-	// TODO: Реализовать метод
-	// 1. Если передан список uuids → найти детали по UUID (сохраняя порядок запроса)
-	//    - Проверить формат каждого UUID → INVALID_ARGUMENT
-	//    - Если хоть один UUID не найден → NOT_FOUND
-	// 2. Иначе если part_type == UNSPECIFIED → вернуть все детали
-	// 3. Иначе → фильтровать по типу
-	// 4. Отсортировать по имени (только для фильтрации по типу, не для uuids)
+	parts := make([]*inventoryv1.Part, 0)
 
-	return nil, status.Error(codes.Unimplemented, "метод ListParts не реализован")
+	if len(req.Uuids) > 0 {
+		for _, idStr := range req.Uuids {
+			id, err := uuid.Parse(idStr)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", idStr)
+			}
+
+			p, ok := s.parts[id]
+			if !ok {
+				return nil, status.Errorf(codes.NotFound, "деталь не найдена по uuid: %s", id)
+			}
+
+			parts = append(parts, toProtoPart(p))
+		}
+	} else {
+		for _, p := range s.parts {
+			if req.PartType == inventoryv1.PartType_UNSPECIFIED || req.PartType == p.PartType {
+				parts = append(parts, toProtoPart(p))
+			}
+		}
+
+		sort.Slice(parts, func(i, j int) bool {
+			return parts[i].Name < parts[j].Name
+		})
+	}
+
+	return &inventoryv1.ListPartsResponse{Parts: parts}, nil
+}
+
+func toProtoPart(p Part) *inventoryv1.Part {
+	return &inventoryv1.Part{
+		Uuid:          p.UUID,
+		Name:          p.Name,
+		Description:   p.Description,
+		Price:         p.Price,
+		PartType:      p.PartType,
+		StockQuantity: p.StockQuantity,
+		CreatedAt:     p.CreatedAt,
+	}
 }
