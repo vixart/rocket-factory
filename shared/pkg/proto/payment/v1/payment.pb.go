@@ -25,28 +25,28 @@ const (
 type PaymentMethod int32
 
 const (
-	PaymentMethod_UNSPECIFIED    PaymentMethod = 0
-	PaymentMethod_CARD           PaymentMethod = 1
-	PaymentMethod_SBP            PaymentMethod = 2
-	PaymentMethod_CREDIT_CARD    PaymentMethod = 3
-	PaymentMethod_INVESTOR_MONEY PaymentMethod = 4
+	PaymentMethod_PAYMENT_METHOD_UNSPECIFIED    PaymentMethod = 0
+	PaymentMethod_PAYMENT_METHOD_CARD           PaymentMethod = 1
+	PaymentMethod_PAYMENT_METHOD_SBP            PaymentMethod = 2
+	PaymentMethod_PAYMENT_METHOD_CREDIT_CARD    PaymentMethod = 3
+	PaymentMethod_PAYMENT_METHOD_INVESTOR_MONEY PaymentMethod = 4
 )
 
 // Enum value maps for PaymentMethod.
 var (
 	PaymentMethod_name = map[int32]string{
-		0: "UNSPECIFIED",
-		1: "CARD",
-		2: "SBP",
-		3: "CREDIT_CARD",
-		4: "INVESTOR_MONEY",
+		0: "PAYMENT_METHOD_UNSPECIFIED",
+		1: "PAYMENT_METHOD_CARD",
+		2: "PAYMENT_METHOD_SBP",
+		3: "PAYMENT_METHOD_CREDIT_CARD",
+		4: "PAYMENT_METHOD_INVESTOR_MONEY",
 	}
 	PaymentMethod_value = map[string]int32{
-		"UNSPECIFIED":    0,
-		"CARD":           1,
-		"SBP":            2,
-		"CREDIT_CARD":    3,
-		"INVESTOR_MONEY": 4,
+		"PAYMENT_METHOD_UNSPECIFIED":    0,
+		"PAYMENT_METHOD_CARD":           1,
+		"PAYMENT_METHOD_SBP":            2,
+		"PAYMENT_METHOD_CREDIT_CARD":    3,
+		"PAYMENT_METHOD_INVESTOR_MONEY": 4,
 	}
 )
 
@@ -129,13 +129,13 @@ func (x *PayOrderRequest) GetPaymentMethod() PaymentMethod {
 	if x != nil {
 		return x.PaymentMethod
 	}
-	return PaymentMethod_UNSPECIFIED
+	return PaymentMethod_PAYMENT_METHOD_UNSPECIFIED
 }
 
 // Ответ на оплату заказа
 type PayOrderResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID заказа
+	// UUID транзакции
 	TransactionUuid string `protobuf:"bytes,1,opt,name=transaction_uuid,json=transactionUuid,proto3" json:"transaction_uuid,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -189,13 +189,13 @@ const file_payment_v1_payment_proto_rawDesc = "" +
 	"order_uuid\x18\x01 \x01(\tR\torderUuid\x12@\n" +
 	"\x0epayment_method\x18\x02 \x01(\x0e2\x19.payment.v1.PaymentMethodR\rpaymentMethod\"=\n" +
 	"\x10PayOrderResponse\x12)\n" +
-	"\x10transaction_uuid\x18\x01 \x01(\tR\x0ftransactionUuid*X\n" +
-	"\rPaymentMethod\x12\x0f\n" +
-	"\vUNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04CARD\x10\x01\x12\a\n" +
-	"\x03SBP\x10\x02\x12\x0f\n" +
-	"\vCREDIT_CARD\x10\x03\x12\x12\n" +
-	"\x0eINVESTOR_MONEY\x10\x042W\n" +
+	"\x10transaction_uuid\x18\x01 \x01(\tR\x0ftransactionUuid*\xa3\x01\n" +
+	"\rPaymentMethod\x12\x1e\n" +
+	"\x1aPAYMENT_METHOD_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13PAYMENT_METHOD_CARD\x10\x01\x12\x16\n" +
+	"\x12PAYMENT_METHOD_SBP\x10\x02\x12\x1e\n" +
+	"\x1aPAYMENT_METHOD_CREDIT_CARD\x10\x03\x12!\n" +
+	"\x1dPAYMENT_METHOD_INVESTOR_MONEY\x10\x042W\n" +
 	"\x0ePaymentService\x12E\n" +
 	"\bPayOrder\x12\x1b.payment.v1.PayOrderRequest\x1a\x1c.payment.v1.PayOrderResponseBHZFgithub.com/vixart/rocket-factory/shared/pkg/proto/payment/v1;paymentv1b\x06proto3"
 

@@ -30,7 +30,7 @@ func (s *PaymentServer) PayOrder(
 		return nil, status.Errorf(codes.InvalidArgument, "неверный формат order_uuid: %s", req.GetOrderUuid())
 	}
 
-	if req.GetPaymentMethod() == paymentv1.PaymentMethod_UNSPECIFIED {
+	if req.GetPaymentMethod() == paymentv1.PaymentMethod_PAYMENT_METHOD_UNSPECIFIED {
 		return nil, status.Errorf(codes.InvalidArgument, "не задан способ оплаты")
 	}
 

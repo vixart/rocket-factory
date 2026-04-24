@@ -26,28 +26,28 @@ const (
 type PartType int32
 
 const (
-	PartType_UNSPECIFIED PartType = 0
-	PartType_HULL        PartType = 1
-	PartType_ENGINE      PartType = 2
-	PartType_SHIELD      PartType = 3
-	PartType_WEAPON      PartType = 4
+	PartType_PART_TYPE_UNSPECIFIED PartType = 0
+	PartType_PART_TYPE_HULL        PartType = 1
+	PartType_PART_TYPE_ENGINE      PartType = 2
+	PartType_PART_TYPE_SHIELD      PartType = 3
+	PartType_PART_TYPE_WEAPON      PartType = 4
 )
 
 // Enum value maps for PartType.
 var (
 	PartType_name = map[int32]string{
-		0: "UNSPECIFIED",
-		1: "HULL",
-		2: "ENGINE",
-		3: "SHIELD",
-		4: "WEAPON",
+		0: "PART_TYPE_UNSPECIFIED",
+		1: "PART_TYPE_HULL",
+		2: "PART_TYPE_ENGINE",
+		3: "PART_TYPE_SHIELD",
+		4: "PART_TYPE_WEAPON",
 	}
 	PartType_value = map[string]int32{
-		"UNSPECIFIED": 0,
-		"HULL":        1,
-		"ENGINE":      2,
-		"SHIELD":      3,
-		"WEAPON":      4,
+		"PART_TYPE_UNSPECIFIED": 0,
+		"PART_TYPE_HULL":        1,
+		"PART_TYPE_ENGINE":      2,
+		"PART_TYPE_SHIELD":      3,
+		"PART_TYPE_WEAPON":      4,
 	}
 )
 
@@ -161,7 +161,7 @@ func (x *Part) GetPartType() PartType {
 	if x != nil {
 		return x.PartType
 	}
-	return PartType_UNSPECIFIED
+	return PartType_PART_TYPE_UNSPECIFIED
 }
 
 func (x *Part) GetStockQuantity() int64 {
@@ -311,7 +311,7 @@ func (x *ListPartsRequest) GetPartType() PartType {
 	if x != nil {
 		return x.PartType
 	}
-	return PartType_UNSPECIFIED
+	return PartType_PART_TYPE_UNSPECIFIED
 }
 
 func (x *ListPartsRequest) GetUuids() []string {
@@ -388,16 +388,13 @@ const file_inventory_v1_inventory_proto_rawDesc = "" +
 	"\tpart_type\x18\x01 \x01(\x0e2\x16.inventory.v1.PartTypeR\bpartType\x12\x14\n" +
 	"\x05uuids\x18\x02 \x03(\tR\x05uuids\"=\n" +
 	"\x11ListPartsResponse\x12(\n" +
-	"\x05parts\x18\x01 \x03(\v2\x12.inventory.v1.PartR\x05parts*I\n" +
-	"\bPartType\x12\x0f\n" +
-	"\vUNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04HULL\x10\x01\x12\n" +
-	"\n" +
-	"\x06ENGINE\x10\x02\x12\n" +
-	"\n" +
-	"\x06SHIELD\x10\x03\x12\n" +
-	"\n" +
-	"\x06WEAPON\x10\x042\xa8\x01\n" +
+	"\x05parts\x18\x01 \x03(\v2\x12.inventory.v1.PartR\x05parts*{\n" +
+	"\bPartType\x12\x19\n" +
+	"\x15PART_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0ePART_TYPE_HULL\x10\x01\x12\x14\n" +
+	"\x10PART_TYPE_ENGINE\x10\x02\x12\x14\n" +
+	"\x10PART_TYPE_SHIELD\x10\x03\x12\x14\n" +
+	"\x10PART_TYPE_WEAPON\x10\x042\xa8\x01\n" +
 	"\x10InventoryService\x12F\n" +
 	"\aGetPart\x12\x1c.inventory.v1.GetPartRequest\x1a\x1d.inventory.v1.GetPartResponse\x12L\n" +
 	"\tListParts\x12\x1e.inventory.v1.ListPartsRequest\x1a\x1f.inventory.v1.ListPartsResponseBLZJgithub.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1;inventoryv1b\x06proto3"
