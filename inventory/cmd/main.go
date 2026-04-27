@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -30,7 +31,9 @@ const (
 )
 
 func main() {
-	lis, err := net.Listen("tcp", grpcAddress)
+	ctx := context.Background()
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", grpcAddress)
 	if err != nil {
 		slog.Error("не удалось создать listener", "error", err)
 		os.Exit(1)

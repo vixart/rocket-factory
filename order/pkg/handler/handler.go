@@ -71,12 +71,12 @@ func SetupServer(h *OrderHandler) (*orderv1.Server, error) {
 // GetOrder реализует операцию getOrder (пример реализации).
 // GET /api/v1/orders/{order_uuid}.
 func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams) (orderv1.GetOrderRes, error) {
-	// 1. Найти заказ в store (с блокировкой для thread-safety)
+	// 1. Найти заказ в store (с блокировкой для thread-safety).
 	h.store.mu.RLock()
 	order, ok := h.store.orders[params.OrderUUID]
 	h.store.mu.RUnlock()
 
-	// 2. Если не найден — вернуть 404
+	// 2. Если не найден — вернуть 404.
 	if !ok {
 		return &orderv1.GetOrderNotFound{
 			Code:    http.StatusNotFound,
@@ -84,7 +84,7 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 		}, nil
 	}
 
-	// 3. Преобразовать в DTO и вернуть
+	// 3. Преобразовать в DTO и вернуть.
 	var shieldUUID orderv1.OptNilUUID
 	if order.ShieldUUID != nil {
 		shieldUUID = orderv1.NewOptNilUUID(*order.ShieldUUID)
@@ -119,19 +119,9 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 	}, nil
 }
 
-// TODO: Реализовать остальные методы интерфейса orderv1.Handler:
-//
-// CreateOrder реализует операцию createOrder
-// POST /api/v1/orders
+// CreateOrder реализует операцию createOrder.
+// POST /api/v1/orders.
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
-	// 1. Валидация: hull_uuid и engine_uuid обязательны
-	// 2. Получить детали через InventoryService.GetPart
-	// 3. Проверить stock_quantity > 0
-	// 4. Вычислить total_price
-	// 5. Сгенерировать order_uuid (UUID v4)
-	// 6. Создать заказ со статусом PENDING_PAYMENT
-	// 7. Сохранить в store
-	// 8. Вернуть order_uuid и total_price
 	enginePart, err := h.getPart(ctx, req.GetEngineUUID().String())
 	if err != nil {
 		return mapCreateOrderError(err), nil
@@ -212,7 +202,7 @@ func mapCreateOrderError(err error) orderv1.CreateOrderRes {
 	if !ok {
 		return &orderv1.CreateOrderInternalServerError{
 			Code:    http.StatusInternalServerError,
-			Message: "internal error",
+			Message: "непоправимая ошибка",
 		}
 	}
 
@@ -248,12 +238,11 @@ func mapPayOrderError(err error) orderv1.PayOrderRes {
 	if !ok {
 		return &orderv1.PayOrderInternalServerError{
 			Code:    http.StatusInternalServerError,
-			Message: "internal error",
+			Message: "непоправимая ошибка",
 		}
 	}
 
 	switch st.Code() {
-
 	case codes.InvalidArgument:
 		return &orderv1.PayOrderBadRequest{
 			Code:    http.StatusBadRequest,
@@ -267,10 +256,10 @@ func mapPayOrderError(err error) orderv1.PayOrderRes {
 	}
 }
 
-// PayOrder реализует операцию payOrder
-// POST /api/v1/orders/{order_uuid}/pay
+// PayOrder реализует операцию payOrder.
+// POST /api/v1/orders/{order_uuid}/pay.
 func (h *OrderHandler) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, params orderv1.PayOrderParams) (orderv1.PayOrderRes, error) {
-	// 1. Найти заказ в store (с блокировкой для thread-safety)
+	// 1. Найти заказ в store (с блокировкой для thread-safety).
 	h.store.mu.RLock()
 	order, ok := h.store.orders[params.OrderUUID]
 	h.store.mu.RUnlock()
@@ -327,8 +316,8 @@ func mapPaymentMethod(m orderv1.PaymentMethod) paymentv1.PaymentMethod {
 	}
 }
 
-// CancelOrder реализует операцию cancelOrder
-// POST /api/v1/orders/{order_uuid}/cancel
+// CancelOrder реализует операцию cancelOrder.
+// POST /api/v1/orders/{order_uuid}/cancel.
 func (h *OrderHandler) CancelOrder(ctx context.Context, params orderv1.CancelOrderParams) (orderv1.CancelOrderRes, error) {
 	h.store.mu.RLock()
 	order, ok := h.store.orders[params.OrderUUID]
