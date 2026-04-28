@@ -181,7 +181,9 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrder
 }
 
 func (h *OrderHandler) getPart(ctx context.Context, id string) (*inventoryv1.Part, error) {
-	resp, err := h.inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := h.inventoryClient.GetPart(ctxWithTimeout, &inventoryv1.GetPartRequest{
 		Uuid: id,
 	})
 	if err != nil {
@@ -283,7 +285,9 @@ func (h *OrderHandler) PayOrder(ctx context.Context, req *orderv1.PayOrderReques
 		PaymentMethod: mapPaymentMethod(req.PaymentMethod),
 	}
 
-	payOrderRes, err := h.paymentClient.PayOrder(ctx, &payOrderReq)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	payOrderRes, err := h.paymentClient.PayOrder(ctxWithTimeout, &payOrderReq)
 	if err != nil {
 		return mapPayOrderError(err), nil
 	}
