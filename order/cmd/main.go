@@ -49,6 +49,11 @@ func main() {
 		slog.Error("не удалось подключиться к InventoryService", "error", err)
 		os.Exit(1)
 	}
+	defer func() {
+		if cerr := inventoryConn.Close(); cerr != nil {
+			slog.Error("ошибка закрытия соединения к InventoryService", "error", cerr)
+		}
+	}()
 
 	// gRPC соединение с PaymentService
 	paymentConn, err := grpc.NewClient(
@@ -66,6 +71,11 @@ func main() {
 		slog.Error("не удалось подключиться к PaymentService", "error", err)
 		os.Exit(1)
 	}
+	defer func() {
+		if cerr := paymentConn.Close(); cerr != nil {
+			slog.Error("ошибка закрытия соединения к PaymentService", "error", cerr)
+		}
+	}()
 
 	// Создаём хранилище и обработчик
 	store := orderHandler.NewOrderStore()
@@ -94,15 +104,6 @@ func main() {
 	}
 
 	slog.Info("запуск OrderService", "port", httpPort)
-
-	defer func() {
-		if cerr := inventoryConn.Close(); cerr != nil {
-			slog.Error("ошибка закрытия соединения к PaymentService", "error", cerr)
-		}
-		if cerr := inventoryConn.Close(); cerr != nil {
-			slog.Error("ошибка закрытия соединения к InventoryService", "error", cerr)
-		}
-	}()
 
 	// Запускаем сервер в отдельной горутине
 	go func() {

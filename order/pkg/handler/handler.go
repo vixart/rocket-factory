@@ -122,29 +122,65 @@ func (h *OrderHandler) GetOrder(_ context.Context, params orderv1.GetOrderParams
 // CreateOrder реализует операцию createOrder.
 // POST /api/v1/orders.
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (orderv1.CreateOrderRes, error) {
-	enginePart, err := h.getPart(ctx, req.GetEngineUUID().String())
-	if err != nil {
-		return mapCreateOrderError(err), nil
-	}
+	engineUUID := req.GetEngineUUID().String()
+	hullUUID := req.GetHullUUID().String()
 
-	hullPart, err := h.getPart(ctx, req.GetHullUUID().String())
-	if err != nil {
-		return mapCreateOrderError(err), nil
-	}
+	uuids := []string{engineUUID, hullUUID}
 
-	var shieldPart, weaponPart *inventoryv1.Part
+	var shieldUUID, weaponUUID string
 
 	if v, ok := req.GetShieldUUID().Get(); ok {
-		shieldPart, err = h.getPart(ctx, v.String())
-		if err != nil {
-			return mapCreateOrderError(err), nil
-		}
+		shieldUUID = v.String()
+		uuids = append(uuids, shieldUUID)
 	}
 
 	if v, ok := req.GetWeaponUUID().Get(); ok {
-		weaponPart, err = h.getPart(ctx, v.String())
-		if err != nil {
-			return mapCreateOrderError(err), nil
+		weaponUUID = v.String()
+		uuids = append(uuids, weaponUUID)
+	}
+
+	parts, err := h.listParts(ctx, uuids)
+	if err != nil {
+		return mapCreateOrderError(err), nil
+	}
+
+	partsByUUID := make(map[string]*inventoryv1.Part, len(parts))
+	for _, p := range parts {
+		partsByUUID[p.GetUuid()] = p
+	}
+
+	notFound := func(msg string) orderv1.CreateOrderRes {
+		return &orderv1.CreateOrderBadRequest{
+			Message: msg,
+			Code:    http.StatusNotFound,
+		}
+	}
+
+	// обязательные части
+	enginePart, ok := partsByUUID[engineUUID]
+	if !ok {
+		return notFound("не удалось найти двигатель"), nil
+	}
+
+	hullPart, ok := partsByUUID[hullUUID]
+	if !ok {
+		return notFound("не удалось найти корпус"), nil
+	}
+
+	// опциональные
+	var shieldPart, weaponPart *inventoryv1.Part
+
+	if shieldUUID != "" {
+		shieldPart, ok = partsByUUID[shieldUUID]
+		if !ok {
+			return notFound("не удалось найти щит"), nil
+		}
+	}
+
+	if weaponUUID != "" {
+		weaponPart, ok = partsByUUID[weaponUUID]
+		if !ok {
+			return notFound("не удалось найти оружие"), nil
 		}
 	}
 
@@ -172,6 +208,9 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrder
 		order.WeaponUUID = new(uuid.MustParse(weaponPart.GetUuid()))
 	}
 
+	h.store.mu.Lock()
+	defer h.store.mu.Unlock()
+
 	h.store.orders[orderUUID] = order
 
 	return &orderv1.CreateOrderResponse{
@@ -180,23 +219,33 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderv1.CreateOrder
 	}, nil
 }
 
-func (h *OrderHandler) getPart(ctx context.Context, id string) (*inventoryv1.Part, error) {
+func (h *OrderHandler) listParts(ctx context.Context, uuids []string) (map[string]*inventoryv1.Part, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	resp, err := h.inventoryClient.GetPart(ctxWithTimeout, &inventoryv1.GetPartRequest{
-		Uuid: id,
+
+	resp, err := h.inventoryClient.ListParts(ctxWithTimeout, &inventoryv1.ListPartsRequest{
+		Uuids: uuids,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	part := resp.GetPart()
+	parts := resp.GetParts()
 
-	if part.GetStockQuantity() <= 0 {
-		return nil, status.Errorf(codes.FailedPrecondition, "детали нет на складе: %s - %s", part.Name, id)
+	result := make(map[string]*inventoryv1.Part, len(parts))
+	for _, p := range parts {
+		if p.GetStockQuantity() <= 0 {
+			return nil, status.Errorf(
+				codes.FailedPrecondition,
+				"детали нет на складе: %s - %s",
+				p.GetName(),
+				p.GetUuid(),
+			)
+		}
+		result[p.GetUuid()] = p
 	}
 
-	return part, nil
+	return result, nil
 }
 
 func mapCreateOrderError(err error) orderv1.CreateOrderRes {
