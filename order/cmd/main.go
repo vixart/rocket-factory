@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -33,6 +34,13 @@ const (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("сервис не запустился", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// gRPC соединение с InventoryService
 	inventoryConn, err := grpc.NewClient(
 		inventoryServiceAddress,
@@ -46,8 +54,7 @@ func main() {
 		),
 	)
 	if err != nil {
-		slog.Error("не удалось подключиться к InventoryService", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("не удалось подключиться к InventoryService: %w", err)
 	}
 	defer func() {
 		if cerr := inventoryConn.Close(); cerr != nil {
@@ -68,8 +75,7 @@ func main() {
 		),
 	)
 	if err != nil {
-		slog.Error("не удалось подключиться к PaymentService", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("не удалось подключиться к PaymentService: %w", err)
 	}
 	defer func() {
 		if cerr := paymentConn.Close(); cerr != nil {
@@ -88,46 +94,52 @@ func main() {
 	// OpenAPI сервер
 	orderServer, err := orderHandler.SetupServer(h)
 	if err != nil {
-		slog.Error("ошибка создания сервера OpenAPI", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("ошибка создания сервера OpenAPI: %w", err)
 	}
 
-	// Запускаем HTTP-сервер с тайм-аутами для защиты от атак.
-	// Подробное описание всех параметров: см. week_1/HTTP_SERVER.md
+	// HTTP сервер
 	server := &http.Server{
 		Addr:              net.JoinHostPort("localhost", httpPort),
 		Handler:           orderServer,
-		ReadHeaderTimeout: readHeaderTimeout, // Защита от Slowloris атаки
-		ReadTimeout:       readTimeout,       // Лимит на чтение всего запроса
-		WriteTimeout:      writeTimeout,      // Лимит на запись ответа
-		IdleTimeout:       idleTimeout,       // Таймаут keep-alive соединений
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	slog.Info("запуск OrderService", "port", httpPort)
 
-	// Запускаем сервер в отдельной горутине
+	// канал ошибок сервера
+	serverErr := make(chan error, 1)
+
 	go func() {
-		slog.Info("🚀 HTTP-сервер запущен на порту", "port", httpPort)
-		if serveErr := server.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			slog.Error("❌ ошибка запуска сервера", "error", serveErr)
-			os.Exit(1)
+		slog.Info("🚀 HTTP-сервер запущен", "port", httpPort)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
 		}
 	}()
 
-	// Graceful shutdown
+	// graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+
+	select {
+	case sig := <-quit:
+		slog.Info("🛑 получен сигнал", "signal", sig)
+	case err := <-serverErr:
+		return fmt.Errorf("ошибка HTTP сервера: %w", err)
+	}
 
 	slog.Info("🛑 завершение работы сервера...")
 
-	// Создаем контекст с тайм-аутом для остановки сервера
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
-		slog.Error("❌ ошибка при остановке сервера", "error", shutdownErr)
+	if err := server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("ошибка при остановке сервера: %w", err)
 	}
 
 	slog.Info("✅ сервер остановлен")
+
+	return nil
 }
