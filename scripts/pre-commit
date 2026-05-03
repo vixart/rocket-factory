@@ -3,6 +3,8 @@
 # Git pre-commit hook
 # Копировать в .git/hooks/pre-commit
 
+export PATH="$HOME/.local/bin:$PATH"
+
 set -e
 
 echo "🧼 Форматирование кода..."
