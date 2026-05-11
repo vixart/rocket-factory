@@ -13,7 +13,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
-	svc "github.com/vixart/rocket-factory/payment/pkg/service"
+	paymentApiV1 "github.com/vixart/rocket-factory/payment/internal/api/payment/v1"
+	"github.com/vixart/rocket-factory/payment/internal/service/payment"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
@@ -52,7 +53,10 @@ func main() {
 			PermitWithoutStream: true, // Разрешить "тёплые" соединения без активных RPC
 		}),
 	)
-	paymentv1.RegisterPaymentServiceServer(grpcServer, &svc.PaymentServer{})
+
+	service := payment.NewService()
+	api := paymentApiV1.NewApi(service)
+	paymentv1.RegisterPaymentServiceServer(grpcServer, api)
 
 	// Включаем reflection для postman/grpcurl
 	reflection.Register(grpcServer)

@@ -17,7 +17,7 @@ type Part struct {
 	UUID          string
 	Name          string
 	Description   string
-	Price         int64 // в копейках
+	Price         int64 // В копейках
 	PartType      inventoryv1.PartType
 	StockQuantity int64
 	CreatedAt     *timestamppb.Timestamp

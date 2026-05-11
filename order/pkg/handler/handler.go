@@ -16,7 +16,7 @@ import (
 )
 
 // Order представляет заказ на постройку космического корабля.
-type Order struct {
+type Order struct { // это модель
 	OrderUUID       uuid.UUID
 	HullUUID        uuid.UUID
 	EngineUUID      uuid.UUID
@@ -30,13 +30,13 @@ type Order struct {
 }
 
 // OrderStore — хранилище заказов (in-memory).
-type OrderStore struct {
+type OrderStore struct { // это репо
 	mu     sync.RWMutex
 	orders map[uuid.UUID]Order
 }
 
 // NewOrderStore создаёт новое пустое хранилище заказов.
-func NewOrderStore() *OrderStore {
+func NewOrderStore() *OrderStore { // это репо
 	return &OrderStore{
 		orders: make(map[uuid.UUID]Order),
 	}
@@ -44,14 +44,14 @@ func NewOrderStore() *OrderStore {
 
 // OrderHandler реализует интерфейс orderv1.Handler, сгенерированный ogen.
 type OrderHandler struct {
-	orderv1.UnimplementedHandler
-	inventoryClient inventoryv1.InventoryServiceClient
-	paymentClient   paymentv1.PaymentServiceClient
-	store           *OrderStore
+	orderv1.UnimplementedHandler // это апи а все остальное в сервис
+	inventoryClient              inventoryv1.InventoryServiceClient
+	paymentClient                paymentv1.PaymentServiceClient
+	store                        *OrderStore
 }
 
 // NewOrderHandler создаёт новый обработчик заказов.
-func NewOrderHandler(
+func NewOrderHandler( // это в апи
 	inventoryClient inventoryv1.InventoryServiceClient,
 	paymentClient paymentv1.PaymentServiceClient,
 	store *OrderStore,
@@ -64,7 +64,7 @@ func NewOrderHandler(
 }
 
 // SetupServer создаёт OpenAPI сервер на основе обработчика.
-func SetupServer(h *OrderHandler) (*orderv1.Server, error) {
+func SetupServer(h *OrderHandler) (*orderv1.Server, error) { // это в мэйн
 	return orderv1.NewServer(h)
 }
 

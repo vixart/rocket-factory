@@ -16,7 +16,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	orderHandler "github.com/vixart/rocket-factory/order/pkg/handler"
+	OrderApiV1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
+	inventoryClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/inventory/v1"
+	paymentClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/payment/v1"
+	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
+	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
+	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
@@ -83,16 +88,14 @@ func run() error {
 		}
 	}()
 
-	// Создаём хранилище и обработчик
-	store := orderHandler.NewOrderStore()
-	h := orderHandler.NewOrderHandler(
-		inventoryv1.NewInventoryServiceClient(inventoryConn),
-		paymentv1.NewPaymentServiceClient(paymentConn),
-		store,
-	)
+	inventoryClient := inventoryClientV1.NewClient(inventoryv1.NewInventoryServiceClient(inventoryConn))
+	paymentClient := paymentClientV1.NewClient(paymentv1.NewPaymentServiceClient(paymentConn))
+	orderRepo := orderRepository.NewRepository()
+	service := orderService.NewService(orderRepo, inventoryClient, paymentClient)
+	api := OrderApiV1.NewApi(service)
 
 	// OpenAPI сервер
-	orderServer, err := orderHandler.SetupServer(h)
+	orderServer, err := orderv1.NewServer(api)
 	if err != nil {
 		return fmt.Errorf("ошибка создания сервера OpenAPI: %w", err)
 	}
