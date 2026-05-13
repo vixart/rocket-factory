@@ -19,7 +19,7 @@ func (s *service) Pay(ctx context.Context, orderUuid uuid.UUID, paymentMethod mo
 		return nil, err
 	}
 
-	if order.Status == model.OrderStatusCanceled {
+	if order.Status != model.OrderStatusPendingPayment {
 		return nil, errs.ErrInvalidOrderStatus
 	}
 

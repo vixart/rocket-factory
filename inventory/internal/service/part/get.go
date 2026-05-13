@@ -12,7 +12,7 @@ import (
 func (s *service) Get(ctx context.Context, uuid uuid.UUID) (model.Part, error) {
 	part, err := s.partRepo.Get(ctx, uuid)
 	if err != nil {
-		return model.Part{}, fmt.Errorf("не удалось получить деталь в сервисе: %w", err)
+		return model.Part{}, fmt.Errorf("не удалось получить деталь: %w", err)
 	}
 
 	return part, nil

@@ -10,5 +10,5 @@ import (
 
 type Repository interface {
 	Get(ctx context.Context, uuid uuid.UUID) (model.Part, error)
-	List(_ context.Context, uuids []uuid.UUID, partType model.PartType) ([]model.Part, error)
+	List(_ context.Context, partFilter model.PartFilter) ([]model.Part, error)
 }

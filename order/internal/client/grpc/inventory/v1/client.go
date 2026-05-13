@@ -25,7 +25,7 @@ func NewClient(grpcClient inventoryv1.InventoryServiceClient) *client {
 	}
 }
 
-func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]*model.Part, error) {
+func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]model.Part, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -39,7 +39,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUI
 
 	parts := resp.GetParts()
 
-	result := make(map[uuid.UUID]*model.Part, len(parts))
+	result := make(map[uuid.UUID]model.Part, len(parts))
 
 	for _, part := range parts {
 		parsedUuid, err := uuid.Parse(part.GetUuid())
@@ -47,7 +47,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUI
 			return nil, mapErrors(err)
 		}
 
-		result[parsedUuid] = new(converter.PartFromProto(part, parsedUuid))
+		result[parsedUuid] = converter.PartFromProto(part, parsedUuid)
 	}
 
 	return result, nil

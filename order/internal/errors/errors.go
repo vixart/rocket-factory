@@ -9,7 +9,7 @@ var (
 	ErrInvalidPaymentMethod  = errors.New("указан недопустимый метод оплаты")
 	ErrInvalidOrderStatus    = errors.New("заказ имеет недопустимый статус")
 	ErrOrderAlreadyExists    = errors.New("заказ с таким uuid уже существует")
-	ErrOrderNotFound         = errors.New("заказ найден")
+	ErrOrderNotFound         = errors.New("заказ не найден")
 	ErrPartInsufficientStock = errors.New("детали нет на складе")
 	ErrPartNotFound          = errors.New("деталь не найдена")
 	ErrInternalError         = errors.New("внутренняя ошибка")

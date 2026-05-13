@@ -28,7 +28,7 @@ func (a *api) ListParts(
 	}
 
 	parts, err := a.inventoryService.List(ctx, parsedUuids, converter.PartTypeProtoToModel(req.GetPartType()))
-	if errors.Is(errs.ErrPartNotFound, err) {
+	if errors.Is(err, errs.ErrPartNotFound) {
 		return nil, status.Errorf(codes.NotFound, "%s", err.Error())
 	} else if err != nil {
 		return nil, status.Errorf(codes.Internal, "что-то пошло не так: %s", err)

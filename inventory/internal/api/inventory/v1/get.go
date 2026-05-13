@@ -24,7 +24,7 @@ func (a *api) GetPart(ctx context.Context, req *inventoryv1.GetPartRequest) (*in
 	}
 
 	p, err := a.inventoryService.Get(ctx, parsedUuid)
-	if errors.Is(errs.ErrPartNotFound, err) {
+	if errors.Is(err, errs.ErrPartNotFound) {
 		return nil, status.Errorf(codes.NotFound, "деталь не найдена по uuid: %s", parsedUuid)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Internal, "что-то пошло не так: %s", err)

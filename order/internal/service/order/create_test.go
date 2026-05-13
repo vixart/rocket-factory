@@ -21,19 +21,19 @@ func (s *ServiceSuite) TestCreateSuccessRequiredPartsOnly() {
 			EngineUUID: engineUUID,
 		}
 
-		hullPart = &model.Part{
+		hullPart = model.Part{
 			UUID:          hullUUID,
 			Price:         100000,
 			StockQuantity: 5,
 		}
 
-		enginePart = &model.Part{
+		enginePart = model.Part{
 			UUID:          engineUUID,
 			Price:         50000,
 			StockQuantity: 3,
 		}
 
-		parts = map[uuid.UUID]*model.Part{
+		parts = map[uuid.UUID]model.Part{
 			hullUUID:   hullPart,
 			engineUUID: enginePart,
 		}
@@ -74,31 +74,31 @@ func (s *ServiceSuite) TestCreateSuccessAllParts() {
 			WeaponUUID: &weaponUUID,
 		}
 
-		hullPart = &model.Part{
+		hullPart = model.Part{
 			UUID:          hullUUID,
 			Price:         100000,
 			StockQuantity: 5,
 		}
 
-		enginePart = &model.Part{
+		enginePart = model.Part{
 			UUID:          engineUUID,
 			Price:         50000,
 			StockQuantity: 3,
 		}
 
-		shieldPart = &model.Part{
+		shieldPart = model.Part{
 			UUID:          shieldUUID,
 			Price:         25000,
 			StockQuantity: 2,
 		}
 
-		weaponPart = &model.Part{
+		weaponPart = model.Part{
 			UUID:          weaponUUID,
 			Price:         30000,
 			StockQuantity: 1,
 		}
 
-		parts = map[uuid.UUID]*model.Part{
+		parts = map[uuid.UUID]model.Part{
 			hullUUID:   hullPart,
 			engineUUID: enginePart,
 			shieldUUID: shieldPart,
@@ -169,19 +169,19 @@ func (s *ServiceSuite) TestCreatePartOutOfStock() {
 			EngineUUID: engineUUID,
 		}
 
-		hullPart = &model.Part{
+		hullPart = model.Part{
 			UUID:          hullUUID,
 			Price:         100000,
 			StockQuantity: 0,
 		}
 
-		enginePart = &model.Part{
+		enginePart = model.Part{
 			UUID:          engineUUID,
 			Price:         50000,
 			StockQuantity: 5,
 		}
 
-		parts = map[uuid.UUID]*model.Part{
+		parts = map[uuid.UUID]model.Part{
 			hullUUID:   hullPart,
 			engineUUID: enginePart,
 		}
@@ -209,13 +209,13 @@ func (s *ServiceSuite) TestCreateEnginePartNotFound() {
 			EngineUUID: engineUUID,
 		}
 
-		hullPart = &model.Part{
+		hullPart = model.Part{
 			UUID:          hullUUID,
 			Price:         100000,
 			StockQuantity: 5,
 		}
 
-		parts = map[uuid.UUID]*model.Part{
+		parts = map[uuid.UUID]model.Part{
 			hullUUID: hullPart,
 		}
 	)
@@ -244,19 +244,19 @@ func (s *ServiceSuite) TestCreateRepositoryError() {
 			EngineUUID: engineUUID,
 		}
 
-		hullPart = &model.Part{
+		hullPart = model.Part{
 			UUID:          hullUUID,
 			Price:         100000,
 			StockQuantity: 5,
 		}
 
-		enginePart = &model.Part{
+		enginePart = model.Part{
 			UUID:          engineUUID,
 			Price:         50000,
 			StockQuantity: 3,
 		}
 
-		parts = map[uuid.UUID]*model.Part{
+		parts = map[uuid.UUID]model.Part{
 			hullUUID:   hullPart,
 			engineUUID: enginePart,
 		}

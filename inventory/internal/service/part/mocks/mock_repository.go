@@ -109,8 +109,8 @@ func (_c *Repository_Get_Call) RunAndReturn(run func(ctx context.Context, uuid1 
 }
 
 // List provides a mock function for the type Repository
-func (_mock *Repository) List(context1 context.Context, uuids []uuid.UUID, partType model.PartType) ([]model.Part, error) {
-	ret := _mock.Called(context1, uuids, partType)
+func (_mock *Repository) List(context1 context.Context, partFilter model.PartFilter) ([]model.Part, error) {
+	ret := _mock.Called(context1, partFilter)
 
 	if len(ret) == 0 {
 		panic("no return value specified for List")
@@ -118,18 +118,18 @@ func (_mock *Repository) List(context1 context.Context, uuids []uuid.UUID, partT
 
 	var r0 []model.Part
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID, model.PartType) ([]model.Part, error)); ok {
-		return returnFunc(context1, uuids, partType)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.PartFilter) ([]model.Part, error)); ok {
+		return returnFunc(context1, partFilter)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID, model.PartType) []model.Part); ok {
-		r0 = returnFunc(context1, uuids, partType)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.PartFilter) []model.Part); ok {
+		r0 = returnFunc(context1, partFilter)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.Part)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID, model.PartType) error); ok {
-		r1 = returnFunc(context1, uuids, partType)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, model.PartFilter) error); ok {
+		r1 = returnFunc(context1, partFilter)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -143,30 +143,24 @@ type Repository_List_Call struct {
 
 // List is a helper method to define mock.On call
 //   - context1 context.Context
-//   - uuids []uuid.UUID
-//   - partType model.PartType
-func (_e *Repository_Expecter) List(context1 interface{}, uuids interface{}, partType interface{}) *Repository_List_Call {
-	return &Repository_List_Call{Call: _e.mock.On("List", context1, uuids, partType)}
+//   - partFilter model.PartFilter
+func (_e *Repository_Expecter) List(context1 interface{}, partFilter interface{}) *Repository_List_Call {
+	return &Repository_List_Call{Call: _e.mock.On("List", context1, partFilter)}
 }
 
-func (_c *Repository_List_Call) Run(run func(context1 context.Context, uuids []uuid.UUID, partType model.PartType)) *Repository_List_Call {
+func (_c *Repository_List_Call) Run(run func(context1 context.Context, partFilter model.PartFilter)) *Repository_List_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []uuid.UUID
+		var arg1 model.PartFilter
 		if args[1] != nil {
-			arg1 = args[1].([]uuid.UUID)
-		}
-		var arg2 model.PartType
-		if args[2] != nil {
-			arg2 = args[2].(model.PartType)
+			arg1 = args[1].(model.PartFilter)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -177,7 +171,7 @@ func (_c *Repository_List_Call) Return(parts []model.Part, err error) *Repositor
 	return _c
 }
 
-func (_c *Repository_List_Call) RunAndReturn(run func(context1 context.Context, uuids []uuid.UUID, partType model.PartType) ([]model.Part, error)) *Repository_List_Call {
+func (_c *Repository_List_Call) RunAndReturn(run func(context1 context.Context, partFilter model.PartFilter) ([]model.Part, error)) *Repository_List_Call {
 	_c.Call.Return(run)
 	return _c
 }

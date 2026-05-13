@@ -45,7 +45,13 @@ func (s *ServiceSuite) TestListSuccess() {
 
 	s.partRepo.
 		EXPECT().
-		List(s.ctx, uuids, partType).
+		List(
+			s.ctx,
+			model.PartFilter{
+				Uuids:    uuids,
+				PartType: partType,
+			},
+		).
 		Return(expectedParts, nil)
 
 	res, err := s.service.List(s.ctx, uuids, partType)
@@ -67,7 +73,13 @@ func (s *ServiceSuite) TestListRepositoryError() {
 
 	s.partRepo.
 		EXPECT().
-		List(s.ctx, uuids, partType).
+		List(
+			s.ctx,
+			model.PartFilter{
+				Uuids:    uuids,
+				PartType: partType,
+			},
+		).
 		Return(nil, repoErr)
 
 	res, err := s.service.List(s.ctx, uuids, partType)
@@ -77,7 +89,7 @@ func (s *ServiceSuite) TestListRepositoryError() {
 
 	s.Require().ErrorContains(
 		err,
-		"не удалось получить детали в сервисе",
+		"не удалось получить детали",
 	)
 
 	s.Require().ErrorIs(err, repoErr)

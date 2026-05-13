@@ -10,9 +10,14 @@ import (
 )
 
 func (s *service) List(ctx context.Context, uuids []uuid.UUID, partType model.PartType) ([]model.Part, error) {
-	parts, err := s.partRepo.List(ctx, uuids, partType)
+	partFilter := model.PartFilter{
+		Uuids:    uuids,
+		PartType: partType,
+	}
+
+	parts, err := s.partRepo.List(ctx, partFilter)
 	if err != nil {
-		return []model.Part{}, fmt.Errorf("не удалось получить детали в сервисе: %w", err)
+		return []model.Part{}, fmt.Errorf("не удалось получить детали: %w", err)
 	}
 
 	return parts, nil

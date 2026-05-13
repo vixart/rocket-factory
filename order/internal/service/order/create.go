@@ -29,6 +29,10 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 		return nil, fmt.Errorf("при создании заказа не удалось получить детали: %w", err)
 	}
 
+	if len(parts) != len(partsUuids) {
+		return nil, errs.ErrPartNotFound
+	}
+
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
 			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrPartInsufficientStock)
@@ -36,31 +40,20 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 	}
 
 	// обязательные части
-	enginePart, ok := parts[orderParts.EngineUUID]
-	if !ok {
-		return nil, fmt.Errorf("деталь с uuid: %s не найдена | %w", orderParts.EngineUUID, errs.ErrPartNotFound)
-	}
-
-	hullPart, ok := parts[orderParts.HullUUID]
-	if !ok {
-		return nil, fmt.Errorf("деталь с uuid: %s не найдена | %w", orderParts.HullUUID, errs.ErrPartNotFound)
-	}
+	enginePart := parts[orderParts.EngineUUID]
+	hullPart := parts[orderParts.HullUUID]
 
 	// опциональные
 	var shieldPart, weaponPart *model.Part
 
 	if orderParts.ShieldUUID != nil {
-		shieldPart, ok = parts[*orderParts.ShieldUUID]
-		if !ok {
-			return nil, fmt.Errorf("деталь с uuid: %s не найдена | %w", orderParts.ShieldUUID, errs.ErrPartNotFound)
-		}
+		part := parts[*orderParts.ShieldUUID]
+		shieldPart = &part
 	}
 
 	if orderParts.WeaponUUID != nil {
-		weaponPart, ok = parts[*orderParts.WeaponUUID]
-		if !ok {
-			return nil, fmt.Errorf("деталь с uuid: %s не найдена | %w", orderParts.WeaponUUID, errs.ErrPartNotFound)
-		}
+		part := parts[*orderParts.WeaponUUID]
+		weaponPart = &part
 	}
 
 	totalPrice := enginePart.Price + hullPart.Price
@@ -87,9 +80,7 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 		order.WeaponUUID = new(weaponPart.UUID)
 	}
 
-	ctxWithTimeout, cancel = context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	err = s.orderRepository.Create(ctxWithTimeout, order)
+	err = s.orderRepository.Create(ctx, order)
 	if err != nil {
 		return nil, err
 	}

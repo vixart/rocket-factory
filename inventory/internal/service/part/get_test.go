@@ -54,7 +54,7 @@ func (s *ServiceSuite) TestGetRepositoryError() {
 
 	s.Require().ErrorContains(
 		err,
-		"не удалось получить деталь в сервисе",
+		"не удалось получить деталь",
 	)
 
 	s.Require().ErrorIs(err, repoErr)
