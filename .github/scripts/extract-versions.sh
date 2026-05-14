@@ -4,7 +4,7 @@
 # Использование: .github/scripts/extract-versions.sh
 
 # Путь к Taskfile.yml
-TASKFILE="../../Taskfile.yaml"
+TASKFILE="Taskfile.yaml"
 
 # Проверка наличия файла
 if [ ! -f "$TASKFILE" ]; then
