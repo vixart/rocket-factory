@@ -47,13 +47,11 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 	var shieldPart, weaponPart *model.Part
 
 	if orderParts.ShieldUUID != nil {
-		part := parts[*orderParts.ShieldUUID]
-		shieldPart = &part
+		shieldPart = new(parts[*orderParts.ShieldUUID])
 	}
 
 	if orderParts.WeaponUUID != nil {
-		part := parts[*orderParts.WeaponUUID]
-		weaponPart = &part
+		weaponPart = new(parts[*orderParts.WeaponUUID])
 	}
 
 	totalPrice := enginePart.Price + hullPart.Price

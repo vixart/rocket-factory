@@ -1,116 +1,140 @@
 package v1
 
 import (
+	"context"
 	"errors"
-	"net/http"
+	"testing"
 
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
-func (s *APISuite) TestCancelOrderSuccess() {
+func TestCancelOrder(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		params orderv1.CancelOrderParams
+	}
+
+	type expected struct {
+		resType any
+	}
+
 	var (
+		ctx = context.Background()
+
 		orderUUID = uuid.New()
 
-		params = orderv1.CancelOrderParams{
-			OrderUUID: orderUUID,
-		}
+		internalErr = errors.New("internal error")
 	)
 
-	s.orderService.
-		EXPECT().
-		Cancel(s.ctx, orderUUID).
-		Return(nil)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(service *mocks.OrderService)
+		expected  expected
+	}{
+		{
+			name: "успешная отмена заказа",
+			args: args{
+				params: orderv1.CancelOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Cancel(ctx, orderUUID).
+					Return(nil)
+			},
+			expected: expected{
+				resType: &orderv1.CancelOrderResponse{},
+			},
+		},
+		{
+			name: "заказ не найден",
+			args: args{
+				params: orderv1.CancelOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Cancel(ctx, orderUUID).
+					Return(errs.ErrOrderNotFound)
+			},
+			expected: expected{
+				resType: &orderv1.CancelOrderNotFound{},
+			},
+		},
+		{
+			name: "неверный статус заказа",
+			args: args{
+				params: orderv1.CancelOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Cancel(ctx, orderUUID).
+					Return(errs.ErrInvalidOrderStatus)
+			},
+			expected: expected{
+				resType: &orderv1.CancelOrderConflict{},
+			},
+		},
+		{
+			name: "внутренняя ошибка",
+			args: args{
+				params: orderv1.CancelOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Cancel(ctx, orderUUID).
+					Return(internalErr)
+			},
+			expected: expected{
+				resType: &orderv1.CancelOrderInternalServerError{},
+			},
+		},
+	}
 
-	res, err := s.api.CancelOrder(s.ctx, params)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
+			orderService := mocks.NewOrderService(t)
 
-	response, ok := res.(*orderv1.CancelOrderResponse)
+			tc.setupMock(orderService)
 
-	s.Require().True(ok)
-	s.Require().NotNil(response)
-}
+			api := NewApi(orderService)
 
-func (s *APISuite) TestCancelOrderNotFound() {
-	var (
-		orderUUID = uuid.New()
+			res, err := api.CancelOrder(ctx, tc.args.params)
 
-		params = orderv1.CancelOrderParams{
-			OrderUUID: orderUUID,
-		}
-	)
+			require.NoError(t, err)
+			require.NotNil(t, res)
 
-	s.orderService.
-		EXPECT().
-		Cancel(s.ctx, orderUUID).
-		Return(errs.ErrOrderNotFound)
+			assert.IsType(t, tc.expected.resType, res)
 
-	res, err := s.api.CancelOrder(s.ctx, params)
+			switch response := res.(type) {
+			case *orderv1.CancelOrderResponse:
+				assert.NotNil(t, response)
 
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
+			case *orderv1.CancelOrderNotFound:
+				assert.Equal(t, 404, response.Code)
 
-	response, ok := res.(*orderv1.CancelOrderNotFound)
+			case *orderv1.CancelOrderConflict:
+				assert.Equal(t, 409, response.Code)
 
-	s.Require().True(ok)
-	s.Require().Equal(http.StatusNotFound, response.Code)
-	s.Require().Equal("заказ не найден", response.Message)
-}
-
-func (s *APISuite) TestCancelOrderInvalidStatus() {
-	var (
-		orderUUID = uuid.New()
-
-		params = orderv1.CancelOrderParams{
-			OrderUUID: orderUUID,
-		}
-	)
-
-	s.orderService.
-		EXPECT().
-		Cancel(s.ctx, orderUUID).
-		Return(errs.ErrInvalidOrderStatus)
-
-	res, err := s.api.CancelOrder(s.ctx, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	response, ok := res.(*orderv1.CancelOrderConflict)
-
-	s.Require().True(ok)
-	s.Require().Equal(http.StatusConflict, response.Code)
-	s.Require().Equal("неверный статус заказа", response.Message)
-}
-
-func (s *APISuite) TestCancelOrderInternalError() {
-	var (
-		orderUUID  = uuid.New()
-		serviceErr = errors.New(gofakeit.Sentence(5))
-
-		params = orderv1.CancelOrderParams{
-			OrderUUID: orderUUID,
-		}
-	)
-
-	s.orderService.
-		EXPECT().
-		Cancel(s.ctx, orderUUID).
-		Return(serviceErr)
-
-	res, err := s.api.CancelOrder(s.ctx, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	response, ok := res.(*orderv1.CancelOrderInternalServerError)
-
-	s.Require().True(ok)
-	s.Require().Equal(http.StatusInternalServerError, response.Code)
-	s.Require().Equal("непоправимая ошибка", response.Message)
+			case *orderv1.CancelOrderInternalServerError:
+				assert.Equal(t, 500, response.Code)
+			}
+		})
+	}
 }

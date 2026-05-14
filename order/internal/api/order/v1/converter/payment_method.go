@@ -1,24 +1,23 @@
-package shared
+package converter
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
-func OptNilUUIDFromPtr(u *uuid.UUID) orderv1.OptNilUUID {
-	if u == nil {
-		return orderv1.OptNilUUID{}
+func PaymentMethodFromModelToApi(method *model.PaymentMethod) *orderv1.PaymentMethod {
+	switch *method {
+	case model.PaymentMethodCard:
+		return new(orderv1.PaymentMethodCARD)
+	case model.PaymentMethodSBP:
+		return new(orderv1.PaymentMethodSBP)
+	case model.PaymentMethodCreditCard:
+		return new(orderv1.PaymentMethodCREDITCARD)
+	case model.PaymentMethodInvestorMoney:
+		return new(orderv1.PaymentMethodINVESTORMONEY)
+	default:
+		return nil
 	}
-	return orderv1.NewOptNilUUID(*u)
-}
-
-func OptNilPaymentMethodFromPtr(pm *model.PaymentMethod) orderv1.OptNilPaymentMethod {
-	if pm == nil {
-		return orderv1.OptNilPaymentMethod{}
-	}
-	return orderv1.NewOptNilPaymentMethod(orderv1.PaymentMethod(*pm))
 }
 
 func PaymentMethodFromApiToModel(pmApi orderv1.PaymentMethod) model.PaymentMethod {

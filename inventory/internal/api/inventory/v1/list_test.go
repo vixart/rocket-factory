@@ -1,132 +1,169 @@
 package v1
 
 import (
+	"context"
 	"errors"
+	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/converter"
+	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1/mocks"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
-func (s *APISuite) TestListPartsSuccess() {
-	var (
-		partUUID1 = uuid.New()
-		partUUID2 = uuid.New()
+func TestListParts(t *testing.T) {
+	t.Parallel()
 
-		req = &inventoryv1.ListPartsRequest{
-			Uuids: []string{
-				partUUID1.String(),
-				partUUID2.String(),
-			},
-			PartType: inventoryv1.PartType_PART_TYPE_HULL,
-		}
-
-		expectedUuids = []uuid.UUID{partUUID1, partUUID2}
-		expectedType  = converter.PartTypeProtoToModel(req.GetPartType())
-
-		parts = []model.Part{
-			{
-				UUID:          partUUID1,
-				Name:          "Hull A",
-				Description:   "desc",
-				Price:         1000,
-				PartType:      expectedType,
-				StockQuantity: 10,
-			},
-			{
-				UUID:          partUUID2,
-				Name:          "Hull B",
-				Description:   "desc",
-				Price:         2000,
-				PartType:      expectedType,
-				StockQuantity: 5,
-			},
-		}
-	)
-
-	s.inventoryService.
-		EXPECT().
-		List(s.ctx, expectedUuids, expectedType).
-		Return(parts, nil)
-
-	res, err := s.api.ListParts(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().Len(res.Parts, 2)
-}
-
-func (s *APISuite) TestListPartsInvalidUUID() {
-	req := &inventoryv1.ListPartsRequest{
-		Uuids: []string{"not-a-uuid"},
+	type args struct {
+		req *inventoryv1.ListPartsRequest
 	}
 
-	res, err := s.api.ListParts(s.ctx, req)
+	type expected struct {
+		errCode  codes.Code
+		hasError bool
+	}
 
-	s.Require().Error(err)
-	s.Require().Nil(res)
+	ctx := context.Background()
 
-	st, ok := status.FromError(err)
+	hullUUID := uuid.New()
+	engineUUID := uuid.New()
 
-	s.Require().True(ok)
-	s.Require().Equal(codes.InvalidArgument, st.Code())
-}
+	hullPart := model.Part{
+		UUID:          hullUUID,
+		Name:          "Hull",
+		Price:         100000,
+		StockQuantity: 10,
+	}
 
-func (s *APISuite) TestListPartsNotFound() {
-	var (
-		partUUID = uuid.New()
+	enginePart := model.Part{
+		UUID:          engineUUID,
+		Name:          "Engine",
+		Price:         50000,
+		StockQuantity: 5,
+	}
 
-		req = &inventoryv1.ListPartsRequest{
-			Uuids: []string{partUUID.String()},
-		}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(svc *mocks.InventoryService)
+		expected  expected
+	}{
+		{
+			name: "успешное получение списка деталей",
+			args: args{
+				req: &inventoryv1.ListPartsRequest{
+					Uuids:    []string{hullUUID.String(), engineUUID.String()},
+					PartType: inventoryv1.PartType_PART_TYPE_HULL,
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					List(ctx, []uuid.UUID{hullUUID, engineUUID}, model.PartTypeHull).
+					Return([]model.Part{hullPart, enginePart}, nil)
+			},
+			expected: expected{},
+		},
+		{
+			name: "пустой список uuid",
+			args: args{
+				req: &inventoryv1.ListPartsRequest{
+					Uuids:    []string{},
+					PartType: inventoryv1.PartType_PART_TYPE_HULL,
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					List(ctx, []uuid.UUID{}, model.PartTypeHull).
+					Return([]model.Part{}, nil)
+			},
+			expected: expected{},
+		},
+		{
+			name: "неверный формат uuid",
+			args: args{
+				req: &inventoryv1.ListPartsRequest{
+					Uuids:    []string{"not-a-uuid"},
+					PartType: inventoryv1.PartType_PART_TYPE_HULL,
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				// не должен вызываться сервис вообще
+			},
+			expected: expected{
+				hasError: true,
+				errCode:  codes.InvalidArgument,
+			},
+		},
+		{
+			name: "деталь не найдена",
+			args: args{
+				req: &inventoryv1.ListPartsRequest{
+					Uuids:    []string{hullUUID.String()},
+					PartType: inventoryv1.PartType_PART_TYPE_HULL,
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					List(ctx, []uuid.UUID{hullUUID}, model.PartTypeHull).
+					Return(nil, errs.ErrPartNotFound)
+			},
+			expected: expected{
+				hasError: true,
+				errCode:  codes.NotFound,
+			},
+		},
+		{
+			name: "внутренняя ошибка сервиса",
+			args: args{
+				req: &inventoryv1.ListPartsRequest{
+					Uuids:    []string{hullUUID.String()},
+					PartType: inventoryv1.PartType_PART_TYPE_HULL,
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					List(ctx, []uuid.UUID{hullUUID}, model.PartTypeHull).
+					Return(nil, errors.New("db error"))
+			},
+			expected: expected{
+				hasError: true,
+				errCode:  codes.Internal,
+			},
+		},
+	}
 
-		repoErr = errs.ErrPartNotFound
-	)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s.inventoryService.
-		EXPECT().
-		List(s.ctx, []uuid.UUID{partUUID}, converter.PartTypeProtoToModel(req.GetPartType())).
-		Return(nil, repoErr)
+			svc := mocks.NewInventoryService(t)
+			api := &api{
+				inventoryService: svc,
+			}
 
-	res, err := s.api.ListParts(s.ctx, req)
+			tc.setupMock(svc)
 
-	s.Require().Error(err)
-	s.Require().Nil(res)
+			res, err := api.ListParts(ctx, tc.args.req)
 
-	st, ok := status.FromError(err)
+			if tc.expected.hasError {
+				require.Error(t, err)
 
-	s.Require().True(ok)
-	s.Require().Equal(codes.NotFound, st.Code())
-}
+				st, ok := status.FromError(err)
+				require.True(t, ok)
 
-func (s *APISuite) TestListPartsInternalError() {
-	var (
-		partUUID = uuid.New()
+				assert.Equal(t, tc.expected.errCode, st.Code())
+				assert.Nil(t, res)
+				return
+			}
 
-		req = &inventoryv1.ListPartsRequest{
-			Uuids: []string{partUUID.String()},
-		}
-
-		repoErr = errors.New("db is down")
-	)
-
-	s.inventoryService.
-		EXPECT().
-		List(s.ctx, []uuid.UUID{partUUID}, converter.PartTypeProtoToModel(req.GetPartType())).
-		Return(nil, repoErr)
-
-	res, err := s.api.ListParts(s.ctx, req)
-
-	s.Require().Error(err)
-	s.Require().Nil(res)
-
-	st, ok := status.FromError(err)
-
-	s.Require().True(ok)
-	s.Require().Equal(codes.Internal, st.Code())
+			require.NoError(t, err)
+			require.NotNil(t, res)
+		})
+	}
 }

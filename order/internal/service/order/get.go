@@ -14,5 +14,5 @@ func (s *service) Get(ctx context.Context, uuid uuid.UUID) (model.Order, error) 
 		return model.Order{}, err
 	}
 
-	return *order, nil
+	return order, nil
 }

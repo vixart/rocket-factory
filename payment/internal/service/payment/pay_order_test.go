@@ -1,43 +1,75 @@
 package payment
 
 import (
+	"testing"
+
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	errs "github.com/vixart/rocket-factory/payment/internal/errors"
 	"github.com/vixart/rocket-factory/payment/internal/model"
 )
 
-func (s *ServiceSuite) TestPayOrderSuccess() {
-	var (
-		orderUUID     = uuid.New()
-		paymentMethod = model.PaymentMethodCard
-	)
+func TestPayOrder(t *testing.T) {
+	t.Parallel()
 
-	txUUID, err := s.service.PayOrder(
-		s.ctx,
-		orderUUID,
-		paymentMethod,
-	)
+	type args struct {
+		orderID       uuid.UUID
+		paymentMethod model.PaymentMethod
+	}
 
-	s.Require().NoError(err)
-	s.Require().NotNil(txUUID)
-	s.Require().NotEqual(uuid.Nil, *txUUID)
-}
+	type expected struct {
+		hasErr bool
+		err    error
+	}
 
-func (s *ServiceSuite) TestPayOrderUnspecifiedMethod() {
-	var (
-		orderUUID     = uuid.New()
-		paymentMethod = model.PaymentMethodUnspecified
-	)
+	tests := []struct {
+		name     string
+		args     args
+		expected expected
+	}{
+		{
+			name: "успешная оплата",
+			args: args{
+				orderID:       uuid.New(),
+				paymentMethod: model.PaymentMethodCard,
+			},
+			expected: expected{
+				hasErr: false,
+			},
+		},
+		{
+			name: "не указан способ оплаты",
+			args: args{
+				orderID:       uuid.New(),
+				paymentMethod: model.PaymentMethodUnspecified,
+			},
+			expected: expected{
+				hasErr: true,
+				err:    errs.ErrPaymentMethodNotSpecified,
+			},
+		},
+	}
 
-	txUUID, err := s.service.PayOrder(
-		s.ctx,
-		orderUUID,
-		paymentMethod,
-	)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s.Require().Error(err)
-	s.Require().Nil(txUUID)
+			svc := &service{}
 
-	s.Require().ErrorIs(err, errs.ErrPaymentMethodNotSpecified)
+			res, err := svc.PayOrder(t.Context(), tc.args.orderID, tc.args.paymentMethod)
+
+			if tc.expected.hasErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expected.err)
+				assert.Nil(t, res)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.NotEqual(t, uuid.Nil, *res)
+		})
+	}
 }

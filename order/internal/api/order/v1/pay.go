@@ -5,13 +5,13 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vixart/rocket-factory/order/internal/api/order/shared"
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1/converter"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
 func (a *api) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, params orderv1.PayOrderParams) (orderv1.PayOrderRes, error) {
-	paymentMethod := shared.PaymentMethodFromApiToModel(req.GetPaymentMethod())
+	paymentMethod := converter.PaymentMethodFromApiToModel(req.GetPaymentMethod())
 
 	txUuid, err := a.orderService.Pay(ctx, params.OrderUUID, paymentMethod)
 	if err != nil {

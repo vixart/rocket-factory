@@ -1,220 +1,170 @@
 package order
 
 import (
-	"errors"
-	"time"
+	"context"
+	"testing"
 
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
-func (s *ServiceSuite) TestPaySuccess() {
-	var (
-		orderUUID     = uuid.New()
-		hullUUID      = uuid.New()
-		engineUUID    = uuid.New()
-		transactionID = uuid.New()
-		paymentMethod = model.PaymentMethodCard
-		createdAt     = time.Now()
+func TestPay(t *testing.T) {
+	t.Parallel()
 
-		order = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			TotalPrice: 150000,
-			Status:     model.OrderStatusPendingPayment,
-			CreatedAt:  createdAt,
-		}
-	)
+	type args struct {
+		orderUUID     uuid.UUID
+		paymentMethod model.PaymentMethod
+	}
 
-	s.orderRepo.
-		EXPECT().
-		Get(mock.Anything, orderUUID).
-		Return(order, nil)
+	type expected struct {
+		err error
+	}
 
-	s.paymentClient.
-		EXPECT().
-		PayOrder(mock.Anything, orderUUID, paymentMethod).
-		Return(&transactionID, nil)
+	ctx := context.Background()
 
-	s.orderRepo.
-		EXPECT().
-		Update(mock.Anything, mock.MatchedBy(func(o model.Order) bool {
-			return o.OrderUUID == orderUUID &&
-				o.Status == model.OrderStatusPaid &&
-				o.TransactionUUID != nil &&
-				o.PaymentMethod != nil
-		})).
-		Return(nil)
-
-	res, err := s.service.Pay(s.ctx, orderUUID, paymentMethod)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().Equal(transactionID, *res)
-
-	s.Require().Equal(model.OrderStatusPaid, order.Status)
-	s.Require().NotNil(order.PaymentMethod)
-	s.Require().Equal(paymentMethod, *order.PaymentMethod)
-
-	s.Require().NotNil(order.TransactionUUID)
-	s.Require().Equal(transactionID, *order.TransactionUUID)
-}
-
-func (s *ServiceSuite) TestPayInvalidPaymentMethod() {
 	orderUUID := uuid.New()
+	txUUID := uuid.New()
 
-	res, err := s.service.Pay(
-		s.ctx,
-		orderUUID,
-		model.PaymentMethodUnspecified,
-	)
+	validOrder := model.Order{
+		OrderUUID: orderUUID,
+		Status:    model.OrderStatusPendingPayment,
+	}
 
-	s.Require().ErrorIs(err, errs.ErrInvalidPaymentMethod)
-	s.Require().Nil(res)
-}
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(
+			orderRepo *mocks.Repository,
+			paymentClient *mocks.PaymentClient,
+		)
+		expected expected
+	}{
+		{
+			name: "не указан метод оплаты",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodUnspecified,
+			},
+			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {},
+			expected: expected{
+				err: errs.ErrInvalidPaymentMethod,
+			},
+		},
+		{
+			name: "заказ не найден",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodCard,
+			},
+			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(model.Order{}, errs.ErrOrderNotFound)
+			},
+			expected: expected{
+				err: errs.ErrOrderNotFound,
+			},
+		},
+		{
+			name: "невалидный статус заказа",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodCard,
+			},
+			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(model.Order{
+						OrderUUID: orderUUID,
+						Status:    model.OrderStatusPaid,
+					}, nil)
+			},
+			expected: expected{
+				err: errs.ErrInvalidOrderStatus,
+			},
+		},
+		{
+			name: "ошибка платежного клиента",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodCard,
+			},
+			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(validOrder, nil)
 
-func (s *ServiceSuite) TestPayOrderRepositoryGetError() {
-	var (
-		orderUUID = uuid.New()
-		repoErr   = gofakeit.Error()
-	)
+				paymentClient.EXPECT().
+					PayOrder(ctx, orderUUID, model.PaymentMethodCard).
+					Return((*uuid.UUID)(nil), errs.ErrPaymentFailed)
+			},
+			expected: expected{
+				err: errs.ErrPaymentFailed,
+			},
+		},
+		{
+			name: "успешная оплата",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodCard,
+			},
+			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(validOrder, nil)
 
-	s.orderRepo.
-		EXPECT().
-		Get(mock.Anything, orderUUID).
-		Return(nil, repoErr)
+				paymentClient.EXPECT().
+					PayOrder(ctx, orderUUID, model.PaymentMethodCard).
+					Return(&txUUID, nil)
 
-	res, err := s.service.Pay(
-		s.ctx,
-		orderUUID,
-		model.PaymentMethodCard,
-	)
+				orderRepo.EXPECT().
+					Update(ctx, mock.MatchedBy(func(o model.Order) bool {
+						return o.OrderUUID == orderUUID &&
+							o.Status == model.OrderStatusPaid &&
+							o.PaymentMethod != nil &&
+							*o.PaymentMethod == model.PaymentMethodCard &&
+							o.TransactionUUID != nil &&
+							*o.TransactionUUID == txUUID
+					})).
+					Return(nil)
+			},
+			expected: expected{
+				err: nil,
+			},
+		},
+	}
 
-	s.Require().ErrorIs(err, repoErr)
-	s.Require().Nil(res)
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func (s *ServiceSuite) TestPayCanceledOrder() {
-	var (
-		orderUUID  = uuid.New()
-		hullUUID   = uuid.New()
-		engineUUID = uuid.New()
-		createdAt  = time.Now()
+			orderRepo := mocks.NewRepository(t)
+			paymentClient := mocks.NewPaymentClient(t)
 
-		order = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			TotalPrice: 100000,
-			Status:     model.OrderStatusCanceled,
-			CreatedAt:  createdAt,
-		}
-	)
+			tc.setupMock(orderRepo, paymentClient)
 
-	s.orderRepo.
-		EXPECT().
-		Get(mock.Anything, orderUUID).
-		Return(order, nil)
+			svc := &service{
+				orderRepository: orderRepo,
+				paymentClient:   paymentClient,
+			}
 
-	res, err := s.service.Pay(
-		s.ctx,
-		orderUUID,
-		model.PaymentMethodCard,
-	)
+			res, err := svc.Pay(ctx, tc.args.orderUUID, tc.args.paymentMethod)
 
-	s.Require().ErrorIs(err, errs.ErrInvalidOrderStatus)
-	s.Require().Nil(res)
-}
+			if tc.expected.err != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expected.err)
+				assert.Nil(t, res)
+				return
+			}
 
-func (s *ServiceSuite) TestPayPaymentClientError() {
-	var (
-		orderUUID     = uuid.New()
-		hullUUID      = uuid.New()
-		engineUUID    = uuid.New()
-		paymentMethod = model.PaymentMethodCard
-		paymentErr    = errors.New("payment failed")
-		createdAt     = time.Now()
-
-		order = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			TotalPrice: 120000,
-			Status:     model.OrderStatusPendingPayment,
-			CreatedAt:  createdAt,
-		}
-	)
-
-	s.orderRepo.
-		EXPECT().
-		Get(mock.Anything, orderUUID).
-		Return(order, nil)
-
-	s.paymentClient.
-		EXPECT().
-		PayOrder(mock.Anything, orderUUID, paymentMethod).
-		Return(nil, paymentErr)
-
-	res, err := s.service.Pay(
-		s.ctx,
-		orderUUID,
-		paymentMethod,
-	)
-
-	s.Require().ErrorIs(err, paymentErr)
-	s.Require().Nil(res)
-}
-
-func (s *ServiceSuite) TestPayOrderRepositoryUpdateError() {
-	var (
-		orderUUID  = uuid.New()
-		hullUUID   = uuid.New()
-		engineUUID = uuid.New()
-
-		paymentMethod = model.PaymentMethodCard
-		updateErr     = errors.New("update failed")
-		createdAt     = time.Now()
-
-		order = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			TotalPrice: 90000,
-			Status:     model.OrderStatusPendingPayment,
-			CreatedAt:  createdAt,
-		}
-	)
-
-	s.orderRepo.
-		EXPECT().
-		Get(mock.Anything, orderUUID).
-		Return(order, nil)
-
-	s.paymentClient.
-		EXPECT().
-		PayOrder(mock.Anything, orderUUID, paymentMethod).
-		Return(new(uuid.New()), nil)
-
-	s.orderRepo.
-		EXPECT().
-		Update(mock.Anything, mock.MatchedBy(func(o model.Order) bool {
-			return o.Status == model.OrderStatusPaid &&
-				o.TransactionUUID != nil &&
-				o.PaymentMethod != nil
-		})).
-		Return(updateErr)
-
-	res, err := s.service.Pay(
-		s.ctx,
-		orderUUID,
-		paymentMethod,
-	)
-
-	s.Require().ErrorIs(err, updateErr)
-	s.Require().Nil(res)
+			require.NoError(t, err)
+			require.NotNil(t, res)
+		})
+	}
 }

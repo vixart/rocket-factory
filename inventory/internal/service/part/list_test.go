@@ -1,96 +1,152 @@
 package part
 
 import (
+	"context"
 	"errors"
+	"testing"
 
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
+	"github.com/vixart/rocket-factory/inventory/internal/service/part/mocks"
 )
 
-func (s *ServiceSuite) TestListSuccess() {
-	var (
-		partUUID1 = uuid.New()
-		partUUID2 = uuid.New()
+func TestList(t *testing.T) {
+	t.Parallel()
 
-		uuids = []uuid.UUID{
-			partUUID1,
-			partUUID2,
-		}
+	type args struct {
+		uuids    []uuid.UUID
+		partType model.PartType
+	}
 
-		partType = model.PartTypeHull
+	type expected struct {
+		parts []model.Part
+		err   error
+	}
 
-		expectedParts = []model.Part{
-			{
-				UUID:          partUUID1,
-				Name:          gofakeit.Word(),
-				Description:   gofakeit.Phrase(),
-				Price:         int64(gofakeit.IntRange(100_00, 1_000_000_00)),
-				PartType:      partType,
-				StockQuantity: int64(gofakeit.IntRange(1, 100)),
-				CreatedAt:     new(gofakeit.Date()),
+	ctx := context.Background()
+
+	hullUUID := uuid.New()
+	engineUUID := uuid.New()
+
+	hullPart := model.Part{
+		UUID:          hullUUID,
+		Name:          "Hull",
+		Price:         100000,
+		StockQuantity: 5,
+	}
+
+	enginePart := model.Part{
+		UUID:          engineUUID,
+		Name:          "Engine",
+		Price:         50000,
+		StockQuantity: 3,
+	}
+
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(repo *mocks.Repository)
+		expected  expected
+	}{
+		{
+			name: "успешное получение списка деталей",
+			args: args{
+				uuids:    []uuid.UUID{hullUUID, engineUUID},
+				partType: model.PartTypeHull,
 			},
-			{
-				UUID:          partUUID2,
-				Name:          gofakeit.Word(),
-				Description:   gofakeit.Phrase(),
-				Price:         int64(gofakeit.IntRange(100_00, 1_000_000_00)),
-				PartType:      partType,
-				StockQuantity: int64(gofakeit.IntRange(1, 100)),
-				CreatedAt:     new(gofakeit.Date()),
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					List(ctx, model.PartFilter{
+						Uuids:    []uuid.UUID{hullUUID, engineUUID},
+						PartType: model.PartTypeHull,
+					}).
+					Return([]model.Part{hullPart, enginePart}, nil)
 			},
-		}
-	)
-
-	s.partRepo.
-		EXPECT().
-		List(
-			s.ctx,
-			model.PartFilter{
-				Uuids:    uuids,
-				PartType: partType,
+			expected: expected{
+				parts: []model.Part{hullPart, enginePart},
+				err:   nil,
 			},
-		).
-		Return(expectedParts, nil)
-
-	res, err := s.service.List(s.ctx, uuids, partType)
-
-	s.Require().NoError(err)
-	s.Require().Equal(expectedParts, res)
-}
-
-func (s *ServiceSuite) TestListRepositoryError() {
-	var (
-		uuids = []uuid.UUID{
-			uuid.New(),
-		}
-
-		partType = model.PartTypeEngine
-
-		repoErr = errors.New(gofakeit.Phrase())
-	)
-
-	s.partRepo.
-		EXPECT().
-		List(
-			s.ctx,
-			model.PartFilter{
-				Uuids:    uuids,
-				PartType: partType,
+		},
+		{
+			name: "пустой список uuid",
+			args: args{
+				uuids:    []uuid.UUID{},
+				partType: model.PartTypeEngine,
 			},
-		).
-		Return(nil, repoErr)
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					List(ctx, model.PartFilter{
+						Uuids:    []uuid.UUID{},
+						PartType: model.PartTypeEngine,
+					}).
+					Return([]model.Part{}, nil)
+			},
+			expected: expected{
+				parts: []model.Part{},
+				err:   nil,
+			},
+		},
+		{
+			name: "детали не найдены",
+			args: args{
+				uuids:    []uuid.UUID{hullUUID},
+				partType: model.PartTypeHull,
+			},
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					List(ctx, mock.Anything).
+					Return(nil, errs.ErrPartNotFound)
+			},
+			expected: expected{
+				parts: []model.Part{},
+				err:   errs.ErrPartNotFound,
+			},
+		},
+		{
+			name: "ошибка репозитория",
+			args: args{
+				uuids:    []uuid.UUID{hullUUID},
+				partType: model.PartTypeHull,
+			},
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					List(ctx, mock.Anything).
+					Return(nil, errors.New("db error"))
+			},
+			expected: expected{
+				parts: []model.Part{},
+				err:   errors.New("db error"),
+			},
+		},
+	}
 
-	res, err := s.service.List(s.ctx, uuids, partType)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s.Require().Error(err)
-	s.Require().Empty(res)
+			repo := mocks.NewRepository(t)
+			svc := &service{
+				partRepo: repo,
+			}
 
-	s.Require().ErrorContains(
-		err,
-		"не удалось получить детали",
-	)
+			tc.setupMock(repo)
 
-	s.Require().ErrorIs(err, repoErr)
+			res, err := svc.List(ctx, tc.args.uuids, tc.args.partType)
+
+			if tc.expected.err != nil {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.expected.err.Error())
+				assert.Equal(t, tc.expected.parts, res)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected.parts, res)
+		})
+	}
 }

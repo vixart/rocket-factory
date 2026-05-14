@@ -100,24 +100,22 @@ func (_c *Repository_Create_Call) RunAndReturn(run func(context1 context.Context
 }
 
 // Get provides a mock function for the type Repository
-func (_mock *Repository) Get(ctx context.Context, uuid1 uuid.UUID) (*model.Order, error) {
+func (_mock *Repository) Get(ctx context.Context, uuid1 uuid.UUID) (model.Order, error) {
 	ret := _mock.Called(ctx, uuid1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Get")
 	}
 
-	var r0 *model.Order
+	var r0 model.Order
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (*model.Order, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.Order, error)); ok {
 		return returnFunc(ctx, uuid1)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) *model.Order); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.Order); ok {
 		r0 = returnFunc(ctx, uuid1)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*model.Order)
-		}
+		r0 = ret.Get(0).(model.Order)
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
 		r1 = returnFunc(ctx, uuid1)
@@ -157,12 +155,12 @@ func (_c *Repository_Get_Call) Run(run func(ctx context.Context, uuid1 uuid.UUID
 	return _c
 }
 
-func (_c *Repository_Get_Call) Return(order *model.Order, err error) *Repository_Get_Call {
+func (_c *Repository_Get_Call) Return(order model.Order, err error) *Repository_Get_Call {
 	_c.Call.Return(order, err)
 	return _c
 }
 
-func (_c *Repository_Get_Call) RunAndReturn(run func(ctx context.Context, uuid1 uuid.UUID) (*model.Order, error)) *Repository_Get_Call {
+func (_c *Repository_Get_Call) RunAndReturn(run func(ctx context.Context, uuid1 uuid.UUID) (model.Order, error)) *Repository_Get_Call {
 	_c.Call.Return(run)
 	return _c
 }

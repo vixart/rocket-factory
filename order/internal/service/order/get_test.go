@@ -1,59 +1,103 @@
 package order
 
 import (
-	"time"
+	"context"
+	"errors"
+	"testing"
 
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
-func (s *ServiceSuite) TestGetSuccess() {
-	var (
-		orderUUID  = uuid.New()
-		hullUUID   = uuid.New()
-		engineUUID = uuid.New()
-		createdAt  = time.Now()
+func TestGet(t *testing.T) {
+	t.Parallel()
 
-		order = &model.Order{
-			OrderUUID:       orderUUID,
-			HullUUID:        hullUUID,
-			EngineUUID:      engineUUID,
-			ShieldUUID:      new(uuid.New()),
-			WeaponUUID:      new(uuid.New()),
-			TotalPrice:      250000,
-			TransactionUUID: new(uuid.New()),
-			PaymentMethod:   new(model.PaymentMethodCard),
-			Status:          model.OrderStatusPaid,
-			CreatedAt:       createdAt,
-		}
-	)
+	type args struct {
+		orderUUID uuid.UUID
+	}
 
-	s.orderRepo.
-		EXPECT().
-		Get(s.ctx, orderUUID).
-		Return(order, nil)
+	type expected struct {
+		order model.Order
+		err   error
+	}
 
-	res, err := s.service.Get(s.ctx, orderUUID)
+	ctx := context.Background()
 
-	s.Require().NoError(err)
-	s.Require().Equal(*order, res)
-}
+	orderUUID := uuid.New()
 
-func (s *ServiceSuite) TestGetRepositoryError() {
-	var (
-		orderUUID = uuid.New()
-		repoErr   = gofakeit.Error()
-	)
+	expectedOrder := model.Order{
+		OrderUUID:  orderUUID,
+		Status:     model.OrderStatusPendingPayment,
+		TotalPrice: 150000,
+	}
 
-	s.orderRepo.
-		EXPECT().
-		Get(s.ctx, orderUUID).
-		Return(nil, repoErr)
+	repositoryErr := errors.New("repository error")
 
-	res, err := s.service.Get(s.ctx, orderUUID)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(orderRepo *mocks.Repository)
+		expected  expected
+	}{
+		{
+			name: "успешное получение заказа",
+			args: args{
+				orderUUID: orderUUID,
+			},
+			setupMock: func(orderRepo *mocks.Repository) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(expectedOrder, nil)
+			},
+			expected: expected{
+				order: expectedOrder,
+			},
+		},
+		{
+			name: "ошибка репозитория",
+			args: args{
+				orderUUID: orderUUID,
+			},
+			setupMock: func(orderRepo *mocks.Repository) {
+				orderRepo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(model.Order{}, repositoryErr)
+			},
+			expected: expected{
+				err: repositoryErr,
+			},
+		},
+	}
 
-	s.Require().ErrorIs(err, repoErr)
-	s.Require().Equal(model.Order{}, res)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			orderRepo := mocks.NewRepository(t)
+
+			tc.setupMock(orderRepo)
+
+			svc := &service{
+				orderRepository: orderRepo,
+			}
+
+			order, err := svc.Get(ctx, tc.args.orderUUID)
+
+			if tc.expected.err != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expected.err)
+				assert.Equal(t, model.Order{}, order)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected.order, order)
+		})
+	}
 }

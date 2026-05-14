@@ -1,314 +1,255 @@
 package v1
 
 import (
-	"github.com/brianvoe/gofakeit/v7"
-	"github.com/google/uuid"
+	"context"
+	"errors"
+	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
-func (s *APISuite) TestCreateOrderSuccess() {
+func TestCreateOrder(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		req *orderv1.CreateOrderRequest
+	}
+
+	type expected struct {
+		resType any
+	}
+
 	var (
+		ctx = context.Background()
+
+		orderUUID  = uuid.New()
 		engineUUID = uuid.New()
 		hullUUID   = uuid.New()
 		shieldUUID = uuid.New()
 		weaponUUID = uuid.New()
 
-		orderUUID = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-			ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
-			WeaponUUID: orderv1.NewOptNilUUID(weaponUUID),
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-			ShieldUUID: &shieldUUID,
-			WeaponUUID: &weaponUUID,
-		}
-
-		expectedOrder = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			ShieldUUID: &shieldUUID,
-			WeaponUUID: &weaponUUID,
-			TotalPrice: gofakeit.Int64(),
-			Status:     model.OrderStatusPendingPayment,
-		}
+		internalErr = errors.New("internal error")
 	)
 
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(expectedOrder, nil)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	successRes, ok := res.(*orderv1.CreateOrderResponse)
-
-	s.Require().True(ok)
-	s.Require().Equal(orderUUID, successRes.OrderUUID)
-	s.Require().Equal(expectedOrder.TotalPrice, successRes.TotalPrice)
-}
-
-func (s *APISuite) TestCreateOrderSuccessWithoutOptionalParts() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		orderUUID = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrder = &model.Order{
-			OrderUUID:  orderUUID,
-			HullUUID:   hullUUID,
-			EngineUUID: engineUUID,
-			TotalPrice: gofakeit.Int64(),
-			Status:     model.OrderStatusPendingPayment,
-		}
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(expectedOrder, nil)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	successRes, ok := res.(*orderv1.CreateOrderResponse)
-
-	s.Require().True(ok)
-	s.Require().Equal(orderUUID, successRes.OrderUUID)
-	s.Require().Equal(expectedOrder.TotalPrice, successRes.TotalPrice)
-}
-
-func (s *APISuite) TestCreateOrderPartNotFound() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = errs.ErrPartNotFound
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	notFoundRes, ok := res.(*orderv1.CreateOrderNotFound)
-
-	s.Require().True(ok)
-	s.Require().Equal(404, notFoundRes.Code)
-	s.Require().Equal(serviceErr.Error(), notFoundRes.Message)
-}
-
-func (s *APISuite) TestCreateOrderInventoryPartNotFound() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = errs.ErrInventoryPartNotFound
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	notFoundRes, ok := res.(*orderv1.CreateOrderNotFound)
-
-	s.Require().True(ok)
-	s.Require().Equal(404, notFoundRes.Code)
-	s.Require().Equal(serviceErr.Error(), notFoundRes.Message)
-}
-
-func (s *APISuite) TestCreateOrderInvalidUUID() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = errs.ErrInvalidUUID
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	badRequestRes, ok := res.(*orderv1.CreateOrderBadRequest)
-
-	s.Require().True(ok)
-	s.Require().Equal(400, badRequestRes.Code)
-	s.Require().Equal(serviceErr.Error(), badRequestRes.Message)
-}
-
-func (s *APISuite) TestCreateOrderAlreadyExists() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = errs.ErrOrderAlreadyExists
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	badRequestRes, ok := res.(*orderv1.CreateOrderBadRequest)
-
-	s.Require().True(ok)
-	s.Require().Equal(400, badRequestRes.Code)
-	s.Require().Equal(serviceErr.Error(), badRequestRes.Message)
-}
-
-func (s *APISuite) TestCreateOrderInsufficientStock() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = errs.ErrPartInsufficientStock
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	conflictRes, ok := res.(*orderv1.CreateOrderConflict)
-
-	s.Require().True(ok)
-	s.Require().Equal(409, conflictRes.Code)
-	s.Require().Equal(serviceErr.Error(), conflictRes.Message)
-}
-
-func (s *APISuite) TestCreateOrderInternalError() {
-	var (
-		engineUUID = uuid.New()
-		hullUUID   = uuid.New()
-
-		req = &orderv1.CreateOrderRequest{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		expectedOrderParts = model.OrderParts{
-			EngineUUID: engineUUID,
-			HullUUID:   hullUUID,
-		}
-
-		serviceErr = gofakeit.Error()
-	)
-
-	s.orderService.
-		EXPECT().
-		Create(s.ctx, expectedOrderParts).
-		Return(nil, serviceErr)
-
-	res, err := s.api.CreateOrder(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	internalRes, ok := res.(*orderv1.CreateOrderInternalServerError)
-
-	s.Require().True(ok)
-	s.Require().Equal(500, internalRes.Code)
-	s.Require().Equal("непоправимая ошибка", internalRes.Message)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(service *mocks.OrderService)
+		expected  expected
+	}{
+		{
+			name: "успешное создание заказа",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(&model.Order{
+						OrderUUID:  orderUUID,
+						TotalPrice: 150000,
+					}, nil)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderResponse{},
+			},
+		},
+		{
+			name: "успешное создание заказа со всеми деталями",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+					ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
+					WeaponUUID: orderv1.NewOptNilUUID(weaponUUID),
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+						ShieldUUID: &shieldUUID,
+						WeaponUUID: &weaponUUID,
+					}).
+					Return(&model.Order{
+						OrderUUID:  orderUUID,
+						TotalPrice: 205000,
+					}, nil)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderResponse{},
+			},
+		},
+		{
+			name: "деталь не найдена",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, errs.ErrPartNotFound)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderNotFound{},
+			},
+		},
+		{
+			name: "деталь не найдена в inventory",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, errs.ErrInventoryPartNotFound)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderNotFound{},
+			},
+		},
+		{
+			name: "невалидный uuid",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, errs.ErrInvalidUUID)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderBadRequest{},
+			},
+		},
+		{
+			name: "заказ уже существует",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, errs.ErrOrderAlreadyExists)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderBadRequest{},
+			},
+		},
+		{
+			name: "деталь отсутствует на складе",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, errs.ErrPartInsufficientStock)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderConflict{},
+			},
+		},
+		{
+			name: "внутренняя ошибка",
+			args: args{
+				req: &orderv1.CreateOrderRequest{
+					EngineUUID: engineUUID,
+					HullUUID:   hullUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Create(ctx, model.OrderParts{
+						EngineUUID: engineUUID,
+						HullUUID:   hullUUID,
+					}).
+					Return(nil, internalErr)
+			},
+			expected: expected{
+				resType: &orderv1.CreateOrderInternalServerError{},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			orderService := mocks.NewOrderService(t)
+
+			tc.setupMock(orderService)
+
+			api := NewApi(orderService)
+
+			res, err := api.CreateOrder(ctx, tc.args.req)
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+
+			assert.IsType(t, tc.expected.resType, res)
+
+			switch response := res.(type) {
+			case *orderv1.CreateOrderResponse:
+				assert.Equal(t, orderUUID, response.OrderUUID)
+				assert.Positive(t, response.TotalPrice)
+
+			case *orderv1.CreateOrderNotFound:
+				assert.Equal(t, 404, response.Code)
+
+			case *orderv1.CreateOrderBadRequest:
+				assert.Equal(t, 400, response.Code)
+
+			case *orderv1.CreateOrderConflict:
+				assert.Equal(t, 409, response.Code)
+
+			case *orderv1.CreateOrderInternalServerError:
+				assert.Equal(t, 500, response.Code)
+			}
+		})
+	}
 }

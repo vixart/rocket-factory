@@ -17,7 +17,7 @@ func (a *api) ListParts(
 	ctx context.Context,
 	req *inventoryv1.ListPartsRequest,
 ) (*inventoryv1.ListPartsResponse, error) {
-	var parsedUuids []uuid.UUID
+	parsedUuids := make([]uuid.UUID, 0, len(req.Uuids))
 	for _, uuidStr := range req.Uuids {
 		parsedUuid, err := uuid.Parse(uuidStr)
 		if err != nil {

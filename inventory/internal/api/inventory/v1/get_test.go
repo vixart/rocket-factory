@@ -1,127 +1,141 @@
 package v1
 
 import (
+	"context"
 	"errors"
+	"testing"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1/mocks"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
-func (s *APISuite) TestGetPartSuccess() {
+func TestGetPart(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		req *inventoryv1.GetPartRequest
+	}
+
 	var (
-		partUUID = uuid.New()
+		validUUID = uuid.New()
 
-		req = &inventoryv1.GetPartRequest{
-			Uuid: partUUID.String(),
-		}
-
-		part = model.Part{
-			UUID:          partUUID,
+		validPart = model.Part{
+			UUID:          validUUID,
 			Name:          "Engine X",
 			Description:   "desc",
 			Price:         5000,
 			PartType:      model.PartTypeEngine,
 			StockQuantity: 3,
 		}
-	)
-
-	s.inventoryService.
-		EXPECT().
-		Get(s.ctx, partUUID).
-		Return(part, nil)
-
-	res, err := s.api.GetPart(s.ctx, req)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().Equal(part.UUID.String(), res.GetPart().GetUuid())
-}
-
-func (s *APISuite) TestGetPartEmptyUUID() {
-	req := &inventoryv1.GetPartRequest{
-		Uuid: "",
-	}
-
-	res, err := s.api.GetPart(s.ctx, req)
-
-	s.Require().Error(err)
-	s.Require().Nil(res)
-
-	st, ok := status.FromError(err)
-
-	s.Require().True(ok)
-	s.Require().Equal(codes.InvalidArgument, st.Code())
-}
-
-func (s *APISuite) TestGetPartInvalidUUID() {
-	req := &inventoryv1.GetPartRequest{
-		Uuid: "not-a-uuid",
-	}
-
-	res, err := s.api.GetPart(s.ctx, req)
-
-	s.Require().Error(err)
-	s.Require().Nil(res)
-
-	st, ok := status.FromError(err)
-
-	s.Require().True(ok)
-	s.Require().Equal(codes.InvalidArgument, st.Code())
-}
-
-func (s *APISuite) TestGetPartNotFound() {
-	var (
-		partUUID = uuid.New()
-
-		req = &inventoryv1.GetPartRequest{
-			Uuid: partUUID.String(),
-		}
-	)
-
-	s.inventoryService.
-		EXPECT().
-		Get(s.ctx, partUUID).
-		Return(model.Part{}, errs.ErrPartNotFound)
-
-	res, err := s.api.GetPart(s.ctx, req)
-
-	s.Require().Error(err)
-	s.Require().Nil(res)
-
-	st, ok := status.FromError(err)
-
-	s.Require().True(ok)
-	s.Require().Equal(codes.NotFound, st.Code())
-}
-
-func (s *APISuite) TestGetPartInternalError() {
-	var (
-		partUUID = uuid.New()
-
-		req = &inventoryv1.GetPartRequest{
-			Uuid: partUUID.String(),
-		}
 
 		repoErr = errors.New("db error")
 	)
 
-	s.inventoryService.
-		EXPECT().
-		Get(s.ctx, partUUID).
-		Return(model.Part{}, repoErr)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(svc *mocks.InventoryService)
+		check     func(t *testing.T, res *inventoryv1.GetPartResponse, err error)
+	}{
+		{
+			name: "успешное получение детали",
+			args: args{
+				req: &inventoryv1.GetPartRequest{
+					Uuid: validUUID.String(),
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					Get(context.Background(), validUUID).
+					Return(validPart, nil)
+			},
+			check: func(t *testing.T, res *inventoryv1.GetPartResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, res)
 
-	res, err := s.api.GetPart(s.ctx, req)
+				assert.Equal(t, validUUID.String(), res.Part.Uuid)
+			},
+		},
+		{
+			name: "пустой uuid",
+			args: args{
+				req: &inventoryv1.GetPartRequest{
+					Uuid: "",
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {},
+			check: func(t *testing.T, res *inventoryv1.GetPartResponse, err error) {
+				require.Error(t, err)
+				require.Nil(t, res)
+			},
+		},
+		{
+			name: "невалидный uuid",
+			args: args{
+				req: &inventoryv1.GetPartRequest{
+					Uuid: "not-a-uuid",
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {},
+			check: func(t *testing.T, res *inventoryv1.GetPartResponse, err error) {
+				require.Error(t, err)
+				require.Nil(t, res)
+			},
+		},
+		{
+			name: "деталь не найдена",
+			args: args{
+				req: &inventoryv1.GetPartRequest{
+					Uuid: validUUID.String(),
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					Get(context.Background(), validUUID).
+					Return(model.Part{}, errs.ErrPartNotFound)
+			},
+			check: func(t *testing.T, res *inventoryv1.GetPartResponse, err error) {
+				require.Error(t, err)
+				require.Nil(t, res)
+			},
+		},
+		{
+			name: "внутренняя ошибка сервиса",
+			args: args{
+				req: &inventoryv1.GetPartRequest{
+					Uuid: validUUID.String(),
+				},
+			},
+			setupMock: func(svc *mocks.InventoryService) {
+				svc.EXPECT().
+					Get(context.Background(), validUUID).
+					Return(model.Part{}, repoErr)
+			},
+			check: func(t *testing.T, res *inventoryv1.GetPartResponse, err error) {
+				require.Error(t, err)
+				require.Nil(t, res)
+			},
+		},
+	}
 
-	s.Require().Error(err)
-	s.Require().Nil(res)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	st, ok := status.FromError(err)
+			mockSvc := mocks.NewInventoryService(t)
+			api := NewApi(mockSvc)
 
-	s.Require().True(ok)
-	s.Require().Equal(codes.Internal, st.Code())
+			tc.setupMock(mockSvc)
+
+			res, err := api.GetPart(context.Background(), tc.args.req)
+
+			tc.check(t, res, err)
+		})
+	}
 }

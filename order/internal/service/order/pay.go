@@ -32,7 +32,7 @@ func (s *service) Pay(ctx context.Context, orderUuid uuid.UUID, paymentMethod mo
 	order.Status = model.OrderStatusPaid
 	order.TransactionUUID = txUuid
 
-	if err := s.orderRepository.Update(ctx, *order); err != nil {
+	if err := s.orderRepository.Update(ctx, order); err != nil {
 		return nil, err
 	}
 

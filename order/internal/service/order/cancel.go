@@ -20,7 +20,7 @@ func (s *service) Cancel(ctx context.Context, orderUuid uuid.UUID) error {
 	}
 
 	order.Status = model.OrderStatusCanceled
-	if err := s.orderRepository.Update(ctx, *order); err != nil {
+	if err := s.orderRepository.Update(ctx, order); err != nil {
 		return err
 	}
 

@@ -9,7 +9,7 @@ import (
 )
 
 type Repository interface {
-	Get(ctx context.Context, uuid uuid.UUID) (*model.Order, error)
+	Get(ctx context.Context, uuid uuid.UUID) (model.Order, error)
 	Create(_ context.Context, order model.Order) error
 	Update(ctx context.Context, order model.Order) error
 }

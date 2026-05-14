@@ -1,61 +1,117 @@
 package part
 
 import (
+	"context"
 	"errors"
+	"testing"
 
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
+	"github.com/vixart/rocket-factory/inventory/internal/service/part/mocks"
 )
 
-func (s *ServiceSuite) TestGetSuccess() {
-	var (
-		partUUID = uuid.New()
+func TestGet(t *testing.T) {
+	t.Parallel()
 
-		expectedPart = model.Part{
-			UUID:          partUUID,
-			Name:          gofakeit.Word(),
-			Description:   gofakeit.Phrase(),
-			Price:         int64(gofakeit.IntRange(100_00, 1_000_000_00)),
-			PartType:      model.PartTypeEngine,
-			StockQuantity: int64(gofakeit.IntRange(1, 100)),
-			CreatedAt:     new(gofakeit.Date()),
-		}
-	)
+	type args struct {
+		uuid uuid.UUID
+	}
 
-	s.partRepo.
-		EXPECT().
-		Get(s.ctx, partUUID).
-		Return(expectedPart, nil)
+	type expected struct {
+		part model.Part
+		err  error
+	}
 
-	res, err := s.service.Get(s.ctx, partUUID)
+	ctx := context.Background()
 
-	s.Require().NoError(err)
-	s.Require().Equal(expectedPart, res)
-}
+	partUUID := uuid.New()
 
-func (s *ServiceSuite) TestGetRepositoryError() {
-	var (
-		partUUID = uuid.New()
+	part := model.Part{
+		UUID:          partUUID,
+		Name:          "Engine",
+		Price:         5000,
+		StockQuantity: 3,
+	}
 
-		repoErr = errors.New(gofakeit.Phrase())
-	)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(repo *mocks.Repository)
+		expected  expected
+	}{
+		{
+			name: "успешное получение детали",
+			args: args{
+				uuid: partUUID,
+			},
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					Get(ctx, partUUID).
+					Return(part, nil)
+			},
+			expected: expected{
+				part: part,
+				err:  nil,
+			},
+		},
+		{
+			name: "деталь не найдена",
+			args: args{
+				uuid: partUUID,
+			},
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					Get(ctx, partUUID).
+					Return(model.Part{}, errs.ErrPartNotFound)
+			},
+			expected: expected{
+				part: model.Part{},
+				err:  errs.ErrPartNotFound,
+			},
+		},
+		{
+			name: "ошибка репозитория",
+			args: args{
+				uuid: partUUID,
+			},
+			setupMock: func(repo *mocks.Repository) {
+				repo.EXPECT().
+					Get(ctx, partUUID).
+					Return(model.Part{}, errors.New("db error"))
+			},
+			expected: expected{
+				part: model.Part{},
+				err:  errors.New("db error"),
+			},
+		},
+	}
 
-	s.partRepo.
-		EXPECT().
-		Get(s.ctx, partUUID).
-		Return(model.Part{}, repoErr)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	res, err := s.service.Get(s.ctx, partUUID)
+			repo := mocks.NewRepository(t)
+			svc := &service{
+				partRepo: repo,
+			}
 
-	s.Require().Error(err)
-	s.Require().Equal(model.Part{}, res)
+			tc.setupMock(repo)
 
-	s.Require().ErrorContains(
-		err,
-		"не удалось получить деталь",
-	)
+			res, err := svc.Get(ctx, tc.args.uuid)
 
-	s.Require().ErrorIs(err, repoErr)
+			if tc.expected.err != nil {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tc.expected.err.Error())
+				assert.Equal(t, model.Part{}, res)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected.part, res)
+		})
+	}
 }

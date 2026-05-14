@@ -11,14 +11,14 @@ import (
 	"github.com/vixart/rocket-factory/order/internal/repository/converter"
 )
 
-func (r *repository) Get(_ context.Context, uuid uuid.UUID) (*model.Order, error) {
+func (r *repository) Get(_ context.Context, uuid uuid.UUID) (model.Order, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	order, ok := r.orders[uuid]
 	if !ok {
-		return nil, fmt.Errorf("заказ с uuid: %s не найден: %w", uuid, errs.ErrOrderNotFound)
+		return model.Order{}, fmt.Errorf("заказ с uuid: %s не найден: %w", uuid, errs.ErrOrderNotFound)
 	}
 
-	return new(converter.OrderRecordToModel(order)), nil
+	return converter.OrderRecordToModel(order), nil
 }

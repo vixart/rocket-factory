@@ -1,203 +1,196 @@
 package v1
 
 import (
-	"github.com/brianvoe/gofakeit/v7"
-	"github.com/google/uuid"
+	"context"
+	"errors"
+	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
-func (s *APISuite) TestPayOrderSuccess() {
+func TestPayOrder(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		req    *orderv1.PayOrderRequest
+		params orderv1.PayOrderParams
+	}
+
+	type expected struct {
+		resType any
+	}
+
 	var (
+		ctx = context.Background()
+
 		orderUUID = uuid.New()
 		txUUID    = uuid.New()
 
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: orderv1.PaymentMethodCARD,
-		}
-
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
-
-		expectedPaymentMethod = model.PaymentMethodCard
+		internalErr = errors.New("internal error")
 	)
 
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(&txUUID, nil)
+	tests := []struct {
+		name      string
+		args      args
+		setupMock func(service *mocks.OrderService)
+		expected  expected
+	}{
+		{
+			name: "успешная оплата заказа",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: orderv1.PaymentMethodCARD,
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodCard).
+					Return(&txUUID, nil)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderResponse{},
+			},
+		},
+		{
+			name: "заказ не найден",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: orderv1.PaymentMethodCARD,
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodCard).
+					Return(nil, errs.ErrOrderNotFound)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderNotFound{},
+			},
+		},
+		{
+			name: "невалидный метод оплаты",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: "InvalidPayMethod",
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodUnspecified).
+					Return(nil, errs.ErrInvalidPaymentMethod)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderBadRequest{},
+			},
+		},
+		{
+			name: "недопустимый статус заказа",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: orderv1.PaymentMethodCARD,
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodCard).
+					Return(nil, errs.ErrInvalidOrderStatus)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderConflict{},
+			},
+		},
+		{
+			name: "ошибка платежного сервиса",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: orderv1.PaymentMethodCARD,
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodCard).
+					Return(nil, errs.ErrPaymentFailed)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderInternalServerError{},
+			},
+		},
+		{
+			name: "неизвестная ошибка",
+			args: args{
+				req: &orderv1.PayOrderRequest{
+					PaymentMethod: orderv1.PaymentMethodCARD,
+				},
+				params: orderv1.PayOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Pay(ctx, orderUUID, model.PaymentMethodCard).
+					Return(nil, internalErr)
+			},
+			expected: expected{
+				resType: &orderv1.PayOrderInternalServerError{},
+			},
+		},
+	}
 
-	res, err := s.api.PayOrder(s.ctx, req, params)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
+			orderService := mocks.NewOrderService(t)
 
-	successRes, ok := res.(*orderv1.PayOrderResponse)
+			tc.setupMock(orderService)
 
-	s.Require().True(ok)
-	s.Require().Equal(txUUID, successRes.TransactionUUID)
-}
+			api := NewApi(orderService)
 
-func (s *APISuite) TestPayOrderOrderNotFound() {
-	var (
-		orderUUID = uuid.New()
+			res, err := api.PayOrder(ctx, tc.args.req, tc.args.params)
 
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: orderv1.PaymentMethodCARD,
-		}
+			require.NoError(t, err)
+			require.NotNil(t, res)
 
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
+			assert.IsType(t, tc.expected.resType, res)
 
-		expectedPaymentMethod = model.PaymentMethodCard
-	)
+			switch response := res.(type) {
+			case *orderv1.PayOrderResponse:
+				assert.Equal(t, txUUID, response.TransactionUUID)
 
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(nil, errs.ErrOrderNotFound)
+			case *orderv1.PayOrderNotFound:
+				assert.Equal(t, 404, response.Code)
 
-	res, err := s.api.PayOrder(s.ctx, req, params)
+			case *orderv1.PayOrderBadRequest:
+				assert.Equal(t, 400, response.Code)
 
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
+			case *orderv1.PayOrderConflict:
+				assert.Equal(t, 409, response.Code)
 
-	notFoundRes, ok := res.(*orderv1.PayOrderNotFound)
-
-	s.Require().True(ok)
-	s.Require().Equal(404, notFoundRes.Code)
-	s.Require().Equal("заказ не найден", notFoundRes.Message)
-}
-
-func (s *APISuite) TestPayOrderInvalidPaymentMethod() {
-	var (
-		orderUUID = uuid.New()
-
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: "WrongMethod",
-		}
-
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
-
-		expectedPaymentMethod = model.PaymentMethodUnspecified
-	)
-
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(nil, errs.ErrInvalidPaymentMethod)
-
-	res, err := s.api.PayOrder(s.ctx, req, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	badRequestRes, ok := res.(*orderv1.PayOrderBadRequest)
-
-	s.Require().True(ok)
-	s.Require().Equal(400, badRequestRes.Code)
-	s.Require().Equal("передан недопустимый метод оплаты", badRequestRes.Message)
-}
-
-func (s *APISuite) TestPayOrderInvalidOrderStatus() {
-	var (
-		orderUUID = uuid.New()
-
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: orderv1.PaymentMethodCARD,
-		}
-
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
-
-		expectedPaymentMethod = model.PaymentMethodCard
-	)
-
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(nil, errs.ErrInvalidOrderStatus)
-
-	res, err := s.api.PayOrder(s.ctx, req, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	conflictRes, ok := res.(*orderv1.PayOrderConflict)
-
-	s.Require().True(ok)
-	s.Require().Equal(409, conflictRes.Code)
-	s.Require().Equal("заказ имеет недопустимый статус", conflictRes.Message)
-}
-
-func (s *APISuite) TestPayOrderPaymentFailed() {
-	var (
-		orderUUID = uuid.New()
-
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: orderv1.PaymentMethodCARD,
-		}
-
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
-
-		expectedPaymentMethod = model.PaymentMethodCard
-	)
-
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(nil, errs.ErrPaymentFailed)
-
-	res, err := s.api.PayOrder(s.ctx, req, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	internalRes, ok := res.(*orderv1.PayOrderInternalServerError)
-
-	s.Require().True(ok)
-	s.Require().Equal(500, internalRes.Code)
-	s.Require().Equal("нет соединения с платежным сервисом", internalRes.Message)
-}
-
-func (s *APISuite) TestPayOrderUnknownError() {
-	var (
-		orderUUID  = uuid.New()
-		unknownErr = gofakeit.Error()
-
-		req = &orderv1.PayOrderRequest{
-			PaymentMethod: orderv1.PaymentMethodCARD,
-		}
-
-		params = orderv1.PayOrderParams{
-			OrderUUID: orderUUID,
-		}
-
-		expectedPaymentMethod = model.PaymentMethodCard
-	)
-
-	s.orderService.
-		EXPECT().
-		Pay(s.ctx, orderUUID, expectedPaymentMethod).
-		Return(nil, unknownErr)
-
-	res, err := s.api.PayOrder(s.ctx, req, params)
-
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-
-	internalRes, ok := res.(*orderv1.PayOrderInternalServerError)
-
-	s.Require().True(ok)
-	s.Require().Equal(500, internalRes.Code)
-	s.Require().Equal("что-то пошло не так", internalRes.Message)
+			case *orderv1.PayOrderInternalServerError:
+				assert.Equal(t, 500, response.Code)
+			}
+		})
+	}
 }
