@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Скрипт для извлечения версий инструментов из Taskfile.yml
+# Скрипт для извлечения версий инструментов из Taskfile.yaml
 # Использование: .github/scripts/extract-versions.sh
 
 # Путь к Taskfile.yml
-TASKFILE="Taskfile.yml"
+TASKFILE="../../Taskfile.yaml"
 
 # Проверка наличия файла
 if [ ! -f "$TASKFILE" ]; then
@@ -13,7 +13,7 @@ if [ ! -f "$TASKFILE" ]; then
 fi
 
 # Извлечение всех переменных из секции vars
-echo "Извлекаем переменные из Taskfile.yml:"
+echo "Извлекаем переменные из Taskfile.yaml:"
 
 # Определяем начало и конец секции vars
 VARS_START=$(grep -n "^vars:" "$TASKFILE" | cut -d: -f1)
