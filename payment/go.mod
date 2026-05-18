@@ -5,6 +5,7 @@ go 1.26.0
 require google.golang.org/grpc v1.80.0
 
 require (
+	github.com/brianvoe/gofakeit/v7 v7.14.1 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
 	golang.org/x/net v0.53.0 // indirect

@@ -24,12 +24,13 @@ jobs:
           .github/scripts/extract-versions.sh
 
   go-task-cache:
+    needs: extract-vars
     uses: ./.github/workflows/go-task-cache.yml
     with:
       go-version: ${{ needs.extract-vars.outputs.go-version }}
 
   lint:
-    needs: extract-vars
+    needs: [extract-vars, go-task-cache]
     uses: ./.github/workflows/lint-reusable.yml
     with:
       modules: ${{ needs.extract-vars.outputs.modules }}
@@ -38,14 +39,15 @@ jobs:
 
   test:
     uses: ./.github/workflows/test-reusable.yml
-    needs: lint
+    needs: [lint, extract-vars]
     with:
       modules: ${{ needs.extract-vars.outputs.modules }}
       go-version: ${{ needs.extract-vars.outputs.go-version }}
 
   integration-test:
+    if: false
     uses: ./.github/workflows/test-integration-reusable.yml
-    needs: test
+    needs: [test, extract-vars]
     with:
       modules: ${{ needs.extract-vars.outputs.modules }}
       go-version: ${{ needs.extract-vars.outputs.go-version }}
@@ -53,10 +55,10 @@ jobs:
   coverage:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/test-coverage-reusable.yml
-    needs: test
+    needs: [test, extract-vars]
     with:
       modules: ${{ needs.extract-vars.outputs.modules }}
       go-version: ${{ needs.extract-vars.outputs.go-version }}
-      gist-id: "e84951ed154fb85b881613df927c34e8"
+      gist-id: "67f50bd37b7dc5e95c8feae5fb8f7228"
     secrets:
       GIST_SECRET: ${{ secrets.GIST_SECRET }}

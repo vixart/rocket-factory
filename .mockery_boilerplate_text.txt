@@ -1,0 +1,2 @@
+// Code generated for student service
+// © Alex Mosh 2026.
