@@ -39,7 +39,7 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 		if p.StockQuantity <= 0 {
 			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrPartInsufficientStock)
 		}
-		totalPrice = totalPrice + p.Price
+		totalPrice += p.Price
 	}
 
 	orderUUID := uuid.New()
