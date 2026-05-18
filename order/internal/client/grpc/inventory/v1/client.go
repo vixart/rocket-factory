@@ -25,13 +25,13 @@ func NewClient(grpcClient inventoryv1.InventoryServiceClient) *client {
 	}
 }
 
-func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]model.Part, error) {
+func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	resp, err := c.grpcClient.ListParts(
 		ctxWithTimeout,
-		&inventoryv1.ListPartsRequest{Uuids: uuidsToStrings(uuids)},
+		&inventoryv1.ListPartsRequest{Uuids: converter.UuidsToStrings(uuids)},
 	)
 	if err != nil {
 		return nil, mapErrors(err)
@@ -39,7 +39,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUI
 
 	parts := resp.GetParts()
 
-	result := make(map[uuid.UUID]model.Part, len(parts))
+	result := make([]model.Part, len(parts))
 
 	for _, part := range parts {
 		parsedUuid, err := uuid.Parse(part.GetUuid())
@@ -47,20 +47,10 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUI
 			return nil, mapErrors(err)
 		}
 
-		result[parsedUuid] = converter.PartFromProto(part, parsedUuid)
+		result = append(result, converter.PartFromProto(part, parsedUuid))
 	}
 
 	return result, nil
-}
-
-func uuidsToStrings(uuids []uuid.UUID) []string {
-	uuidsStrings := make([]string, 0, len(uuids))
-
-	for _, u := range uuids {
-		uuidsStrings = append(uuidsStrings, u.String())
-	}
-
-	return uuidsStrings
 }
 
 func mapErrors(err error) error {

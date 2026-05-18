@@ -15,3 +15,13 @@ func PartFromProto(part *inventoryv1.Part, partUuid uuid.UUID) model.Part {
 		StockQuantity: part.GetStockQuantity(),
 	}
 }
+
+func UuidsToStrings(uuids []uuid.UUID) []string {
+	uuidsStrings := make([]string, 0, len(uuids))
+
+	for _, u := range uuids {
+		uuidsStrings = append(uuidsStrings, u.String())
+	}
+
+	return uuidsStrings
+}

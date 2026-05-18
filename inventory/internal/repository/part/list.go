@@ -19,7 +19,7 @@ func (r *repository) List(_ context.Context, partFilter model.PartFilter) ([]mod
 		for _, partUuid := range partFilter.Uuids {
 			part, ok := r.data[partUuid]
 			if !ok {
-				return []model.Part{}, fmt.Errorf("деталь не найдена у репозитории: %w", errs.ErrPartNotFound)
+				return []model.Part{}, fmt.Errorf("деталь не найдена в репозитории: %w", errs.ErrPartNotFound)
 			}
 
 			parts = append(parts, converter.PartRecordToModel(part))

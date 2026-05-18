@@ -15,7 +15,7 @@ type Repository interface {
 }
 
 type InventoryClient interface {
-	ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]model.Part, error)
+	ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error)
 }
 
 type PaymentClient interface {

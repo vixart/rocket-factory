@@ -54,13 +54,13 @@ func TestCreate(t *testing.T) {
 				orderRepo *mocks.Repository,
 				inventoryClient *mocks.InventoryClient,
 			) {
-				parts := map[uuid.UUID]model.Part{
-					hullUUID: {
+				parts := []model.Part{
+					{
 						UUID:          hullUUID,
 						Price:         100000,
 						StockQuantity: 5,
 					},
-					engineUUID: {
+					{
 						UUID:          engineUUID,
 						Price:         50000,
 						StockQuantity: 3,
@@ -101,23 +101,23 @@ func TestCreate(t *testing.T) {
 				orderRepo *mocks.Repository,
 				inventoryClient *mocks.InventoryClient,
 			) {
-				parts := map[uuid.UUID]model.Part{
-					hullUUID: {
+				parts := []model.Part{
+					{
 						UUID:          hullUUID,
 						Price:         100000,
 						StockQuantity: 5,
 					},
-					engineUUID: {
+					{
 						UUID:          engineUUID,
 						Price:         50000,
 						StockQuantity: 3,
 					},
-					shieldUUID: {
+					{
 						UUID:          shieldUUID,
 						Price:         25000,
 						StockQuantity: 2,
 					},
-					weaponUUID: {
+					{
 						UUID:          weaponUUID,
 						Price:         30000,
 						StockQuantity: 1,
@@ -179,8 +179,8 @@ func TestCreate(t *testing.T) {
 				orderRepo *mocks.Repository,
 				inventoryClient *mocks.InventoryClient,
 			) {
-				parts := map[uuid.UUID]model.Part{
-					hullUUID: {
+				parts := []model.Part{
+					{
 						UUID:          hullUUID,
 						Price:         100000,
 						StockQuantity: 5,
@@ -207,13 +207,13 @@ func TestCreate(t *testing.T) {
 				orderRepo *mocks.Repository,
 				inventoryClient *mocks.InventoryClient,
 			) {
-				parts := map[uuid.UUID]model.Part{
-					hullUUID: {
+				parts := []model.Part{
+					{
 						UUID:          hullUUID,
 						Price:         100000,
 						StockQuantity: 0,
 					},
-					engineUUID: {
+					{
 						UUID:          engineUUID,
 						Price:         50000,
 						StockQuantity: 3,
@@ -242,13 +242,13 @@ func TestCreate(t *testing.T) {
 			) {
 				repositoryErr := errors.New("repository error")
 
-				parts := map[uuid.UUID]model.Part{
-					hullUUID: {
+				parts := []model.Part{
+					{
 						UUID:          hullUUID,
 						Price:         100000,
 						StockQuantity: 5,
 					},
-					engineUUID: {
+					{
 						UUID:          engineUUID,
 						Price:         50000,
 						StockQuantity: 3,

@@ -33,49 +33,25 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 		return nil, errs.ErrPartNotFound
 	}
 
+	totalPrice := int64(0)
+
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
 			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrPartInsufficientStock)
 		}
-	}
-
-	// обязательные части
-	enginePart := parts[orderParts.EngineUUID]
-	hullPart := parts[orderParts.HullUUID]
-
-	// опциональные
-	var shieldPart, weaponPart *model.Part
-
-	if orderParts.ShieldUUID != nil {
-		shieldPart = new(parts[*orderParts.ShieldUUID])
-	}
-
-	if orderParts.WeaponUUID != nil {
-		weaponPart = new(parts[*orderParts.WeaponUUID])
-	}
-
-	totalPrice := enginePart.Price + hullPart.Price
-	if shieldPart != nil {
-		totalPrice += shieldPart.Price
-	}
-	if weaponPart != nil {
-		totalPrice += weaponPart.Price
+		totalPrice = totalPrice + p.Price
 	}
 
 	orderUUID := uuid.New()
 	order := model.Order{
 		OrderUUID:  orderUUID,
-		HullUUID:   hullPart.UUID,
-		EngineUUID: enginePart.UUID,
+		HullUUID:   orderParts.HullUUID,
+		EngineUUID: orderParts.EngineUUID,
+		ShieldUUID: orderParts.ShieldUUID,
+		WeaponUUID: orderParts.WeaponUUID,
 		TotalPrice: totalPrice,
 		Status:     model.OrderStatusPendingPayment,
 		CreatedAt:  time.Now(),
-	}
-	if shieldPart != nil {
-		order.ShieldUUID = new(shieldPart.UUID)
-	}
-	if weaponPart != nil {
-		order.WeaponUUID = new(weaponPart.UUID)
 	}
 
 	err = s.orderRepository.Create(ctx, order)

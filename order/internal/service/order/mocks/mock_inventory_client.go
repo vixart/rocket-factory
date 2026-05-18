@@ -43,23 +43,23 @@ func (_m *InventoryClient) EXPECT() *InventoryClient_Expecter {
 }
 
 // ListParts provides a mock function for the type InventoryClient
-func (_mock *InventoryClient) ListParts(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]model.Part, error) {
+func (_mock *InventoryClient) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error) {
 	ret := _mock.Called(ctx, uuids)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListParts")
 	}
 
-	var r0 map[uuid.UUID]model.Part
+	var r0 []model.Part
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) (map[uuid.UUID]model.Part, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) ([]model.Part, error)); ok {
 		return returnFunc(ctx, uuids)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) map[uuid.UUID]model.Part); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) []model.Part); ok {
 		r0 = returnFunc(ctx, uuids)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[uuid.UUID]model.Part)
+			r0 = ret.Get(0).([]model.Part)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
@@ -100,12 +100,12 @@ func (_c *InventoryClient_ListParts_Call) Run(run func(ctx context.Context, uuid
 	return _c
 }
 
-func (_c *InventoryClient_ListParts_Call) Return(uUIDToPart map[uuid.UUID]model.Part, err error) *InventoryClient_ListParts_Call {
-	_c.Call.Return(uUIDToPart, err)
+func (_c *InventoryClient_ListParts_Call) Return(parts []model.Part, err error) *InventoryClient_ListParts_Call {
+	_c.Call.Return(parts, err)
 	return _c
 }
 
-func (_c *InventoryClient_ListParts_Call) RunAndReturn(run func(ctx context.Context, uuids []uuid.UUID) (map[uuid.UUID]model.Part, error)) *InventoryClient_ListParts_Call {
+func (_c *InventoryClient_ListParts_Call) RunAndReturn(run func(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error)) *InventoryClient_ListParts_Call {
 	_c.Call.Return(run)
 	return _c
 }
