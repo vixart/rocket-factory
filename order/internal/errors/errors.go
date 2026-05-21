@@ -3,7 +3,6 @@ package errs
 import "github.com/go-faster/errors"
 
 var (
-	ErrInventoryPartNotFound = errors.New("деталь не найдена")
 	ErrInvalidUUID           = errors.New("некорректный uuid")
 	ErrPaymentFailed         = errors.New("не удалось оплатить заказ")
 	ErrInvalidPaymentMethod  = errors.New("указан недопустимый метод оплаты")

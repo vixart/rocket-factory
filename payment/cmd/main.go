@@ -7,28 +7,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"github.com/vixart/rocket-factory/payment/pkg/app"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
-
-	paymentApiV1 "github.com/vixart/rocket-factory/payment/internal/api/payment/v1"
-	"github.com/vixart/rocket-factory/payment/internal/service/payment"
-	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
 const (
 	// Адрес сервера.
 	grpcAddress = "localhost:50052"
-
-	// gRPC keepalive параметры.
-	grpcMaxConnectionIdle     = 15 * time.Minute // Закрыть idle-соединения (нет активных RPC)
-	grpcMaxConnectionAge      = 30 * time.Minute // Принудительная ротация для балансировки
-	grpcMaxConnectionAgeGrace = 5 * time.Second  // Время на завершение активных RPC
-	grpcKeepaliveTime         = 5 * time.Minute  // Интервал ping'ов для обнаружения мёртвых соединений
-	grpcKeepaliveTimeout      = 1 * time.Second  // Тайм-аут ожидания pong
-	grpcMinPingInterval       = 5 * time.Minute  // Минимальный интервал ping'ов от клиента (защита от DoS)
 )
 
 func main() {
@@ -40,23 +27,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	grpcServer := grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle:     grpcMaxConnectionIdle,
-			MaxConnectionAge:      grpcMaxConnectionAge,
-			MaxConnectionAgeGrace: grpcMaxConnectionAgeGrace,
-			Time:                  grpcKeepaliveTime,
-			Timeout:               grpcKeepaliveTimeout,
-		}),
-		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             grpcMinPingInterval,
-			PermitWithoutStream: true, // Разрешить "тёплые" соединения без активных RPC
-		}),
-	)
+	grpcServer := grpc.NewServer(app.Interceptors()...)
 
-	service := payment.NewService()
-	api := paymentApiV1.NewApi(service)
-	paymentv1.RegisterPaymentServiceServer(grpcServer, api)
+	app.RegisterServices(grpcServer)
 
 	// Включаем reflection для postman/grpcurl
 	reflection.Register(grpcServer)

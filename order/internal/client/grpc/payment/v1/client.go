@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/vixart/rocket-factory/order/internal/client/grpc/payment/v1/converter"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -34,7 +35,7 @@ func (c *client) PayOrder(
 
 	resp, err := c.grpcClient.PayOrder(ctxWithTimeout, &paymentv1.PayOrderRequest{
 		OrderUuid:     orderUuid.String(),
-		PaymentMethod: mapPaymentMethod(paymentMethod),
+		PaymentMethod: converter.MapPaymentMethod(paymentMethod),
 	})
 	if err != nil {
 		return nil, mapErrors(err)
@@ -46,21 +47,6 @@ func (c *client) PayOrder(
 	}
 
 	return &txUuid, nil
-}
-
-func mapPaymentMethod(paymentMethod model.PaymentMethod) paymentv1.PaymentMethod {
-	switch paymentMethod {
-	case model.PaymentMethodCard:
-		return paymentv1.PaymentMethod_PAYMENT_METHOD_CARD
-	case model.PaymentMethodSBP:
-		return paymentv1.PaymentMethod_PAYMENT_METHOD_SBP
-	case model.PaymentMethodCreditCard:
-		return paymentv1.PaymentMethod_PAYMENT_METHOD_CREDIT_CARD
-	case model.PaymentMethodInvestorMoney:
-		return paymentv1.PaymentMethod_PAYMENT_METHOD_INVESTOR_MONEY
-	default:
-		return paymentv1.PaymentMethod_PAYMENT_METHOD_UNSPECIFIED
-	}
 }
 
 func mapErrors(err error) error {

@@ -2,13 +2,10 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/go-faster/errors"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/converter"
+	converter2 "github.com/vixart/rocket-factory/inventory/internal/api/converter"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
@@ -21,22 +18,20 @@ func (a *api) ListParts(
 	for _, uuidStr := range req.Uuids {
 		parsedUuid, err := uuid.Parse(uuidStr)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", uuidStr)
+			return nil, fmt.Errorf("неверный формат order_uuid: %s, %w", uuidStr, errs.ErrInvalidUUID)
 		}
 
 		parsedUuids = append(parsedUuids, parsedUuid)
 	}
 
-	parts, err := a.inventoryService.List(ctx, parsedUuids, converter.PartTypeProtoToModel(req.GetPartType()))
-	if errors.Is(err, errs.ErrPartNotFound) {
-		return nil, status.Errorf(codes.NotFound, "%s", err.Error())
-	} else if err != nil {
-		return nil, status.Errorf(codes.Internal, "что-то пошло не так: %s", err)
+	parts, err := a.inventoryService.List(ctx, parsedUuids, converter2.PartTypeProtoToModel(req.GetPartType()))
+	if err != nil {
+		return nil, err
 	}
 
 	var partsProto []*inventoryv1.Part
 	for _, part := range parts {
-		partsProto = append(partsProto, converter.PartModelToPartProto(part))
+		partsProto = append(partsProto, converter2.PartModelToPartProto(part))
 	}
 
 	return &inventoryv1.ListPartsResponse{Parts: partsProto}, nil

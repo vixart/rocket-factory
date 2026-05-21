@@ -39,7 +39,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part
 
 	parts := resp.GetParts()
 
-	result := make([]model.Part, len(parts))
+	result := make([]model.Part, 0, len(parts))
 
 	for _, part := range parts {
 		parsedUuid, err := uuid.Parse(part.GetUuid())
@@ -57,7 +57,7 @@ func mapErrors(err error) error {
 	if st, ok := status.FromError(err); ok {
 		switch st.Code() {
 		case codes.NotFound:
-			return fmt.Errorf("деталь не найдена в сервисе inventory: %w", errs.ErrInventoryPartNotFound)
+			return fmt.Errorf("деталь не найдена в сервисе inventory: %w", errs.ErrPartNotFound)
 		case codes.InvalidArgument:
 			return fmt.Errorf("в сервис inventory был передан неверный uuid детали: %w", errs.ErrInvalidUUID)
 		default:
