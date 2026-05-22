@@ -13,7 +13,7 @@ func OrderStatusFromModelToApi(status model.OrderStatus) orderv1.OrderStatus {
 	case model.OrderStatusPaid:
 		return orderv1.OrderStatusPAID
 
-	case model.OrderStatusCanceled:
+	case model.OrderStatusCancelled:
 		return orderv1.OrderStatusCANCELLED
 
 	default:

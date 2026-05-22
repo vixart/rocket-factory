@@ -1,23 +1,18 @@
 package part
 
 import (
-	"sync"
-
-	"github.com/google/uuid"
-
-	"github.com/vixart/rocket-factory/inventory/internal/repository/record"
+	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type repository struct {
-	mu   sync.RWMutex
-	data map[uuid.UUID]record.Part
+	pool   *pgxpool.Pool
+	getter *trmpgx.CtxGetter
 }
 
-func NewRepository(parts *map[uuid.UUID]record.Part) *repository {
-	if parts == nil {
-		parts = new(make(map[uuid.UUID]record.Part))
-	}
+func NewRepository(pool *pgxpool.Pool) *repository {
 	return &repository{
-		data: *parts,
+		pool:   pool,
+		getter: trmpgx.DefaultCtxGetter,
 	}
 }

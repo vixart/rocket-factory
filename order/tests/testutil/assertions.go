@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// AssertGRPCStatus проверяет, что ошибка является gRPC ошибкой с указанным кодом
+// AssertGRPCStatus проверяет, что ошибка является gRPC ошибкой с указанным кодом.
 func AssertGRPCStatus(t *testing.T, err error, expectedCode codes.Code) {
 	t.Helper()
 

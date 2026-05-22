@@ -3,12 +3,13 @@ package app
 import (
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+
 	paymentApiV1 "github.com/vixart/rocket-factory/payment/internal/api/payment/v1"
 	"github.com/vixart/rocket-factory/payment/internal/interceptor"
 	"github.com/vixart/rocket-factory/payment/internal/service/payment"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 )
 
 const (

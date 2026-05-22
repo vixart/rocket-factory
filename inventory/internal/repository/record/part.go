@@ -9,11 +9,11 @@ import (
 )
 
 type Part struct {
-	UUID          uuid.UUID
-	Name          string
-	Description   string
-	Price         int64 // в копейках
-	PartType      model.PartType
-	StockQuantity int64
-	CreatedAt     *time.Time
+	UUID          uuid.UUID      `db:"uuid"`
+	Name          string         `db:"name"`
+	Description   string         `db:"description"`
+	Price         int64          `db:"price"` // в копейках
+	PartType      model.PartType `db:"part_type"`
+	StockQuantity int64          `db:"stock_quantity"`
+	CreatedAt     *time.Time     `db:"created_at"`
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/vixart/rocket-factory/inventory/internal/api/converter"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"

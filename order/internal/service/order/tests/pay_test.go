@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/service/order"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
@@ -33,8 +33,8 @@ func TestPay(t *testing.T) {
 	txUUID := uuid.New()
 
 	validOrder := model.Order{
-		OrderUUID: orderUUID,
-		Status:    model.OrderStatusPendingPayment,
+		UUID:   orderUUID,
+		Status: model.OrderStatusPendingPayment,
 	}
 
 	tests := []struct {
@@ -82,8 +82,8 @@ func TestPay(t *testing.T) {
 				orderRepo.EXPECT().
 					Get(ctx, orderUUID).
 					Return(model.Order{
-						OrderUUID: orderUUID,
-						Status:    model.OrderStatusPaid,
+						UUID:   orderUUID,
+						Status: model.OrderStatusPaid,
 					}, nil)
 			},
 			expected: expected{
@@ -126,7 +126,7 @@ func TestPay(t *testing.T) {
 
 				orderRepo.EXPECT().
 					Update(ctx, mock.MatchedBy(func(o model.Order) bool {
-						return o.OrderUUID == orderUUID &&
+						return o.UUID == orderUUID &&
 							o.Status == model.OrderStatusPaid &&
 							o.PaymentMethod != nil &&
 							*o.PaymentMethod == model.PaymentMethodCard &&

@@ -36,7 +36,7 @@ func (a *api) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) 
 	}
 
 	return &orderv1.CreateOrderResponse{
-		OrderUUID:  order.OrderUUID,
-		TotalPrice: order.TotalPrice,
+		OrderUUID:  order.UUID,
+		TotalPrice: order.TotalPrice(),
 	}, nil
 }

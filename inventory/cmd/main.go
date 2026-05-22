@@ -8,9 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/vixart/rocket-factory/inventory/pkg/app"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/vixart/rocket-factory/inventory/pkg/app"
 )
 
 const (
@@ -19,17 +22,45 @@ const (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("сервис не запустился", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 	lc := net.ListenConfig{}
 	lis, err := lc.Listen(ctx, "tcp", grpcAddress)
 	if err != nil {
 		slog.Error("не удалось создать listener", "error", err)
-		os.Exit(1)
+		return err
 	}
+
+	err = godotenv.Load("order.env")
+	if err != nil {
+		return err
+	}
+
+	dbURI := os.Getenv("DB_URI")
+
+	// 1. Создаём пул соединений к PostgreSQL
+	pool, err := pgxpool.New(ctx, dbURI)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	err = pool.Ping(ctx)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("подключение к PostgreSQL установлено")
 
 	grpcServer := grpc.NewServer(app.Interceptors()...)
 
-	app.RegisterServices(grpcServer)
+	app.RegisterServices(grpcServer, pool)
 
 	// Включаем reflection для postman/grpcurl
 	reflection.Register(grpcServer)
@@ -50,4 +81,6 @@ func main() {
 	slog.Info("🛑 остановка gRPC сервера")
 	grpcServer.GracefulStop()
 	slog.Info("✅ сервер остановлен")
+
+	return nil
 }

@@ -3,37 +3,79 @@ package part
 import (
 	"context"
 	"fmt"
-	"sort"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
 	"github.com/vixart/rocket-factory/inventory/internal/repository/converter"
+	"github.com/vixart/rocket-factory/inventory/internal/repository/record"
 )
 
-func (r *repository) List(_ context.Context, partFilter model.PartFilter) ([]model.Part, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+func (r *repository) List(
+	ctx context.Context,
+	partFilter model.PartFilter,
+) ([]model.Part, error) {
+	builder := sq.
+		Select(
+			"uuid",
+			"name",
+			"description",
+			"part_type",
+			"price",
+			"stock_quantity",
+			"created_at",
+		).
+		From("parts").
+		PlaceholderFormat(sq.Dollar)
 
-	parts := make([]model.Part, 0)
+	if len(partFilter.Uuids) == 0 {
+		builder = builder.OrderBy("name")
+	}
+
 	if len(partFilter.Uuids) > 0 {
-		for _, partUuid := range partFilter.Uuids {
-			part, ok := r.data[partUuid]
-			if !ok {
-				return []model.Part{}, fmt.Errorf("деталь не найдена в репозитории: %w", errs.ErrPartNotFound)
-			}
-
-			parts = append(parts, converter.PartRecordToModel(part))
-		}
-	} else {
-		for _, part := range r.data {
-			if partFilter.PartType == model.PartTypeUnspecified || partFilter.PartType == part.PartType {
-				parts = append(parts, converter.PartRecordToModel(part))
-			}
-		}
-
-		sort.Slice(parts, func(i, j int) bool {
-			return parts[i].Name < parts[j].Name
+		builder = builder.
+			Where(sq.Eq{
+				"uuid": partFilter.Uuids,
+			}).
+			OrderByClause(
+				sq.Expr(
+					"array_position(?::uuid[], uuid)",
+					partFilter.Uuids,
+				),
+			)
+	} else if partFilter.PartType != model.PartTypeUnspecified {
+		builder = builder.Where(sq.Eq{
+			"part_type": partFilter.PartType,
 		})
+	}
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("не удалось сформировать запрос: %w", err)
+	}
+
+	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("получить список деталей: %w", err)
+	}
+
+	defer rows.Close()
+
+	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.Part])
+	if err != nil {
+		return nil, fmt.Errorf("считать строки: %w", err)
+	}
+
+	if len(partFilter.Uuids) > 0 && len(partFilter.Uuids) != len(records) {
+		return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
+	}
+
+	parts := make([]model.Part, 0, len(records))
+
+	for _, rec := range records {
+		parts = append(parts, converter.PartRecordToModel(rec))
 	}
 
 	return parts, nil

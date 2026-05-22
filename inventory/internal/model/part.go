@@ -9,18 +9,18 @@ import (
 type PartType string
 
 const (
-	PartTypeEngine      PartType = "engine"
-	PartTypeHull        PartType = "hull"
-	PartTypeShield      PartType = "shield"
-	PartTypeWeapon      PartType = "weapon"
-	PartTypeUnspecified PartType = "unspecified"
+	PartTypeEngine      PartType = "ENGINE"
+	PartTypeHull        PartType = "HULL"
+	PartTypeShield      PartType = "SHIELD"
+	PartTypeWeapon      PartType = "WEAPON"
+	PartTypeUnspecified PartType = "UNSPECIFIED"
 )
 
 type Part struct {
 	UUID          uuid.UUID
 	Name          string
 	Description   string
-	Price         int64 // в копейках
+	Price         int64
 	PartType      PartType
 	StockQuantity int64
 	CreatedAt     *time.Time

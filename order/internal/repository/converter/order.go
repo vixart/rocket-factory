@@ -1,18 +1,15 @@
 package converter
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/vixart/rocket-factory/order/internal/model"
 	"github.com/vixart/rocket-factory/order/internal/repository/record"
 )
 
 func OrderModelToRecord(m model.Order) record.Order {
 	return record.Order{
-		OrderUUID:       m.OrderUUID,
-		HullUUID:        m.HullUUID,
-		EngineUUID:      m.EngineUUID,
-		ShieldUUID:      m.ShieldUUID,
-		WeaponUUID:      m.WeaponUUID,
-		TotalPrice:      m.TotalPrice,
+		UUID:            m.UUID,
 		TransactionUUID: m.TransactionUUID,
 		PaymentMethod:   m.PaymentMethod,
 		Status:          m.Status,
@@ -22,15 +19,45 @@ func OrderModelToRecord(m model.Order) record.Order {
 
 func OrderRecordToModel(r record.Order) model.Order {
 	return model.Order{
-		OrderUUID:       r.OrderUUID,
-		HullUUID:        r.HullUUID,
-		EngineUUID:      r.EngineUUID,
-		ShieldUUID:      r.ShieldUUID,
-		WeaponUUID:      r.WeaponUUID,
-		TotalPrice:      r.TotalPrice,
+		UUID:            r.UUID,
 		TransactionUUID: r.TransactionUUID,
 		PaymentMethod:   r.PaymentMethod,
 		Status:          r.Status,
 		CreatedAt:       r.CreatedAt,
 	}
+}
+
+func OrderItemModelToRecord(orderUuid uuid.UUID, orderItem model.OrderItem) record.OrderItem {
+	return record.OrderItem{
+		OrderUUID: orderUuid,
+		PartUUID:  orderItem.UUID,
+		PartType:  orderItem.PartType,
+		Price:     orderItem.Price,
+	}
+}
+
+func OrderItemRecordToModel(orderItem record.OrderItem) model.OrderItem {
+	return model.OrderItem{
+		UUID:     orderItem.PartUUID,
+		PartType: orderItem.PartType,
+		Price:    orderItem.Price,
+	}
+}
+
+func OrderItemModelsToRecords(orderUuid uuid.UUID, orderItems []model.OrderItem) []record.OrderItem {
+	orderRecords := make([]record.OrderItem, 0, len(orderItems))
+	for _, orderItem := range orderItems {
+		orderRecords = append(orderRecords, OrderItemModelToRecord(orderUuid, orderItem))
+	}
+
+	return orderRecords
+}
+
+func OrderItemRecordsToModels(orderItemRecords []record.OrderItem) []model.OrderItem {
+	orderItemModels := make([]model.OrderItem, 0, len(orderItemRecords))
+	for _, orderItemRecord := range orderItemRecords {
+		orderItemModels = append(orderItemModels, OrderItemRecordToModel(orderItemRecord))
+	}
+
+	return orderItemModels
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 )
 

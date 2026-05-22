@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/go-faster/errors"
-	errs "github.com/vixart/rocket-factory/payment/internal/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	errs "github.com/vixart/rocket-factory/payment/internal/errors"
 )
 
 func ErrorInterceptor(

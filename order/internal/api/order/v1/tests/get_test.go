@@ -9,9 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 
+	v1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
+	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
@@ -24,7 +25,7 @@ func TestGetOrder(t *testing.T) {
 	}
 
 	type expected struct {
-		err error
+		resType any
 	}
 
 	var (
@@ -61,21 +62,57 @@ func TestGetOrder(t *testing.T) {
 				service.EXPECT().
 					Get(ctx, orderUUID).
 					Return(model.Order{
-						OrderUUID:       orderUUID,
-						HullUUID:        hullUUID,
-						EngineUUID:      engineUUID,
-						ShieldUUID:      &shieldUUID,
-						WeaponUUID:      &weaponUUID,
-						TotalPrice:      250000,
+						UUID: orderUUID,
+						Items: []model.OrderItem{
+							{
+								UUID:     hullUUID,
+								PartType: model.PartTypeHull,
+								Price:    100000,
+							},
+							{
+								UUID:     engineUUID,
+								PartType: model.PartTypeEngine,
+								Price:    50000,
+							},
+							{
+								UUID:     shieldUUID,
+								PartType: model.PartTypeShield,
+								Price:    25000,
+							},
+							{
+								UUID:     weaponUUID,
+								PartType: model.PartTypeWeapon,
+								Price:    30000,
+							},
+						},
 						TransactionUUID: &transactionUUID,
 						PaymentMethod:   &paymentMethod,
 						Status:          model.OrderStatusPaid,
 						CreatedAt:       createdAt,
 					}, nil)
 			},
+			expected: expected{
+				resType: &orderv1.OrderDto{},
+			},
 		},
 		{
-			name: "ошибка получения заказа",
+			name: "заказ не найден",
+			args: args{
+				params: orderv1.GetOrderParams{
+					OrderUUID: orderUUID,
+				},
+			},
+			setupMock: func(service *mocks.OrderService) {
+				service.EXPECT().
+					Get(ctx, orderUUID).
+					Return(model.Order{}, errs.ErrOrderNotFound)
+			},
+			expected: expected{
+				resType: &orderv1.GetOrderNotFound{},
+			},
+		},
+		{
+			name: "внутренняя ошибка",
 			args: args{
 				params: orderv1.GetOrderParams{
 					OrderUUID: orderUUID,
@@ -87,7 +124,7 @@ func TestGetOrder(t *testing.T) {
 					Return(model.Order{}, internalErr)
 			},
 			expected: expected{
-				err: internalErr,
+				resType: &orderv1.GetOrderInternalServerError{},
 			},
 		},
 	}
@@ -104,30 +141,32 @@ func TestGetOrder(t *testing.T) {
 
 			res, err := api.GetOrder(ctx, tc.args.params)
 
-			if tc.expected.err != nil {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tc.expected.err.Error())
-				assert.Nil(t, res)
-
-				return
-			}
-
 			require.NoError(t, err)
 			require.NotNil(t, res)
 
-			response, ok := res.(*orderv1.OrderDto)
-			require.True(t, ok)
+			assert.IsType(t, tc.expected.resType, res)
 
-			assert.Equal(t, orderUUID, response.OrderUUID)
-			assert.Equal(t, hullUUID, response.HullUUID)
-			assert.Equal(t, engineUUID, response.EngineUUID)
-			assert.Equal(t, shieldUUID, response.ShieldUUID.Value)
-			assert.Equal(t, weaponUUID, response.WeaponUUID.Value)
-			assert.Equal(t, transactionUUID, response.TransactionUUID.Value)
-			assert.Equal(t, orderv1.PaymentMethodCARD, response.PaymentMethod.Value)
-			assert.Equal(t, orderv1.OrderStatusPAID, response.Status)
-			assert.Equal(t, int64(250000), response.TotalPrice)
-			assert.Equal(t, createdAt, response.CreatedAt)
+			switch response := res.(type) {
+			case *orderv1.OrderDto:
+				assert.Equal(t, orderUUID, response.OrderUUID)
+				assert.Equal(t, hullUUID, response.HullUUID)
+				assert.Equal(t, engineUUID, response.EngineUUID)
+				assert.Equal(t, shieldUUID, response.ShieldUUID.Value)
+				assert.Equal(t, weaponUUID, response.WeaponUUID.Value)
+				assert.Equal(t, transactionUUID, response.TransactionUUID.Value)
+				assert.Equal(t, orderv1.PaymentMethodCARD, response.PaymentMethod.Value)
+				assert.Equal(t, orderv1.OrderStatusPAID, response.Status)
+				assert.Equal(t, int64(205000), response.TotalPrice)
+				assert.Equal(t, createdAt, response.CreatedAt)
+
+			case *orderv1.GetOrderNotFound:
+				assert.Equal(t, 404, response.Code)
+				assert.Equal(t, "заказ не найден", response.Message)
+
+			case *orderv1.GetOrderInternalServerError:
+				assert.Equal(t, 500, response.Code)
+				assert.Equal(t, "что-то пошло не так", response.Message)
+			}
 		})
 	}
 }

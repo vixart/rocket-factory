@@ -9,9 +9,9 @@ import (
 type OrderStatus string
 
 const (
-	OrderStatusPendingPayment OrderStatus = "pending_payment"
-	OrderStatusPaid           OrderStatus = "paid"
-	OrderStatusCanceled       OrderStatus = "canceled"
+	OrderStatusPendingPayment OrderStatus = "PENDING_PAYMENT"
+	OrderStatusPaid           OrderStatus = "PAID"
+	OrderStatusCancelled      OrderStatus = "CANCELLED"
 )
 
 type OrderParts struct {
@@ -21,15 +21,27 @@ type OrderParts struct {
 	WeaponUUID *uuid.UUID
 }
 
+type OrderItem struct {
+	UUID     uuid.UUID
+	PartType PartType
+	Price    int64 // в копейках
+}
+
 type Order struct {
-	OrderUUID       uuid.UUID
-	HullUUID        uuid.UUID
-	EngineUUID      uuid.UUID
-	ShieldUUID      *uuid.UUID // опциональный
-	WeaponUUID      *uuid.UUID // опциональный
-	TotalPrice      int64      // в копейках
+	UUID            uuid.UUID
+	Items           []OrderItem
 	TransactionUUID *uuid.UUID
 	PaymentMethod   *PaymentMethod
 	Status          OrderStatus
 	CreatedAt       time.Time
+}
+
+func (o Order) TotalPrice() int64 {
+	var total int64
+
+	for _, item := range o.Items {
+		total += item.Price
+	}
+
+	return total
 }

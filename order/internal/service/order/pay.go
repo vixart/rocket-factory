@@ -23,7 +23,7 @@ func (s *service) Pay(ctx context.Context, orderUuid uuid.UUID, paymentMethod mo
 		return nil, errs.ErrInvalidOrderStatus
 	}
 
-	txUuid, err := s.paymentClient.PayOrder(ctx, order.OrderUUID, paymentMethod)
+	txUuid, err := s.paymentClient.PayOrder(ctx, order.UUID, paymentMethod)
 	if err != nil {
 		return nil, err
 	}
