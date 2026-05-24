@@ -8,12 +8,6 @@ import (
 )
 
 func PartModelToPartProto(p model.Part) *inventoryv1.Part {
-	var createdAt *timestamppb.Timestamp
-
-	if p.CreatedAt != nil {
-		createdAt = timestamppb.New(*p.CreatedAt)
-	}
-
 	return &inventoryv1.Part{
 		Uuid:          p.UUID.String(),
 		Name:          p.Name,
@@ -21,7 +15,7 @@ func PartModelToPartProto(p model.Part) *inventoryv1.Part {
 		Price:         p.Price,
 		PartType:      PartTypeModelToProto(p.PartType),
 		StockQuantity: p.StockQuantity,
-		CreatedAt:     createdAt,
+		CreatedAt:     timestamppb.New(p.CreatedAt),
 	}
 }
 

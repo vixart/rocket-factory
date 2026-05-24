@@ -23,7 +23,7 @@ type Part struct {
 	Price         int64
 	PartType      PartType
 	StockQuantity int64
-	CreatedAt     *time.Time
+	CreatedAt     time.Time
 }
 
 type PartFilter struct {

@@ -37,7 +37,13 @@ func run() error {
 		return err
 	}
 
-	err = godotenv.Load("order.env")
+	defer func() {
+		if err := lis.Close(); err != nil {
+			slog.Error("не удалось закрыть listener", "error", err)
+		}
+	}()
+
+	err = godotenv.Load("inventory.env")
 	if err != nil {
 		return err
 	}

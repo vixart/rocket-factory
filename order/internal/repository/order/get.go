@@ -53,17 +53,15 @@ func (r *repository) getOrderItems(ctx context.Context, uuid uuid.UUID) ([]model
 
 	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, queryOrderItems, uuid)
 	if err != nil {
-		return []model.OrderItem{}, fmt.Errorf("получить список деталей: %w", err)
+		return nil, fmt.Errorf("получить список деталей: %w", err)
 	}
 
 	defer rows.Close()
 
 	orderItemsRecords, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.OrderItem])
 	if err != nil {
-		return []model.OrderItem{}, err
+		return nil, err
 	}
 
-	orderItemsModels := converter.OrderItemRecordsToModels(orderItemsRecords)
-
-	return orderItemsModels, nil
+	return converter.OrderItemRecordsToModels(orderItemsRecords), nil
 }

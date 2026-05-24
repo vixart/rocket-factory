@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
 	"github.com/vixart/rocket-factory/inventory/internal/repository/converter"
@@ -17,6 +17,32 @@ func (r *repository) List(
 	ctx context.Context,
 	partFilter model.PartFilter,
 ) ([]model.Part, error) {
+
+	builder := r.buildListQuery(partFilter)
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("не удалось сформировать запрос: %w", err)
+	}
+
+	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("получить список деталей: %w", err)
+	}
+	defer rows.Close()
+
+	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.Part])
+	if err != nil {
+		return nil, fmt.Errorf("считать строки: %w", err)
+	}
+
+	return r.mapAndOrder(records, partFilter)
+}
+
+func (r *repository) buildListQuery(
+	partFilter model.PartFilter,
+) sq.SelectBuilder {
+
 	builder := sq.
 		Select(
 			"uuid",
@@ -30,53 +56,54 @@ func (r *repository) List(
 		From("parts").
 		PlaceholderFormat(sq.Dollar)
 
-	if len(partFilter.Uuids) == 0 {
-		builder = builder.OrderBy("name")
+	if len(partFilter.Uuids) > 0 {
+		return builder.Where(sq.Eq{
+			"uuid": partFilter.Uuids,
+		})
 	}
 
-	if len(partFilter.Uuids) > 0 {
-		builder = builder.
-			Where(sq.Eq{
-				"uuid": partFilter.Uuids,
-			}).
-			OrderByClause(
-				sq.Expr(
-					"array_position(?::uuid[], uuid)",
-					partFilter.Uuids,
-				),
-			)
-	} else if partFilter.PartType != model.PartTypeUnspecified {
+	if partFilter.PartType != model.PartTypeUnspecified {
 		builder = builder.Where(sq.Eq{
 			"part_type": partFilter.PartType,
 		})
 	}
 
-	query, args, err := builder.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("не удалось сформировать запрос: %w", err)
+	return builder.OrderBy("name")
+}
+
+func (r *repository) mapAndOrder(
+	records []record.Part,
+	partFilter model.PartFilter,
+) ([]model.Part, error) {
+
+	if len(partFilter.Uuids) == 0 {
+		parts := make([]model.Part, len(records))
+		for i, rec := range records {
+			parts[i] = converter.PartRecordToModel(rec)
+		}
+		return parts, nil
 	}
 
-	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("получить список деталей: %w", err)
+	recordByUUID := make(map[uuid.UUID]record.Part, len(records))
+
+	for _, rec := range records {
+		recordByUUID[rec.UUID] = rec
 	}
 
-	defer rows.Close()
-
-	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.Part])
-	if err != nil {
-		return nil, fmt.Errorf("считать строки: %w", err)
-	}
-
-	if len(partFilter.Uuids) > 0 && len(partFilter.Uuids) != len(records) {
+	if len(recordByUUID) != len(partFilter.Uuids) {
 		return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
 	}
 
-	parts := make([]model.Part, 0, len(records))
+	ordered := make([]model.Part, 0, len(partFilter.Uuids))
 
-	for _, rec := range records {
-		parts = append(parts, converter.PartRecordToModel(rec))
+	for _, id := range partFilter.Uuids {
+		rec, ok := recordByUUID[id]
+		if !ok {
+			return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
+		}
+
+		ordered = append(ordered, converter.PartRecordToModel(rec))
 	}
 
-	return parts, nil
+	return ordered, nil
 }

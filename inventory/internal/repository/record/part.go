@@ -15,5 +15,5 @@ type Part struct {
 	Price         int64          `db:"price"` // в копейках
 	PartType      model.PartType `db:"part_type"`
 	StockQuantity int64          `db:"stock_quantity"`
-	CreatedAt     *time.Time     `db:"created_at"`
+	CreatedAt     time.Time      `db:"created_at"`
 }
