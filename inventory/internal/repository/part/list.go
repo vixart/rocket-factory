@@ -7,6 +7,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model"
 	"github.com/vixart/rocket-factory/inventory/internal/repository/converter"
@@ -17,7 +18,6 @@ func (r *repository) List(
 	ctx context.Context,
 	partFilter model.PartFilter,
 ) ([]model.Part, error) {
-
 	builder := r.buildListQuery(partFilter)
 
 	query, args, err := builder.ToSql()
@@ -42,7 +42,6 @@ func (r *repository) List(
 func (r *repository) buildListQuery(
 	partFilter model.PartFilter,
 ) sq.SelectBuilder {
-
 	builder := sq.
 		Select(
 			"uuid",
@@ -75,7 +74,6 @@ func (r *repository) mapAndOrder(
 	records []record.Part,
 	partFilter model.PartFilter,
 ) ([]model.Part, error) {
-
 	if len(partFilter.Uuids) == 0 {
 		parts := make([]model.Part, len(records))
 		for i, rec := range records {
