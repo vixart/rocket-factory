@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/service/order"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
@@ -48,8 +48,8 @@ func TestCancel(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				order := model.Order{
-					OrderUUID: orderUUID,
-					Status:    model.OrderStatusPendingPayment,
+					UUID:   orderUUID,
+					Status: model.OrderStatusPendingPayment,
 				}
 
 				repo.EXPECT().
@@ -58,8 +58,8 @@ func TestCancel(t *testing.T) {
 
 				repo.EXPECT().
 					Update(ctx, mock.MatchedBy(func(order model.Order) bool {
-						return order.OrderUUID == orderUUID &&
-							order.Status == model.OrderStatusCanceled
+						return order.UUID == orderUUID &&
+							order.Status == model.OrderStatusCancelled
 					})).
 					Return(nil)
 			},
@@ -86,8 +86,8 @@ func TestCancel(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				order := model.Order{
-					OrderUUID: orderUUID,
-					Status:    model.OrderStatusPaid,
+					UUID:   orderUUID,
+					Status: model.OrderStatusPaid,
 				}
 
 				repo.EXPECT().
@@ -105,8 +105,8 @@ func TestCancel(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				order := model.Order{
-					OrderUUID: orderUUID,
-					Status:    model.OrderStatusPendingPayment,
+					UUID:   orderUUID,
+					Status: model.OrderStatusPendingPayment,
 				}
 
 				repo.EXPECT().
@@ -115,8 +115,8 @@ func TestCancel(t *testing.T) {
 
 				repo.EXPECT().
 					Update(ctx, mock.MatchedBy(func(order model.Order) bool {
-						return order.OrderUUID == orderUUID &&
-							order.Status == model.OrderStatusCanceled
+						return order.UUID == orderUUID &&
+							order.Status == model.OrderStatusCancelled
 					})).
 					Return(repositoryErr)
 			},

@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )

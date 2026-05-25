@@ -33,25 +33,24 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 		return nil, errs.ErrPartNotFound
 	}
 
-	totalPrice := int64(0)
-
+	orderItems := make([]model.OrderItem, 0, len(parts))
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
 			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrPartInsufficientStock)
 		}
-		totalPrice += p.Price
+		orderItems = append(orderItems, model.OrderItem{
+			UUID:     p.UUID,
+			PartType: p.PartType,
+			Price:    p.Price,
+		})
 	}
 
 	orderUUID := uuid.New()
 	order := model.Order{
-		OrderUUID:  orderUUID,
-		HullUUID:   orderParts.HullUUID,
-		EngineUUID: orderParts.EngineUUID,
-		ShieldUUID: orderParts.ShieldUUID,
-		WeaponUUID: orderParts.WeaponUUID,
-		TotalPrice: totalPrice,
-		Status:     model.OrderStatusPendingPayment,
-		CreatedAt:  time.Now(),
+		UUID:      orderUUID,
+		Items:     orderItems,
+		Status:    model.OrderStatusPendingPayment,
+		CreatedAt: time.Now(),
 	}
 
 	err = s.orderRepository.Create(ctx, order)

@@ -8,9 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/vixart/rocket-factory/payment/pkg/app"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/vixart/rocket-factory/payment/pkg/app"
 )
 
 const (

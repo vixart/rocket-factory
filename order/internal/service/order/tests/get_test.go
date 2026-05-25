@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 
 	"github.com/vixart/rocket-factory/order/internal/model"
+	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
@@ -31,9 +31,8 @@ func TestGet(t *testing.T) {
 	orderUUID := uuid.New()
 
 	expectedOrder := model.Order{
-		OrderUUID:  orderUUID,
-		Status:     model.OrderStatusPendingPayment,
-		TotalPrice: 150000,
+		UUID:   orderUUID,
+		Status: model.OrderStatusPendingPayment,
 	}
 
 	repositoryErr := errors.New("repository error")

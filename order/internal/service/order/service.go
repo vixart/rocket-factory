@@ -6,7 +6,11 @@ type service struct {
 	paymentClient   PaymentClient
 }
 
-func NewService(orderRepository Repository, inventoryClient InventoryClient, paymentClient PaymentClient) *service {
+func NewService(
+	orderRepository Repository,
+	inventoryClient InventoryClient,
+	paymentClient PaymentClient,
+) *service {
 	return &service{
 		orderRepository: orderRepository,
 		inventoryClient: inventoryClient,

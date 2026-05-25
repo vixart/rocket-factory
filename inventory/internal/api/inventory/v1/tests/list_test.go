@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1/mocks"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"

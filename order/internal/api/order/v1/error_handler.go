@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/ogen-go/ogen/ogenerrors"
+
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 )
 
@@ -49,8 +50,8 @@ func mapError(err error) (int, string) {
 
 	// 400 Bad Request
 	case errors.Is(err, errs.ErrInvalidUUID),
-		errors.Is(err, errs.ErrInvalidPaymentMethod),
-		errors.Is(err, errs.ErrPaymentFailed):
+		errors.Is(err, errs.ErrPaymentFailed),
+		errors.Is(err, errs.ErrInvalidPaymentMethod):
 		return http.StatusBadRequest, err.Error()
 
 	// 500 Internal Server Error

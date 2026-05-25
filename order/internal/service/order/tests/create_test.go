@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
@@ -77,12 +77,19 @@ func TestCreate(t *testing.T) {
 
 				orderRepo.EXPECT().
 					Create(ctx, mock.MatchedBy(func(order model.Order) bool {
-						return order.HullUUID == hullUUID &&
-							order.EngineUUID == engineUUID &&
-							order.TotalPrice == 150000 &&
-							order.Status == model.OrderStatusPendingPayment &&
-							order.ShieldUUID == nil &&
-							order.WeaponUUID == nil
+						if order.TotalPrice() != 150000 {
+							return false
+						}
+
+						if order.Status != model.OrderStatusPendingPayment {
+							return false
+						}
+
+						if len(order.Items) != 2 {
+							return false
+						}
+
+						return true
 					})).
 					Return(nil)
 			},
@@ -136,11 +143,15 @@ func TestCreate(t *testing.T) {
 
 				orderRepo.EXPECT().
 					Create(ctx, mock.MatchedBy(func(order model.Order) bool {
-						return order.TotalPrice == 205000 &&
-							order.ShieldUUID != nil &&
-							order.WeaponUUID != nil &&
-							*order.ShieldUUID == shieldUUID &&
-							*order.WeaponUUID == weaponUUID
+						if order.TotalPrice() != 205000 {
+							return false
+						}
+
+						if len(order.Items) != 4 {
+							return false
+						}
+
+						return true
 					})).
 					Return(nil)
 			},
@@ -295,7 +306,7 @@ func TestCreate(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, order)
 
-			assert.NotEqual(t, uuid.Nil, order.OrderUUID)
+			assert.NotEqual(t, uuid.Nil, order.UUID)
 		})
 	}
 }

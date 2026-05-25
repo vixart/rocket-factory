@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/payment/internal/service/payment"
 
 	errs "github.com/vixart/rocket-factory/payment/internal/errors"
 	"github.com/vixart/rocket-factory/payment/internal/model"
+	"github.com/vixart/rocket-factory/payment/internal/service/payment"
 )
 
 func TestPayOrder(t *testing.T) {

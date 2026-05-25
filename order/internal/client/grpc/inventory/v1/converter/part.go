@@ -10,6 +10,7 @@ import (
 func PartFromProto(part *inventoryv1.Part, partUuid uuid.UUID) model.Part {
 	return model.Part{
 		UUID:          partUuid,
+		PartType:      PartTypeFromProto(part.GetPartType()),
 		Name:          part.GetName(),
 		Price:         part.GetPrice(),
 		StockQuantity: part.GetStockQuantity(),
@@ -24,4 +25,19 @@ func UuidsToStrings(uuids []uuid.UUID) []string {
 	}
 
 	return uuidsStrings
+}
+
+func PartTypeFromProto(partType inventoryv1.PartType) model.PartType {
+	switch partType {
+	case inventoryv1.PartType_PART_TYPE_HULL:
+		return model.PartTypeHull
+	case inventoryv1.PartType_PART_TYPE_ENGINE:
+		return model.PartTypeEngine
+	case inventoryv1.PartType_PART_TYPE_SHIELD:
+		return model.PartTypeShield
+	case inventoryv1.PartType_PART_TYPE_WEAPON:
+		return model.PartTypeWeapon
+	default:
+		return model.PartTypeUnspecified
+	}
 }

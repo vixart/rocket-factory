@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/payment/internal/api/payment/v1"
 
+	"github.com/vixart/rocket-factory/payment/internal/api/payment/v1"
 	"github.com/vixart/rocket-factory/payment/internal/api/payment/v1/mocks"
 	errs "github.com/vixart/rocket-factory/payment/internal/errors"
 	"github.com/vixart/rocket-factory/payment/internal/model"

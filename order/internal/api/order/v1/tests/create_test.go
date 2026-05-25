@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 
+	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
@@ -63,8 +63,17 @@ func TestCreateOrder(t *testing.T) {
 						WeaponUUID: &weaponUUID,
 					}).
 					Return(&model.Order{
-						OrderUUID:  orderUUID,
-						TotalPrice: 205000,
+						UUID: orderUUID,
+						Items: []model.OrderItem{
+							{
+								UUID:  hullUUID,
+								Price: 150000,
+							},
+							{
+								UUID:  engineUUID,
+								Price: 55000,
+							},
+						},
 					}, nil)
 			},
 		},
