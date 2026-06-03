@@ -12,19 +12,12 @@ import (
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/input"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
 func TestCreateOrder(t *testing.T) {
 	t.Parallel()
-
-	type args struct {
-		req *orderv1.CreateOrderRequest
-	}
-
-	type expected struct {
-		err error
-	}
 
 	var (
 		ctx = context.Background()
@@ -40,23 +33,21 @@ func TestCreateOrder(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		args      args
+		req       *orderv1.CreateOrderRequest
 		setupMock func(service *mocks.OrderService)
-		expected  expected
+		check     func(t *testing.T, res orderv1.CreateOrderRes, err error)
 	}{
 		{
 			name: "успешное создание заказа",
-			args: args{
-				req: &orderv1.CreateOrderRequest{
-					HullUUID:   hullUUID,
-					EngineUUID: engineUUID,
-					ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
-					WeaponUUID: orderv1.NewOptNilUUID(weaponUUID),
-				},
+			req: &orderv1.CreateOrderRequest{
+				HullUUID:   hullUUID,
+				EngineUUID: engineUUID,
+				ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
+				WeaponUUID: orderv1.NewOptNilUUID(weaponUUID),
 			},
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
-					Create(ctx, model.OrderParts{
+					Create(ctx, input.OrderParts{
 						HullUUID:   hullUUID,
 						EngineUUID: engineUUID,
 						ShieldUUID: &shieldUUID,
@@ -76,25 +67,42 @@ func TestCreateOrder(t *testing.T) {
 						},
 					}, nil)
 			},
+			check: func(t *testing.T, res orderv1.CreateOrderRes, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+
+				response, ok := res.(*orderv1.CreateOrderResponse)
+				require.True(t, ok)
+
+				assert.Equal(t, &orderv1.CreateOrderResponse{
+					OrderUUID:  orderUUID,
+					TotalPrice: 205000,
+				}, response)
+			},
 		},
 		{
 			name: "ошибка создания заказа",
-			args: args{
-				req: &orderv1.CreateOrderRequest{
-					HullUUID:   hullUUID,
-					EngineUUID: engineUUID,
-				},
+			req: &orderv1.CreateOrderRequest{
+				HullUUID:   hullUUID,
+				EngineUUID: engineUUID,
+				ShieldUUID: orderv1.OptNilUUID{},
+				WeaponUUID: orderv1.OptNilUUID{},
 			},
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
-					Create(ctx, model.OrderParts{
+					Create(ctx, input.OrderParts{
 						HullUUID:   hullUUID,
 						EngineUUID: engineUUID,
 					}).
 					Return(nil, internalErr)
 			},
-			expected: expected{
-				err: internalErr,
+			check: func(t *testing.T, res orderv1.CreateOrderRes, err error) {
+				t.Helper()
+
+				require.Error(t, err)
+				assert.ErrorContains(t, err, internalErr.Error())
+				assert.Nil(t, res)
 			},
 		},
 	}
@@ -109,24 +117,9 @@ func TestCreateOrder(t *testing.T) {
 
 			api := v1.NewApi(orderService)
 
-			res, err := api.CreateOrder(ctx, tc.args.req)
+			res, err := api.CreateOrder(ctx, tc.req)
 
-			if tc.expected.err != nil {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tc.expected.err.Error())
-				assert.Nil(t, res)
-
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, res)
-
-			response, ok := res.(*orderv1.CreateOrderResponse)
-			require.True(t, ok)
-
-			assert.Equal(t, orderUUID, response.OrderUUID)
-			assert.Equal(t, int64(205000), response.TotalPrice)
+			tc.check(t, res, err)
 		})
 	}
 }

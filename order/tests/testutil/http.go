@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -58,8 +57,7 @@ func (e *Env) CreateOrder(t *testing.T, req *CreateOrderRequest) (*CreateOrderRe
 	body, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, e.BaseURL+"/api/v1/orders", bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, e.BaseURL+"/api/v1/orders", bytes.NewReader(body)) //nolint:noctx // test
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
 
@@ -78,16 +76,7 @@ func (e *Env) CreateOrder(t *testing.T, req *CreateOrderRequest) (*CreateOrderRe
 func (e *Env) GetOrder(t *testing.T, orderUUID string) (*OrderDTO, *http.Response) {
 	t.Helper()
 
-	ctx := context.Background()
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		e.BaseURL+"/api/v1/orders/"+orderUUID,
-		nil,
-	)
-	require.NoError(t, err)
-
-	resp, err := e.HTTPClient.Do(req)
+	resp, err := e.HTTPClient.Get(e.BaseURL + "/api/v1/orders/" + orderUUID) //nolint:noctx // test
 	require.NoError(t, err)
 
 	if resp.StatusCode == http.StatusOK {
@@ -105,10 +94,7 @@ func (e *Env) PayOrder(t *testing.T, orderUUID string, req *PayOrderRequest) (*P
 	body, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
+	httpReq, err := http.NewRequest(http.MethodPost, //nolint:noctx // test
 		e.BaseURL+"/api/v1/orders/"+orderUUID+"/pay", bytes.NewReader(body))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -128,8 +114,7 @@ func (e *Env) PayOrder(t *testing.T, orderUUID string, req *PayOrderRequest) (*P
 func (e *Env) CancelOrder(t *testing.T, orderUUID string) (*CancelOrderResponse, *http.Response) {
 	t.Helper()
 
-	ctx := context.Background()
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+	httpReq, err := http.NewRequest(http.MethodPost, //nolint:noctx // test
 		e.BaseURL+"/api/v1/orders/"+orderUUID+"/cancel", nil)
 	require.NoError(t, err)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/input"
 )
 
 // NewOrderService creates a new instance of OrderService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -100,7 +101,7 @@ func (_c *OrderService_Cancel_Call) RunAndReturn(run func(ctx context.Context, u
 }
 
 // Create provides a mock function for the type OrderService
-func (_mock *OrderService) Create(ctx context.Context, orderParts model.OrderParts) (*model.Order, error) {
+func (_mock *OrderService) Create(ctx context.Context, orderParts input.OrderParts) (*model.Order, error) {
 	ret := _mock.Called(ctx, orderParts)
 
 	if len(ret) == 0 {
@@ -109,17 +110,17 @@ func (_mock *OrderService) Create(ctx context.Context, orderParts model.OrderPar
 
 	var r0 *model.Order
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OrderParts) (*model.Order, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts) (*model.Order, error)); ok {
 		return returnFunc(ctx, orderParts)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.OrderParts) *model.Order); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts) *model.Order); ok {
 		r0 = returnFunc(ctx, orderParts)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.Order)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, model.OrderParts) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, input.OrderParts) error); ok {
 		r1 = returnFunc(ctx, orderParts)
 	} else {
 		r1 = ret.Error(1)
@@ -134,20 +135,20 @@ type OrderService_Create_Call struct {
 
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
-//   - orderParts model.OrderParts
+//   - orderParts input.OrderParts
 func (_e *OrderService_Expecter) Create(ctx interface{}, orderParts interface{}) *OrderService_Create_Call {
 	return &OrderService_Create_Call{Call: _e.mock.On("Create", ctx, orderParts)}
 }
 
-func (_c *OrderService_Create_Call) Run(run func(ctx context.Context, orderParts model.OrderParts)) *OrderService_Create_Call {
+func (_c *OrderService_Create_Call) Run(run func(ctx context.Context, orderParts input.OrderParts)) *OrderService_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 model.OrderParts
+		var arg1 input.OrderParts
 		if args[1] != nil {
-			arg1 = args[1].(model.OrderParts)
+			arg1 = args[1].(input.OrderParts)
 		}
 		run(
 			arg0,
@@ -162,7 +163,7 @@ func (_c *OrderService_Create_Call) Return(order *model.Order, err error) *Order
 	return _c
 }
 
-func (_c *OrderService_Create_Call) RunAndReturn(run func(ctx context.Context, orderParts model.OrderParts) (*model.Order, error)) *OrderService_Create_Call {
+func (_c *OrderService_Create_Call) RunAndReturn(run func(ctx context.Context, orderParts input.OrderParts) (*model.Order, error)) *OrderService_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -234,23 +235,23 @@ func (_c *OrderService_Get_Call) RunAndReturn(run func(ctx context.Context, uuid
 }
 
 // Pay provides a mock function for the type OrderService
-func (_mock *OrderService) Pay(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error) {
+func (_mock *OrderService) Pay(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (uuid.UUID, error) {
 	ret := _mock.Called(ctx, orderUuid, paymentMethod)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Pay")
 	}
 
-	var r0 *uuid.UUID
+	var r0 uuid.UUID
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) (*uuid.UUID, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) (uuid.UUID, error)); ok {
 		return returnFunc(ctx, orderUuid, paymentMethod)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) *uuid.UUID); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) uuid.UUID); ok {
 		r0 = returnFunc(ctx, orderUuid, paymentMethod)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*uuid.UUID)
+			r0 = ret.Get(0).(uuid.UUID)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, model.PaymentMethod) error); ok {
@@ -297,12 +298,12 @@ func (_c *OrderService_Pay_Call) Run(run func(ctx context.Context, orderUuid uui
 	return _c
 }
 
-func (_c *OrderService_Pay_Call) Return(uUID *uuid.UUID, err error) *OrderService_Pay_Call {
+func (_c *OrderService_Pay_Call) Return(uUID uuid.UUID, err error) *OrderService_Pay_Call {
 	_c.Call.Return(uUID, err)
 	return _c
 }
 
-func (_c *OrderService_Pay_Call) RunAndReturn(run func(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error)) *OrderService_Pay_Call {
+func (_c *OrderService_Pay_Call) RunAndReturn(run func(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (uuid.UUID, error)) *OrderService_Pay_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -1,0 +1,11 @@
+grpc:
+  host: "localhost"
+  port: "50051"
+
+pg:
+  host: "localhost"
+  port: "55433"
+  database: "demo"
+  user: "demo"
+  password: "demo"
+  sslmode: "disable"

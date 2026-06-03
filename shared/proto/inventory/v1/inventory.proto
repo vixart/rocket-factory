@@ -13,6 +13,15 @@ service InventoryService {
 
   // ListParts возвращает отфильтрованный список деталей
   rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
+
+  // ValidateCompatibility проверяет совместимость деталей между собой
+  rpc ValidateCompatibility(ValidateCompatibilityRequest) returns (ValidateCompatibilityResponse);
+
+  // ReserveParts резервирует детали для заказа
+  rpc ReserveParts(ReservePartsRequest) returns (ReservePartsResponse);
+
+  // ReleaseParts освобождает ранее зарезервированные детали
+  rpc ReleaseParts(ReleasePartsRequest) returns (ReleasePartsResponse);
 }
 
 // Тип детали
@@ -62,7 +71,44 @@ message ListPartsRequest {
   PartType part_type = 1; // Фильтр по типу (UNSPECIFIED = все детали)
   repeated string uuids = 2; // 	Опционально: конкретные UUID (приоритет над part_type)
 }
+
 // Ответ на получение списка деталей
 message ListPartsResponse {
   repeated Part parts = 1;
 }
+
+// Запрос на проверку совместимости деталей по слотам корабля
+message ValidateCompatibilityRequest {
+  // UUID детали в слоте корпуса (обязательный слот)
+  string hull_uuid = 1;
+
+  // UUID детали в слоте двигателя (обязательный слот)
+  string engine_uuid = 2;
+
+  // UUID детали в слоте щита (опциональный слот, пустая строка — слот не используется)
+  string shield_uuid = 3;
+
+  // UUID детали в слоте оружия (опциональный слот, пустая строка — слот не используется)
+  string weapon_uuid = 4;
+}
+
+// Ответ на проверку совместимости (пустой — значит совместимы)
+message ValidateCompatibilityResponse {}
+
+// Запрос на резервирование деталей
+message ReservePartsRequest {
+  // UUID деталей для резервирования
+  repeated string uuids = 1;
+}
+
+// Ответ на резервирование (пустой — значит успешно)
+message ReservePartsResponse {}
+
+// Запрос на освобождение ранее зарезервированных деталей
+message ReleasePartsRequest {
+  // UUID деталей для освобождения
+  repeated string uuids = 1;
+}
+
+// Ответ на освобождение (пустой — значит успешно)
+message ReleasePartsResponse {}

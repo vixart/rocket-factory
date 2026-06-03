@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,8 @@ import (
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1/mocks"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
-	"github.com/vixart/rocket-factory/inventory/internal/model"
+	"github.com/vixart/rocket-factory/inventory/internal/model/entity"
+	"github.com/vixart/rocket-factory/inventory/internal/model/valueobject"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
@@ -28,29 +30,33 @@ func TestListParts(t *testing.T) {
 	}
 
 	var (
-		ctx = context.Background()
+		ctx   = context.Background()
+		uuid1 = uuid.New()
+		uuid2 = uuid.New()
 
-		partUUID1 = uuid.New()
-		partUUID2 = uuid.New()
+		part1 = entity.RestorePart(
+			uuid1,
+			"Engine X",
+			"engine description",
+			valueobject.PartTypeEngine,
+			5000,
+			3,
+			0,
+			valueobject.PartProperties{},
+			time.Now(),
+		)
 
-		parts = []model.Part{
-			{
-				UUID:          partUUID1,
-				Name:          "Engine X",
-				Description:   "engine",
-				Price:         5000,
-				PartType:      model.PartTypeEngine,
-				StockQuantity: 3,
-			},
-			{
-				UUID:          partUUID2,
-				Name:          "Hull Z",
-				Description:   "hull",
-				Price:         10000,
-				PartType:      model.PartTypeHull,
-				StockQuantity: 5,
-			},
-		}
+		part2 = entity.RestorePart(
+			uuid2,
+			"Engine Y",
+			"another engine",
+			valueobject.PartTypeEngine,
+			7000,
+			5,
+			0,
+			valueobject.PartProperties{},
+			time.Now(),
+		)
 
 		repoErr = errors.New("db error")
 	)
@@ -66,20 +72,20 @@ func TestListParts(t *testing.T) {
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{
-						partUUID1.String(),
-						partUUID2.String(),
+						uuid1.String(),
+						uuid2.String(),
 					},
-					PartType: inventoryv1.PartType_PART_TYPE_UNSPECIFIED,
+					PartType: inventoryv1.PartType_PART_TYPE_ENGINE,
 				},
 			},
 			setupMock: func(svc *mocks.InventoryService) {
 				svc.EXPECT().
 					List(
 						ctx,
-						[]uuid.UUID{partUUID1, partUUID2},
-						model.PartTypeUnspecified,
+						[]uuid.UUID{uuid1, uuid2},
+						valueobject.PartTypeEngine,
 					).
-					Return(parts, nil)
+					Return([]entity.Part{part1, part2}, nil)
 			},
 		},
 		{
@@ -87,7 +93,7 @@ func TestListParts(t *testing.T) {
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{
-						"invalid-uuid",
+						"not-a-uuid",
 					},
 				},
 			},
@@ -101,16 +107,17 @@ func TestListParts(t *testing.T) {
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{
-						partUUID1.String(),
+						uuid1.String(),
 					},
+					PartType: inventoryv1.PartType_PART_TYPE_ENGINE,
 				},
 			},
 			setupMock: func(svc *mocks.InventoryService) {
 				svc.EXPECT().
 					List(
 						ctx,
-						[]uuid.UUID{partUUID1},
-						model.PartTypeUnspecified,
+						[]uuid.UUID{uuid1},
+						valueobject.PartTypeEngine,
 					).
 					Return(nil, repoErr)
 			},
@@ -144,11 +151,17 @@ func TestListParts(t *testing.T) {
 
 			require.Len(t, res.Parts, 2)
 
-			assert.Equal(t, partUUID1.String(), res.Parts[0].Uuid)
-			assert.Equal(t, "Engine X", res.Parts[0].Name)
+			assert.Equal(t, part1.UUID().String(), res.Parts[0].Uuid)
+			assert.Equal(t, part1.Name(), res.Parts[0].Name)
+			assert.Equal(t, part1.Description(), res.Parts[0].Description)
+			assert.Equal(t, part1.Price(), res.Parts[0].Price)
+			assert.Equal(t, int64(part1.StockQuantity()), res.Parts[0].StockQuantity)
 
-			assert.Equal(t, partUUID2.String(), res.Parts[1].Uuid)
-			assert.Equal(t, "Hull Z", res.Parts[1].Name)
+			assert.Equal(t, part2.UUID().String(), res.Parts[1].Uuid)
+			assert.Equal(t, part2.Name(), res.Parts[1].Name)
+			assert.Equal(t, part2.Description(), res.Parts[1].Description)
+			assert.Equal(t, part2.Price(), res.Parts[1].Price)
+			assert.Equal(t, int64(part2.StockQuantity()), res.Parts[1].StockQuantity)
 		})
 	}
 }

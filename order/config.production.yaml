@@ -1,0 +1,15 @@
+http:
+  host: "0.0.0.0"
+  port: "8080"
+
+pg:
+  host: "postgres-production"
+  port: "55432"
+  database: "ufo"
+  user: "MUST_BE_SET_VIA_ENV"
+  password: "MUST_BE_SET_VIA_ENV"
+  sslmode: "require"
+
+client:
+  inventory_address: "0.0.0.0:50051"
+  payment_address: "0.0.0.0:50052"

@@ -31,30 +31,50 @@ func TestCancel(t *testing.T) {
 		ctx = context.Background()
 
 		orderUUID = uuid.New()
+		partUUID1 = uuid.New()
+		partUUID2 = uuid.New()
 
 		repositoryErr = errors.New("repository error")
+		inventoryErr  = errors.New("inventory error")
 	)
 
 	tests := []struct {
 		name      string
 		args      args
-		setupMock func(repo *mocks.Repository)
-		expected  expected
+		setupMock func(
+			repo *mocks.Repository,
+			inventory *mocks.InventoryClient,
+		)
+		expected expected
 	}{
 		{
 			name: "успешная отмена заказа",
 			args: args{
 				orderUUID: orderUUID,
 			},
-			setupMock: func(repo *mocks.Repository) {
-				order := model.Order{
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				orderRes := model.Order{
 					UUID:   orderUUID,
 					Status: model.OrderStatusPendingPayment,
+					Items: []model.OrderItem{
+						{UUID: partUUID1},
+						{UUID: partUUID2},
+					},
 				}
 
 				repo.EXPECT().
 					Get(ctx, orderUUID).
-					Return(order, nil)
+					Return(orderRes, nil)
+
+				inventory.EXPECT().
+					ReleaseParts(ctx, []uuid.UUID{
+						partUUID1,
+						partUUID2,
+					}).
+					Return(nil)
 
 				repo.EXPECT().
 					Update(ctx, mock.MatchedBy(func(order model.Order) bool {
@@ -63,14 +83,16 @@ func TestCancel(t *testing.T) {
 					})).
 					Return(nil)
 			},
-			expected: expected{},
 		},
 		{
 			name: "заказ не найден",
 			args: args{
 				orderUUID: orderUUID,
 			},
-			setupMock: func(repo *mocks.Repository) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				repo.EXPECT().
 					Get(ctx, orderUUID).
 					Return(model.Order{}, errs.ErrOrderNotFound)
@@ -84,18 +106,52 @@ func TestCancel(t *testing.T) {
 			args: args{
 				orderUUID: orderUUID,
 			},
-			setupMock: func(repo *mocks.Repository) {
-				order := model.Order{
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				orderRes := model.Order{
 					UUID:   orderUUID,
 					Status: model.OrderStatusPaid,
 				}
 
 				repo.EXPECT().
 					Get(ctx, orderUUID).
-					Return(order, nil)
+					Return(orderRes, nil)
 			},
 			expected: expected{
 				err: errs.ErrInvalidOrderStatus,
+			},
+		},
+		{
+			name: "ошибка освобождения деталей",
+			args: args{
+				orderUUID: orderUUID,
+			},
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				orderRes := model.Order{
+					UUID:   orderUUID,
+					Status: model.OrderStatusPendingPayment,
+					Items: []model.OrderItem{
+						{UUID: partUUID1},
+					},
+				}
+
+				repo.EXPECT().
+					Get(ctx, orderUUID).
+					Return(orderRes, nil)
+
+				inventory.EXPECT().
+					ReleaseParts(ctx, []uuid.UUID{
+						partUUID1,
+					}).
+					Return(inventoryErr)
+			},
+			expected: expected{
+				err: inventoryErr,
 			},
 		},
 		{
@@ -103,15 +159,27 @@ func TestCancel(t *testing.T) {
 			args: args{
 				orderUUID: orderUUID,
 			},
-			setupMock: func(repo *mocks.Repository) {
-				order := model.Order{
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				orderRes := model.Order{
 					UUID:   orderUUID,
 					Status: model.OrderStatusPendingPayment,
+					Items: []model.OrderItem{
+						{UUID: partUUID1},
+					},
 				}
 
 				repo.EXPECT().
 					Get(ctx, orderUUID).
-					Return(order, nil)
+					Return(orderRes, nil)
+
+				inventory.EXPECT().
+					ReleaseParts(ctx, []uuid.UUID{
+						partUUID1,
+					}).
+					Return(nil)
 
 				repo.EXPECT().
 					Update(ctx, mock.MatchedBy(func(order model.Order) bool {
@@ -133,10 +201,11 @@ func TestCancel(t *testing.T) {
 			orderRepo := mocks.NewRepository(t)
 			inventoryClient := mocks.NewInventoryClient(t)
 			paymentClient := mocks.NewPaymentClient(t)
+			txManager := mocks.NewTxManager(t)
 
-			tc.setupMock(orderRepo)
+			tc.setupMock(orderRepo, inventoryClient)
 
-			svc := order.NewService(orderRepo, inventoryClient, paymentClient)
+			svc := order.NewService(orderRepo, inventoryClient, paymentClient, txManager)
 
 			err := svc.Cancel(ctx, tc.args.orderUUID)
 

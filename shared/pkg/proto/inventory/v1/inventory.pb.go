@@ -7,13 +7,12 @@
 package inventoryv1
 
 import (
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
 )
 
 const (
@@ -367,6 +366,282 @@ func (x *ListPartsResponse) GetParts() []*Part {
 	return nil
 }
 
+// Запрос на проверку совместимости деталей по слотам корабля
+type ValidateCompatibilityRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UUID детали в слоте корпуса (обязательный слот)
+	HullUuid string `protobuf:"bytes,1,opt,name=hull_uuid,json=hullUuid,proto3" json:"hull_uuid,omitempty"`
+	// UUID детали в слоте двигателя (обязательный слот)
+	EngineUuid string `protobuf:"bytes,2,opt,name=engine_uuid,json=engineUuid,proto3" json:"engine_uuid,omitempty"`
+	// UUID детали в слоте щита (опциональный слот, пустая строка — слот не используется)
+	ShieldUuid string `protobuf:"bytes,3,opt,name=shield_uuid,json=shieldUuid,proto3" json:"shield_uuid,omitempty"`
+	// UUID детали в слоте оружия (опциональный слот, пустая строка — слот не используется)
+	WeaponUuid    string `protobuf:"bytes,4,opt,name=weapon_uuid,json=weaponUuid,proto3" json:"weapon_uuid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateCompatibilityRequest) Reset() {
+	*x = ValidateCompatibilityRequest{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateCompatibilityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCompatibilityRequest) ProtoMessage() {}
+
+func (x *ValidateCompatibilityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCompatibilityRequest.ProtoReflect.Descriptor instead.
+func (*ValidateCompatibilityRequest) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ValidateCompatibilityRequest) GetHullUuid() string {
+	if x != nil {
+		return x.HullUuid
+	}
+	return ""
+}
+
+func (x *ValidateCompatibilityRequest) GetEngineUuid() string {
+	if x != nil {
+		return x.EngineUuid
+	}
+	return ""
+}
+
+func (x *ValidateCompatibilityRequest) GetShieldUuid() string {
+	if x != nil {
+		return x.ShieldUuid
+	}
+	return ""
+}
+
+func (x *ValidateCompatibilityRequest) GetWeaponUuid() string {
+	if x != nil {
+		return x.WeaponUuid
+	}
+	return ""
+}
+
+// Ответ на проверку совместимости (пустой — значит совместимы)
+type ValidateCompatibilityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateCompatibilityResponse) Reset() {
+	*x = ValidateCompatibilityResponse{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateCompatibilityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCompatibilityResponse) ProtoMessage() {}
+
+func (x *ValidateCompatibilityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCompatibilityResponse.ProtoReflect.Descriptor instead.
+func (*ValidateCompatibilityResponse) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{6}
+}
+
+// Запрос на резервирование деталей
+type ReservePartsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UUID деталей для резервирования
+	Uuids         []string `protobuf:"bytes,1,rep,name=uuids,proto3" json:"uuids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReservePartsRequest) Reset() {
+	*x = ReservePartsRequest{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReservePartsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReservePartsRequest) ProtoMessage() {}
+
+func (x *ReservePartsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReservePartsRequest.ProtoReflect.Descriptor instead.
+func (*ReservePartsRequest) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ReservePartsRequest) GetUuids() []string {
+	if x != nil {
+		return x.Uuids
+	}
+	return nil
+}
+
+// Ответ на резервирование (пустой — значит успешно)
+type ReservePartsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReservePartsResponse) Reset() {
+	*x = ReservePartsResponse{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReservePartsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReservePartsResponse) ProtoMessage() {}
+
+func (x *ReservePartsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReservePartsResponse.ProtoReflect.Descriptor instead.
+func (*ReservePartsResponse) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{8}
+}
+
+// Запрос на освобождение ранее зарезервированных деталей
+type ReleasePartsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UUID деталей для освобождения
+	Uuids         []string `protobuf:"bytes,1,rep,name=uuids,proto3" json:"uuids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReleasePartsRequest) Reset() {
+	*x = ReleasePartsRequest{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleasePartsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleasePartsRequest) ProtoMessage() {}
+
+func (x *ReleasePartsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleasePartsRequest.ProtoReflect.Descriptor instead.
+func (*ReleasePartsRequest) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ReleasePartsRequest) GetUuids() []string {
+	if x != nil {
+		return x.Uuids
+	}
+	return nil
+}
+
+// Ответ на освобождение (пустой — значит успешно)
+type ReleasePartsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReleasePartsResponse) Reset() {
+	*x = ReleasePartsResponse{}
+	mi := &file_inventory_v1_inventory_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleasePartsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleasePartsResponse) ProtoMessage() {}
+
+func (x *ReleasePartsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inventory_v1_inventory_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleasePartsResponse.ProtoReflect.Descriptor instead.
+func (*ReleasePartsResponse) Descriptor() ([]byte, []int) {
+	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{10}
+}
+
 var File_inventory_v1_inventory_proto protoreflect.FileDescriptor
 
 const file_inventory_v1_inventory_proto_rawDesc = "" +
@@ -389,16 +664,34 @@ const file_inventory_v1_inventory_proto_rawDesc = "" +
 	"\tpart_type\x18\x01 \x01(\x0e2\x16.inventory.v1.PartTypeR\bpartType\x12\x14\n" +
 	"\x05uuids\x18\x02 \x03(\tR\x05uuids\"=\n" +
 	"\x11ListPartsResponse\x12(\n" +
-	"\x05parts\x18\x01 \x03(\v2\x12.inventory.v1.PartR\x05parts*{\n" +
+	"\x05parts\x18\x01 \x03(\v2\x12.inventory.v1.PartR\x05parts\"\x9e\x01\n" +
+	"\x1cValidateCompatibilityRequest\x12\x1b\n" +
+	"\thull_uuid\x18\x01 \x01(\tR\bhullUuid\x12\x1f\n" +
+	"\vengine_uuid\x18\x02 \x01(\tR\n" +
+	"engineUuid\x12\x1f\n" +
+	"\vshield_uuid\x18\x03 \x01(\tR\n" +
+	"shieldUuid\x12\x1f\n" +
+	"\vweapon_uuid\x18\x04 \x01(\tR\n" +
+	"weaponUuid\"\x1f\n" +
+	"\x1dValidateCompatibilityResponse\"+\n" +
+	"\x13ReservePartsRequest\x12\x14\n" +
+	"\x05uuids\x18\x01 \x03(\tR\x05uuids\"\x16\n" +
+	"\x14ReservePartsResponse\"+\n" +
+	"\x13ReleasePartsRequest\x12\x14\n" +
+	"\x05uuids\x18\x01 \x03(\tR\x05uuids\"\x16\n" +
+	"\x14ReleasePartsResponse*{\n" +
 	"\bPartType\x12\x19\n" +
 	"\x15PART_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0ePART_TYPE_HULL\x10\x01\x12\x14\n" +
 	"\x10PART_TYPE_ENGINE\x10\x02\x12\x14\n" +
 	"\x10PART_TYPE_SHIELD\x10\x03\x12\x14\n" +
-	"\x10PART_TYPE_WEAPON\x10\x042\xa8\x01\n" +
+	"\x10PART_TYPE_WEAPON\x10\x042\xc8\x03\n" +
 	"\x10InventoryService\x12F\n" +
 	"\aGetPart\x12\x1c.inventory.v1.GetPartRequest\x1a\x1d.inventory.v1.GetPartResponse\x12L\n" +
-	"\tListParts\x12\x1e.inventory.v1.ListPartsRequest\x1a\x1f.inventory.v1.ListPartsResponseBLZJgithub.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1;inventoryv1b\x06proto3"
+	"\tListParts\x12\x1e.inventory.v1.ListPartsRequest\x1a\x1f.inventory.v1.ListPartsResponse\x12p\n" +
+	"\x15ValidateCompatibility\x12*.inventory.v1.ValidateCompatibilityRequest\x1a+.inventory.v1.ValidateCompatibilityResponse\x12U\n" +
+	"\fReserveParts\x12!.inventory.v1.ReservePartsRequest\x1a\".inventory.v1.ReservePartsResponse\x12U\n" +
+	"\fReleaseParts\x12!.inventory.v1.ReleasePartsRequest\x1a\".inventory.v1.ReleasePartsResponseBLZJgithub.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1;inventoryv1b\x06proto3"
 
 var (
 	file_inventory_v1_inventory_proto_rawDescOnce sync.Once
@@ -413,31 +706,43 @@ func file_inventory_v1_inventory_proto_rawDescGZIP() []byte {
 }
 
 var file_inventory_v1_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_inventory_v1_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_inventory_v1_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_inventory_v1_inventory_proto_goTypes = []any{
-	(PartType)(0),                 // 0: inventory.v1.PartType
-	(*Part)(nil),                  // 1: inventory.v1.Part
-	(*GetPartRequest)(nil),        // 2: inventory.v1.GetPartRequest
-	(*GetPartResponse)(nil),       // 3: inventory.v1.GetPartResponse
-	(*ListPartsRequest)(nil),      // 4: inventory.v1.ListPartsRequest
-	(*ListPartsResponse)(nil),     // 5: inventory.v1.ListPartsResponse
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(PartType)(0),                         // 0: inventory.v1.PartType
+	(*Part)(nil),                          // 1: inventory.v1.Part
+	(*GetPartRequest)(nil),                // 2: inventory.v1.GetPartRequest
+	(*GetPartResponse)(nil),               // 3: inventory.v1.GetPartResponse
+	(*ListPartsRequest)(nil),              // 4: inventory.v1.ListPartsRequest
+	(*ListPartsResponse)(nil),             // 5: inventory.v1.ListPartsResponse
+	(*ValidateCompatibilityRequest)(nil),  // 6: inventory.v1.ValidateCompatibilityRequest
+	(*ValidateCompatibilityResponse)(nil), // 7: inventory.v1.ValidateCompatibilityResponse
+	(*ReservePartsRequest)(nil),           // 8: inventory.v1.ReservePartsRequest
+	(*ReservePartsResponse)(nil),          // 9: inventory.v1.ReservePartsResponse
+	(*ReleasePartsRequest)(nil),           // 10: inventory.v1.ReleasePartsRequest
+	(*ReleasePartsResponse)(nil),          // 11: inventory.v1.ReleasePartsResponse
+	(*timestamppb.Timestamp)(nil),         // 12: google.protobuf.Timestamp
 }
 var file_inventory_v1_inventory_proto_depIdxs = []int32{
-	0, // 0: inventory.v1.Part.part_type:type_name -> inventory.v1.PartType
-	6, // 1: inventory.v1.Part.created_at:type_name -> google.protobuf.Timestamp
-	1, // 2: inventory.v1.GetPartResponse.part:type_name -> inventory.v1.Part
-	0, // 3: inventory.v1.ListPartsRequest.part_type:type_name -> inventory.v1.PartType
-	1, // 4: inventory.v1.ListPartsResponse.parts:type_name -> inventory.v1.Part
-	2, // 5: inventory.v1.InventoryService.GetPart:input_type -> inventory.v1.GetPartRequest
-	4, // 6: inventory.v1.InventoryService.ListParts:input_type -> inventory.v1.ListPartsRequest
-	3, // 7: inventory.v1.InventoryService.GetPart:output_type -> inventory.v1.GetPartResponse
-	5, // 8: inventory.v1.InventoryService.ListParts:output_type -> inventory.v1.ListPartsResponse
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	0,  // 0: inventory.v1.Part.part_type:type_name -> inventory.v1.PartType
+	12, // 1: inventory.v1.Part.created_at:type_name -> google.protobuf.Timestamp
+	1,  // 2: inventory.v1.GetPartResponse.part:type_name -> inventory.v1.Part
+	0,  // 3: inventory.v1.ListPartsRequest.part_type:type_name -> inventory.v1.PartType
+	1,  // 4: inventory.v1.ListPartsResponse.parts:type_name -> inventory.v1.Part
+	2,  // 5: inventory.v1.InventoryService.GetPart:input_type -> inventory.v1.GetPartRequest
+	4,  // 6: inventory.v1.InventoryService.ListParts:input_type -> inventory.v1.ListPartsRequest
+	6,  // 7: inventory.v1.InventoryService.ValidateCompatibility:input_type -> inventory.v1.ValidateCompatibilityRequest
+	8,  // 8: inventory.v1.InventoryService.ReserveParts:input_type -> inventory.v1.ReservePartsRequest
+	10, // 9: inventory.v1.InventoryService.ReleaseParts:input_type -> inventory.v1.ReleasePartsRequest
+	3,  // 10: inventory.v1.InventoryService.GetPart:output_type -> inventory.v1.GetPartResponse
+	5,  // 11: inventory.v1.InventoryService.ListParts:output_type -> inventory.v1.ListPartsResponse
+	7,  // 12: inventory.v1.InventoryService.ValidateCompatibility:output_type -> inventory.v1.ValidateCompatibilityResponse
+	9,  // 13: inventory.v1.InventoryService.ReserveParts:output_type -> inventory.v1.ReservePartsResponse
+	11, // 14: inventory.v1.InventoryService.ReleaseParts:output_type -> inventory.v1.ReleasePartsResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_inventory_v1_inventory_proto_init() }
@@ -451,7 +756,7 @@ func file_inventory_v1_inventory_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inventory_v1_inventory_proto_rawDesc), len(file_inventory_v1_inventory_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

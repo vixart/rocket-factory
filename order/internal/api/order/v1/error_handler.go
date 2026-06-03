@@ -45,7 +45,8 @@ func mapError(err error) (int, string) {
 
 	// 409 Conflict
 	case errors.Is(err, errs.ErrInvalidOrderStatus),
-		errors.Is(err, errs.ErrPartInsufficientStock):
+		errors.Is(err, errs.ErrIncompatibleParts),
+		errors.Is(err, errs.ErrOutOfStock):
 		return http.StatusConflict, err.Error()
 
 	// 400 Bad Request

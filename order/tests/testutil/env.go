@@ -1,4 +1,3 @@
-//nolint:gosec // test cleanup operations
 package testutil
 
 import (
@@ -44,6 +43,8 @@ type Env struct {
 }
 
 // NewEnv поднимает окружение для одного теста и регистрирует cleanup.
+// Поднимаются: уникальные БД для order и inventory, миграции, gRPC inventory+payment
+// через bufconn, HTTP order через httptest.
 func NewEnv(t *testing.T) *Env {
 	t.Helper()
 
@@ -77,7 +78,7 @@ func NewEnv(t *testing.T) *Env {
 	invLis := bufconn.Listen(bufSize)
 	invServer := grpc.NewServer(invApp.Interceptors()...)
 	invApp.RegisterServices(invServer, inventoryPool)
-	go func() { _ = invServer.Serve(invLis) }()
+	go func() { _ = invServer.Serve(invLis) }() //nolint:gosec // test
 	t.Cleanup(invServer.Stop)
 
 	invConn, err := grpc.NewClient(
@@ -90,14 +91,14 @@ func NewEnv(t *testing.T) *Env {
 	if err != nil {
 		t.Fatalf("invConn: %v", err)
 	}
-	t.Cleanup(func() { _ = invConn.Close() })
+	t.Cleanup(func() { _ = invConn.Close() }) //nolint:gosec // test
 	invClient := inventoryv1.NewInventoryServiceClient(invConn)
 
 	// Payment gRPC через bufconn.
 	payLis := bufconn.Listen(bufSize)
 	payServer := grpc.NewServer(payApp.Interceptors()...)
 	payApp.RegisterServices(payServer)
-	go func() { _ = payServer.Serve(payLis) }()
+	go func() { _ = payServer.Serve(payLis) }() //nolint:gosec // test
 	t.Cleanup(payServer.Stop)
 
 	payConn, err := grpc.NewClient(
@@ -110,7 +111,7 @@ func NewEnv(t *testing.T) *Env {
 	if err != nil {
 		t.Fatalf("payConn: %v", err)
 	}
-	t.Cleanup(func() { _ = payConn.Close() })
+	t.Cleanup(func() { _ = payConn.Close() }) //nolint:gosec // test
 	payClient := paymentv1.NewPaymentServiceClient(payConn)
 
 	// Order HTTP через httptest.

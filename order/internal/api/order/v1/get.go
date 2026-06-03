@@ -8,6 +8,7 @@ import (
 	"github.com/vixart/rocket-factory/order/internal/api/order/converter"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/input"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
@@ -42,20 +43,17 @@ func (a *api) GetOrder(ctx context.Context, params orderv1.GetOrderParams) (orde
 	}, nil
 }
 
-func getOrderItemByType(orderItems []model.OrderItem) model.OrderParts {
-	var orderParts model.OrderParts
+func getOrderItemByType(orderItems []model.OrderItem) input.OrderParts {
+	var orderParts input.OrderParts
 
 	for _, item := range orderItems {
 		switch item.PartType {
 		case model.PartTypeHull:
 			orderParts.HullUUID = item.UUID
-
 		case model.PartTypeEngine:
 			orderParts.EngineUUID = item.UUID
-
 		case model.PartTypeShield:
 			orderParts.ShieldUUID = &item.UUID
-
 		case model.PartTypeWeapon:
 			orderParts.WeaponUUID = &item.UUID
 		}

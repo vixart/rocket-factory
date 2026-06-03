@@ -2,8 +2,6 @@
 // единый PostgreSQL-контейнер на весь пакет, schema-per-test изоляцию,
 // поднятие гRPC-сервисов через bufconn и HTTP через httptest, плюс
 // helpers для seed-данных и прямой проверки состояния БД.
-//
-//nolint:gosec // tests cleanup operation
 package testutil
 
 import (
@@ -29,7 +27,7 @@ var (
 	pgOnce       sync.Once
 	pgContainer  *tcpostgres.PostgresContainer
 	pgBaseDSN    string
-	ErrPgInit    error
+	pgInitErr    error //nolint:errname // test
 	pgDBCounter  uint64
 	pgPostgresDB = "postgres" // системная БД для CREATE DATABASE
 )
@@ -59,13 +57,13 @@ func sharedContainer(ctx context.Context) (*tcpostgres.PostgresContainer, string
 			),
 		)
 		if err != nil {
-			ErrPgInit = err
+			pgInitErr = err
 			return
 		}
 
 		dsn, err := c.ConnectionString(ctx, "sslmode=disable")
 		if err != nil {
-			ErrPgInit = err
+			pgInitErr = err
 			return
 		}
 
@@ -73,7 +71,7 @@ func sharedContainer(ctx context.Context) (*tcpostgres.PostgresContainer, string
 		pgBaseDSN = dsn
 	})
 
-	return pgContainer, pgBaseDSN, ErrPgInit
+	return pgContainer, pgBaseDSN, pgInitErr
 }
 
 // StopShared останавливает контейнер. Вызывается из TestMain после всех тестов.
@@ -102,7 +100,7 @@ func createIsolatedDB(ctx context.Context, t *testing.T, prefix, migrationsDir s
 	if err != nil {
 		t.Fatalf("открыть admin connection: %v", err)
 	}
-	defer func() { _ = adminDB.Close() }()
+	defer func() { _ = adminDB.Close() }() //nolint:gosec // test
 
 	if _, err = adminDB.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE %q`, dbName)); err != nil {
 		t.Fatalf("создать БД %s: %v", dbName, err)
@@ -120,14 +118,14 @@ func createIsolatedDB(ctx context.Context, t *testing.T, prefix, migrationsDir s
 	}
 	absDir, err := filepath.Abs(migrationsDir)
 	if err != nil {
-		_ = migrateDB.Close()
+		_ = migrateDB.Close() //nolint:gosec // test
 		t.Fatalf("filepath.Abs: %v", err)
 	}
 	if err = goose.Up(migrateDB, absDir); err != nil {
-		_ = migrateDB.Close()
+		_ = migrateDB.Close() //nolint:gosec // test
 		t.Fatalf("goose up: %v", err)
 	}
-	_ = migrateDB.Close()
+	_ = migrateDB.Close() //nolint:gosec // test
 
 	cleanup := func() {
 		// Подключаемся к admin БД, чтобы дропнуть рабочую.
@@ -135,17 +133,14 @@ func createIsolatedDB(ctx context.Context, t *testing.T, prefix, migrationsDir s
 		if err != nil {
 			return
 		}
-		defer func() {
-			_ = admin.Close()
-		}()
+		defer func() { _ = admin.Close() }() //nolint:gosec // test
 
 		// Завершаем активные коннекты и удаляем БД.
-		_, _ = admin.ExecContext(ctx,
-			fmt.Sprintf(
-				`SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+		_, _ = admin.Exec(fmt.Sprintf( //nolint:gosec,noctx // test
+			`SELECT pg_terminate_backend(pid) FROM pg_stat_activity
 			 WHERE datname = '%s' AND pid <> pg_backend_pid()`, dbName,
-			))
-		_, _ = admin.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE IF EXISTS %q`, dbName))
+		))
+		_, _ = admin.Exec(fmt.Sprintf(`DROP DATABASE IF EXISTS %q`, dbName)) //nolint:gosec,noctx // test
 	}
 
 	return dbInfo{Name: dbName, DSN: dsn, cleanup: cleanup}
