@@ -13,4 +13,5 @@ var (
 	ErrPartNotFound      = errors.New("деталь не найдена")
 	ErrOutOfStock        = errors.New("детали нет на складе")
 	ErrIncompatibleParts = errors.New("детали несовместимы")
+	ErrPartTypeMismatch  = errors.New("неверный тип детали")
 )

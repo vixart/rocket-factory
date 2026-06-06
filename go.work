@@ -4,6 +4,6 @@ use (
 	./inventory
 	./order
 	./payment
-	./shared
 	./platform
+	./shared
 )

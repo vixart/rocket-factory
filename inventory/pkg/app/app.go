@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -43,11 +44,12 @@ func Interceptors() []grpc.ServerOption {
 }
 
 func RegisterServices(
+	txManager *manager.Manager,
 	grpcServer *grpc.Server,
 	pool *pgxpool.Pool,
 ) {
 	repo := partRepository.NewRepository(pool)
-	service := part.NewService(repo, domain.NewCompatibilityChecker())
+	service := part.NewService(txManager, repo, domain.NewCompatibilityChecker())
 	api := inventoryApiV1.NewApi(service)
 	inventoryv1.RegisterInventoryServiceServer(grpcServer, api)
 }

@@ -115,7 +115,7 @@ func mapErrors(err error) error {
 		case codes.NotFound:
 			errType = errs.ErrPartNotFound
 		case codes.InvalidArgument:
-			errType = errs.ErrInvalidUUID
+			errType = errs.ErrPartTypeMismatch
 		case codes.FailedPrecondition:
 			errType = errs.ErrIncompatibleParts
 		case codes.ResourceExhausted:

@@ -16,12 +16,14 @@ import (
 
 	orderApiV1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	inventoryClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/inventory/v1"
+	paymentClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/payment/v1"
 	"github.com/vixart/rocket-factory/order/internal/config"
 	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
+	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
 type diContainer struct {
@@ -119,8 +121,8 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 			return paymentConn.Close()
 		})
 
-		inventoryServiceClient := inventoryv1.NewInventoryServiceClient(paymentConn)
-		d.inventory = inventoryClientV1.NewClient(inventoryServiceClient)
+		paymentServiceClient := paymentv1.NewPaymentServiceClient(paymentConn)
+		d.payment = paymentClientV1.NewClient(paymentServiceClient)
 	}
 
 	return d.payment

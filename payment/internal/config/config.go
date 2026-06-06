@@ -16,13 +16,14 @@ type config struct {
 }
 
 func MustLoad() {
-	var cfg config
+	configPath := ResolveConfigPath()
 
-	if err := cleanenv.ReadEnv(&cfg); err != nil {
+	cfg, err := Load(configPath)
+	if err != nil {
 		panic(fmt.Sprintf("не удалось загрузить конфиг: %v", err))
 	}
 
-	appConfig = &cfg
+	appConfig = cfg
 }
 
 func AppConfig() *config {

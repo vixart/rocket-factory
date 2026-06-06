@@ -163,10 +163,23 @@ func TestReserve(t *testing.T) {
 
 			repo := mocks.NewRepository(t)
 			checker := mocks.NewCompatibilityChecker(t)
+			txManager := mocks.NewTxManager(t)
 
-			svc := partService.NewService(repo, checker)
+			svc := partService.NewService(txManager, repo, checker)
 
 			tc.setupMock(repo)
+
+			txManager.EXPECT().
+				Do(
+					ctx,
+					mock.Anything,
+				).
+				RunAndReturn(func(
+					ctx context.Context,
+					fn func(context.Context) error,
+				) error {
+					return fn(ctx)
+				})
 
 			err := svc.Reserve(ctx, tc.args.uuids)
 

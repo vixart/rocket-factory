@@ -16,22 +16,21 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 		PartType: valueobject.PartTypeUnspecified,
 	}
 
-	parts, err := s.partRepo.List(ctx, partFilter)
-	if err != nil {
-		return fmt.Errorf("не удалось получить детали: %w", err)
-	}
-
-	for i := range parts {
-		err = parts[i].Reserve()
+	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
+		parts, err := s.partRepo.List(ctx, partFilter)
 		if err != nil {
-			return fmt.Errorf("не удалось зарезервировать детали детали: %w", err)
+			return fmt.Errorf("не удалось получить детали: %w", err)
 		}
-	}
 
-	err = s.partRepo.UpdateReservedBatch(ctx, parts)
-	if err != nil {
-		return err
-	}
+		for i := range parts {
+			err = parts[i].Reserve()
+			if err != nil {
+				return fmt.Errorf("не удалось зарезервировать детали детали: %w", err)
+			}
+		}
 
-	return nil
+		return s.partRepo.UpdateReservedBatch(ctx, parts)
+	})
+
+	return err
 }

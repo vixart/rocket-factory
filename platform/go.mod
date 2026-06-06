@@ -2,7 +2,10 @@ module github.com/vixart/rocket-factory/platform
 
 go 1.26.0
 
-require google.golang.org/grpc v1.81.1
+require (
+	github.com/google/uuid v1.6.0
+	google.golang.org/grpc v1.81.1
+)
 
 require (
 	golang.org/x/net v0.55.0 // indirect

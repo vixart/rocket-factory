@@ -77,7 +77,7 @@ func NewEnv(t *testing.T) *Env {
 	// Inventory gRPC через bufconn.
 	invLis := bufconn.Listen(bufSize)
 	invServer := grpc.NewServer(invApp.Interceptors()...)
-	invApp.RegisterServices(invServer, inventoryPool)
+	invApp.RegisterServices(txManager, invServer, inventoryPool)
 	go func() { _ = invServer.Serve(invLis) }() //nolint:gosec // test
 	t.Cleanup(invServer.Stop)
 

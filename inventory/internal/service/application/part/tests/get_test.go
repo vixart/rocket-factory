@@ -109,8 +109,9 @@ func TestGet(t *testing.T) {
 
 			repo := mocks.NewRepository(t)
 			checker := mocks.NewCompatibilityChecker(t)
+			txManager := mocks.NewTxManager(t)
 
-			svc := partService.NewService(repo, checker)
+			svc := partService.NewService(txManager, repo, checker)
 
 			tc.setupMock(repo, checker)
 

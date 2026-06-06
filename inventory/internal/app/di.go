@@ -90,7 +90,7 @@ func (d *diContainer) PartCompatibilityChecker() partService.CompatibilityChecke
 
 func (d *diContainer) PartService(ctx context.Context) inventoryApiV1.InventoryService {
 	if d.partSvc == nil {
-		d.partSvc = partService.NewService(d.PartRepository(ctx), d.PartCompatibilityChecker())
+		d.partSvc = partService.NewService(d.TxManager(ctx), d.PartRepository(ctx), d.PartCompatibilityChecker())
 	}
 
 	return d.partSvc

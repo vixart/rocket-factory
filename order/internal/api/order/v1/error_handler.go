@@ -52,6 +52,7 @@ func mapError(err error) (int, string) {
 	// 400 Bad Request
 	case errors.Is(err, errs.ErrInvalidUUID),
 		errors.Is(err, errs.ErrPaymentFailed),
+		errors.Is(err, errs.ErrPartTypeMismatch),
 		errors.Is(err, errs.ErrInvalidPaymentMethod):
 		return http.StatusBadRequest, err.Error()
 

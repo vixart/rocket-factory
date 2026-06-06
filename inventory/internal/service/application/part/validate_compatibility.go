@@ -34,7 +34,7 @@ func (s *service) resolveShipSlots(ctx context.Context, slots valueobject.ShipSl
 		{name: "hull", uuid: slots.HullUUID, partType: valueobject.PartTypeHull, required: true},
 		{name: "engine", uuid: slots.EngineUUID, partType: valueobject.PartTypeEngine, required: true},
 		{name: "shield", uuid: slots.ShieldUUID, partType: valueobject.PartTypeShield, required: false},
-		{name: "engine", uuid: slots.WeaponUUID, partType: valueobject.PartTypeWeapon, required: false},
+		{name: "weapon", uuid: slots.WeaponUUID, partType: valueobject.PartTypeWeapon, required: false},
 	}
 
 	uuids := make([]uuid.UUID, 0, len(requests))
