@@ -13,12 +13,12 @@ import (
 
 func (a *api) GetPart(ctx context.Context, req *inventoryv1.GetPartRequest) (*inventoryv1.GetPartResponse, error) {
 	if req.GetUuid() == "" {
-		return nil, fmt.Errorf("order_uuid не может быть пустым, %w", errs.ErrInvalidUUID)
+		return nil, fmt.Errorf("uuid не может быть пустым, %w", errs.ErrInvalidUUID)
 	}
 
 	parsedUuid, err := uuid.Parse(req.GetUuid())
 	if err != nil {
-		return nil, fmt.Errorf("неверный формат order_uuid: %s, %w", req.GetUuid(), errs.ErrInvalidUUID)
+		return nil, fmt.Errorf("неверный формат uuid: %s, %w", req.GetUuid(), errs.ErrInvalidUUID)
 	}
 
 	p, err := a.inventoryService.Get(ctx, parsedUuid)

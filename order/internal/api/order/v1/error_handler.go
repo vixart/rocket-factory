@@ -45,12 +45,14 @@ func mapError(err error) (int, string) {
 
 	// 409 Conflict
 	case errors.Is(err, errs.ErrInvalidOrderStatus),
-		errors.Is(err, errs.ErrPartInsufficientStock):
+		errors.Is(err, errs.ErrIncompatibleParts),
+		errors.Is(err, errs.ErrOutOfStock):
 		return http.StatusConflict, err.Error()
 
 	// 400 Bad Request
 	case errors.Is(err, errs.ErrInvalidUUID),
 		errors.Is(err, errs.ErrPaymentFailed),
+		errors.Is(err, errs.ErrPartTypeMismatch),
 		errors.Is(err, errs.ErrInvalidPaymentMethod):
 		return http.StatusBadRequest, err.Error()
 

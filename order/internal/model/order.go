@@ -14,13 +14,6 @@ const (
 	OrderStatusCancelled      OrderStatus = "CANCELLED"
 )
 
-type OrderParts struct {
-	HullUUID   uuid.UUID
-	EngineUUID uuid.UUID
-	ShieldUUID *uuid.UUID
-	WeaponUUID *uuid.UUID
-}
-
 type OrderItem struct {
 	UUID     uuid.UUID
 	PartType PartType
@@ -36,7 +29,7 @@ type Order struct {
 	CreatedAt       time.Time
 }
 
-func (o Order) TotalPrice() int64 {
+func (o *Order) TotalPrice() int64 {
 	var total int64
 
 	for _, item := range o.Items {
@@ -44,4 +37,14 @@ func (o Order) TotalPrice() int64 {
 	}
 
 	return total
+}
+
+func (o *Order) ItemsUUIDs() []uuid.UUID {
+	uuids := make([]uuid.UUID, len(o.Items))
+
+	for i, item := range o.Items {
+		uuids[i] = item.UUID
+	}
+
+	return uuids
 }

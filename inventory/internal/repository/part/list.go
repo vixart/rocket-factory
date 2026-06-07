@@ -9,15 +9,17 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
-	"github.com/vixart/rocket-factory/inventory/internal/model"
+	"github.com/vixart/rocket-factory/inventory/internal/model/entity"
+	"github.com/vixart/rocket-factory/inventory/internal/model/valueobject"
 	"github.com/vixart/rocket-factory/inventory/internal/repository/converter"
 	"github.com/vixart/rocket-factory/inventory/internal/repository/record"
+	"github.com/vixart/rocket-factory/inventory/internal/service/input"
 )
 
 func (r *repository) List(
 	ctx context.Context,
-	partFilter model.PartFilter,
-) ([]model.Part, error) {
+	partFilter input.PartFilter,
+) ([]entity.Part, error) {
 	builder := r.buildListQuery(partFilter)
 
 	query, args, err := builder.ToSql()
@@ -31,7 +33,7 @@ func (r *repository) List(
 	}
 	defer rows.Close()
 
-	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.Part])
+	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.PartRecord])
 	if err != nil {
 		return nil, fmt.Errorf("считать строки: %w", err)
 	}
@@ -40,7 +42,7 @@ func (r *repository) List(
 }
 
 func (r *repository) buildListQuery(
-	partFilter model.PartFilter,
+	partFilter input.PartFilter,
 ) sq.SelectBuilder {
 	builder := sq.
 		Select(
@@ -51,17 +53,19 @@ func (r *repository) buildListQuery(
 			"price",
 			"stock_quantity",
 			"created_at",
+			"properties",
+			"reserved",
 		).
 		From("parts").
 		PlaceholderFormat(sq.Dollar)
 
-	if len(partFilter.Uuids) > 0 {
+	if len(partFilter.UUIDs) > 0 {
 		return builder.Where(sq.Eq{
-			"uuid": partFilter.Uuids,
+			"uuid": partFilter.UUIDs,
 		})
 	}
 
-	if partFilter.PartType != model.PartTypeUnspecified {
+	if partFilter.PartType != valueobject.PartTypeUnspecified {
 		builder = builder.Where(sq.Eq{
 			"part_type": partFilter.PartType,
 		})
@@ -71,36 +75,43 @@ func (r *repository) buildListQuery(
 }
 
 func (r *repository) mapAndOrder(
-	records []record.Part,
-	partFilter model.PartFilter,
-) ([]model.Part, error) {
-	if len(partFilter.Uuids) == 0 {
-		parts := make([]model.Part, len(records))
+	records []record.PartRecord,
+	partFilter input.PartFilter,
+) ([]entity.Part, error) {
+	if len(partFilter.UUIDs) == 0 {
+		parts := make([]entity.Part, len(records))
 		for i, rec := range records {
-			parts[i] = converter.PartRecordToModel(rec)
+			part, err := converter.PartRecordToModel(rec)
+			if err != nil {
+				return nil, err
+			}
+			parts[i] = part
 		}
 		return parts, nil
 	}
 
-	recordByUUID := make(map[uuid.UUID]record.Part, len(records))
+	recordByUUID := make(map[uuid.UUID]record.PartRecord, len(records))
 
 	for _, rec := range records {
 		recordByUUID[rec.UUID] = rec
 	}
 
-	if len(recordByUUID) != len(partFilter.Uuids) {
+	if len(recordByUUID) != len(partFilter.UUIDs) {
 		return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
 	}
 
-	ordered := make([]model.Part, 0, len(partFilter.Uuids))
+	ordered := make([]entity.Part, 0, len(partFilter.UUIDs))
 
-	for _, id := range partFilter.Uuids {
+	for _, id := range partFilter.UUIDs {
 		rec, ok := recordByUUID[id]
 		if !ok {
 			return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
 		}
-
-		ordered = append(ordered, converter.PartRecordToModel(rec))
+		part, err := converter.PartRecordToModel(rec)
+		if err != nil {
+			return nil, err
+		}
+		ordered = append(ordered, part)
 	}
 
 	return ordered, nil

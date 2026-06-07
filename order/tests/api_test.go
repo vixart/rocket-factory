@@ -40,6 +40,7 @@ func TestInventory_GetPart_Success(t *testing.T) {
 	assert.Equal(t, int64(testutil.HullAluminumPrice), part.GetPrice())
 	assert.Equal(t, inventoryv1.PartType_PART_TYPE_HULL, part.GetPartType())
 	assert.NotEmpty(t, part.GetName())
+	assert.NotEmpty(t, part.GetDescription(), "description должен быть заполнен")
 	assert.NotNil(t, part.GetCreatedAt())
 }
 
@@ -48,17 +49,18 @@ func TestInventory_GetPart_AllTypes(t *testing.T) {
 	env := testutil.NewEnv(t)
 
 	testCases := []struct {
-		name     string
-		uuid     string
-		price    int64
-		partType inventoryv1.PartType
+		name        string
+		uuid        string
+		price       int64
+		partType    inventoryv1.PartType
+		description string
 	}{
-		{"Hull Aluminum", testutil.HullAluminumUUID, testutil.HullAluminumPrice, inventoryv1.PartType_PART_TYPE_HULL},
-		{"Hull Titanium", testutil.HullTitaniumUUID, testutil.HullTitaniumPrice, inventoryv1.PartType_PART_TYPE_HULL},
-		{"Engine Ion C", testutil.EngineIonCUUID, testutil.EngineIonCPrice, inventoryv1.PartType_PART_TYPE_ENGINE},
-		{"Engine Ion B", testutil.EngineIonBUUID, testutil.EngineIonBPrice, inventoryv1.PartType_PART_TYPE_ENGINE},
-		{"Shield Energy", testutil.ShieldEnergyUUID, testutil.ShieldEnergyPrice, inventoryv1.PartType_PART_TYPE_SHIELD},
-		{"Weapon Laser", testutil.WeaponLaserUUID, testutil.WeaponLaserPrice, inventoryv1.PartType_PART_TYPE_WEAPON},
+		{"Hull Aluminum", testutil.HullAluminumUUID, testutil.HullAluminumPrice, inventoryv1.PartType_PART_TYPE_HULL, "Лёгкий корпус для небольших кораблей"},
+		{"Hull Titanium", testutil.HullTitaniumUUID, testutil.HullTitaniumPrice, inventoryv1.PartType_PART_TYPE_HULL, "Прочный корпус для средних кораблей"},
+		{"Engine Ion C", testutil.EngineIonCUUID, testutil.EngineIonCPrice, inventoryv1.PartType_PART_TYPE_ENGINE, "Базовый ионный двигатель класса C"},
+		{"Engine Ion B", testutil.EngineIonBUUID, testutil.EngineIonBPrice, inventoryv1.PartType_PART_TYPE_ENGINE, "Улучшенный ионный двигатель класса B"},
+		{"Shield Energy", testutil.ShieldEnergyUUID, testutil.ShieldEnergyPrice, inventoryv1.PartType_PART_TYPE_SHIELD, "Стандартный энергетический щит"},
+		{"Weapon Laser", testutil.WeaponLaserUUID, testutil.WeaponLaserPrice, inventoryv1.PartType_PART_TYPE_WEAPON, "Точная лазерная пушка"},
 	}
 
 	for _, tc := range testCases {
@@ -72,6 +74,7 @@ func TestInventory_GetPart_AllTypes(t *testing.T) {
 			assert.Equal(t, tc.uuid, part.GetUuid())
 			assert.Equal(t, tc.price, part.GetPrice())
 			assert.Equal(t, tc.partType, part.GetPartType())
+			assert.Equal(t, tc.description, part.GetDescription())
 		})
 	}
 }
@@ -1294,6 +1297,7 @@ func TestInventory_GetPart_OutOfStock(t *testing.T) {
 	assert.Equal(t, int64(testutil.HullOutOfStockPrice), part.GetPrice())
 	assert.Equal(t, inventoryv1.PartType_PART_TYPE_HULL, part.GetPartType())
 	assert.Equal(t, int64(0), part.GetStockQuantity())
+	assert.Equal(t, "Экспериментальный корпус (нет на складе)", part.GetDescription())
 }
 
 func TestInventory_ListParts_ByUuids_IncludesOutOfStock(t *testing.T) {
@@ -1364,4 +1368,396 @@ func TestOrder_Create_WithShieldOnly(t *testing.T) {
 	require.NotNil(t, result)
 	expectedTotal := int64(testutil.HullAluminumPrice + testutil.EngineIonCPrice + testutil.ShieldEnergyPrice)
 	assert.Equal(t, expectedTotal, result.TotalPrice)
+}
+
+// Тесты соответствия типа детали слоту корабля.
+
+func TestOrder_Create_WrongPartType_WeaponAsHull(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// В слот корпуса передан UUID оружия — InventoryService возвращает InvalidArgument,
+	// order-сервис маппит его в 400 Bad Request
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.WeaponLaserUUID,
+		EngineUUID: testutil.EngineIonCUUID,
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestOrder_Create_WrongPartType_HullAsEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// В слот двигателя передан UUID корпуса (фактически второй корпус) — 400
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullAluminumUUID,
+		EngineUUID: testutil.HullTitaniumUUID,
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestOrder_Create_WrongPartType_ShieldAsWeapon(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// В слот оружия передан UUID щита — 400
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullAluminumUUID,
+		EngineUUID: testutil.EngineIonCUUID,
+		WeaponUUID: new(testutil.ShieldEnergyUUID),
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestOrder_Create_DuplicateUUID_HullAndEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Один и тот же UUID передан в hull и engine — это автоматически означает mismatch
+	// типа в одном из слотов (одна деталь не может быть и HULL, и ENGINE) → 400
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullAluminumUUID,
+		EngineUUID: testutil.HullAluminumUUID,
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// Тесты ValidateCompatibility (gRPC).
+
+func TestInventory_ValidateCompatibility_Success_Compatible(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Алюминиевый корпус (strength=50) + Ионный двигатель C (required_strength=30) — совместимы
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullAluminumUUID,
+		EngineUuid: testutil.EngineIonCUUID,
+	})
+	require.NoError(t, err)
+}
+
+func TestInventory_ValidateCompatibility_Success_StrongHull(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Титановый корпус (strength=150) + Ионный двигатель B (required_strength=70) — совместимы
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullTitaniumUUID,
+		EngineUuid: testutil.EngineIonBUUID,
+	})
+	require.NoError(t, err)
+}
+
+func TestInventory_ValidateCompatibility_Success_AllParts(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Титановый корпус + Ion B + Energy shield + Laser — всё совместимо
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullTitaniumUUID,
+		EngineUuid: testutil.EngineIonBUUID,
+		ShieldUuid: testutil.ShieldEnergyUUID,
+		WeaponUuid: testutil.WeaponLaserUUID,
+	})
+	require.NoError(t, err)
+}
+
+func TestInventory_ValidateCompatibility_Fail_WeakHull(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Алюминиевый корпус (strength=50) + Ионный двигатель B (required_strength=70) — несовместимы
+	// Корпус слишком слаб для двигателя класса B
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullAluminumUUID,
+		EngineUuid: testutil.EngineIonBUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.FailedPrecondition)
+}
+
+func TestInventory_ValidateCompatibility_MissingHull(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Без hull_uuid — это нарушение контракта (обязательный слот)
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		EngineUuid: testutil.EngineIonBUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.InvalidArgument)
+}
+
+func TestInventory_ValidateCompatibility_MissingEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid: testutil.HullAluminumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.InvalidArgument)
+}
+
+func TestInventory_ValidateCompatibility_TypeMismatch_WeaponInHullSlot(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// В слот корпуса передан UUID оружия — InvalidArgument
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.WeaponLaserUUID,
+		EngineUuid: testutil.EngineIonCUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.InvalidArgument)
+}
+
+func TestInventory_ValidateCompatibility_TypeMismatch_HullInEngineSlot(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// В слот двигателя передан UUID корпуса (фактически второй корпус) — InvalidArgument
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullAluminumUUID,
+		EngineUuid: testutil.HullTitaniumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.InvalidArgument)
+}
+
+func TestInventory_ValidateCompatibility_DuplicateUUID_HullAndEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Один и тот же UUID в двух слотах — InvalidArgument
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullAluminumUUID,
+		EngineUuid: testutil.HullAluminumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.InvalidArgument)
+}
+
+func TestInventory_ValidateCompatibility_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Несуществующий UUID — ошибка NotFound
+	_, err := env.InventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+		HullUuid:   testutil.HullAluminumUUID,
+		EngineUuid: uuid.New().String(),
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.NotFound)
+}
+
+// Тесты ReserveParts (gRPC).
+
+func TestInventory_ReserveParts_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Резервируем доступные детали — ожидаем успех
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: []string{testutil.HullAluminumUUID, testutil.EngineIonCUUID},
+	})
+	require.NoError(t, err)
+
+	// Освобождаем обратно, чтобы не ломать другие тесты
+	_, err = env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: []string{testutil.HullAluminumUUID, testutil.EngineIonCUUID},
+	})
+	require.NoError(t, err)
+}
+
+func TestInventory_ReserveParts_OutOfStock(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Плазменный корпус (stock=0) — резервирование невозможно
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: []string{testutil.HullOutOfStockUUID},
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.ResourceExhausted)
+}
+
+func TestInventory_ReserveParts_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: []string{uuid.New().String()},
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.NotFound)
+}
+
+func TestInventory_ReserveParts_SinglePart(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Резервируем одну деталь
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: []string{testutil.ShieldEnergyUUID},
+	})
+	require.NoError(t, err)
+
+	// Освобождаем обратно
+	_, err = env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: []string{testutil.ShieldEnergyUUID},
+	})
+	require.NoError(t, err)
+}
+
+// Тесты ReleaseParts (gRPC).
+
+func TestInventory_ReleaseParts_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Сначала резервируем, потом освобождаем — полный цикл
+	uuids := []string{testutil.HullTitaniumUUID, testutil.EngineIonBUUID}
+
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
+
+	_, err = env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
+}
+
+func TestInventory_ReleaseParts_NothingToRelease(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Плазменный корпус (stock=0, reserved=0) — нечего освобождать
+	_, err := env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: []string{testutil.HullOutOfStockUUID},
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.FailedPrecondition)
+}
+
+func TestInventory_ReleaseParts_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	_, err := env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: []string{uuid.New().String()},
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.NotFound)
+}
+
+// Тесты Order Create с несовместимыми деталями (HTTP).
+
+func TestOrder_Create_IncompatibleParts_WeakHullStrongEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Алюминиевый корпус (strength=50) + Ионный двигатель B (required_strength=70)
+	// Корпус не выдержит двигатель — ValidateCompatibility вернёт FailedPrecondition,
+	// order-сервис преобразует в 409 Conflict
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullAluminumUUID,
+		EngineUUID: testutil.EngineIonBUUID,
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
+}
+
+func TestOrder_Create_IncompatibleParts_WithOptionalParts(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Алюминиевый корпус (strength=50) + Ионный двигатель B (required_strength=70) + Shield + Weapon
+	// Даже с опциональными деталями — несовместимость hull/engine блокирует создание
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullAluminumUUID,
+		EngineUUID: testutil.EngineIonBUUID,
+		ShieldUUID: new(testutil.ShieldEnergyUUID),
+		WeaponUUID: new(testutil.WeaponLaserUUID),
+	}
+
+	_, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
+}
+
+func TestOrder_Create_CompatibleParts_StrongHullStrongEngine(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Титановый корпус (strength=150) + Ионный двигатель B (required_strength=70) — совместимы
+	// Контрольный тест: при совместимых деталях заказ создаётся
+	req := &testutil.CreateOrderRequest{
+		HullUUID:   testutil.HullTitaniumUUID,
+		EngineUUID: testutil.EngineIonBUUID,
+	}
+
+	result, resp := env.CreateOrder(t, req)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(testutil.HullTitaniumPrice+testutil.EngineIonBPrice), result.TotalPrice)
+}
+
+// Тесты Reserve/Release через полный жизненный цикл заказа.
+
+func TestInventory_ReserveRelease_FullCycle(t *testing.T) {
+	t.Parallel()
+	env := testutil.NewEnv(t)
+
+	// Резервируем → освобождаем → снова резервируем — проверяем, что счётчики корректны
+	uuids := []string{testutil.WeaponLaserUUID}
+
+	// Первый резерв
+	_, err := env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
+
+	// Освобождаем
+	_, err = env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
+
+	// Повторный резерв должен пройти (деталь снова доступна)
+	_, err = env.InventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
+
+	// Финальное освобождение
+	_, err = env.InventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+		Uuids: uuids,
+	})
+	require.NoError(t, err)
 }

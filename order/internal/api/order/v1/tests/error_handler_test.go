@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
+	v1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 )
 
@@ -39,6 +39,22 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "заказ не найден",
+			err:  errs.ErrOrderNotFound,
+			expected: expected{
+				statusCode: http.StatusNotFound,
+				body:       `{"code":404,"message":"заказ не найден"}`,
+			},
+		},
+		{
+			name: "деталь не найдена",
+			err:  errs.ErrPartNotFound,
+			expected: expected{
+				statusCode: http.StatusNotFound,
+				body:       `{"code":404,"message":"деталь не найдена"}`,
+			},
+		},
+		{
 			name: "некорректный статус заказа",
 			err:  errs.ErrInvalidOrderStatus,
 			expected: expected{
@@ -47,11 +63,27 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "несовместимые детали",
+			err:  errs.ErrIncompatibleParts,
+			expected: expected{
+				statusCode: http.StatusConflict,
+				body:       `{"code":409,"message":"детали несовместимы"}`,
+			},
+		},
+		{
 			name: "детали нет на складе",
-			err:  errs.ErrPartInsufficientStock,
+			err:  errs.ErrOutOfStock,
 			expected: expected{
 				statusCode: http.StatusConflict,
 				body:       `{"code":409,"message":"детали нет на складе"}`,
+			},
+		},
+		{
+			name: "некорректный uuid",
+			err:  errs.ErrInvalidUUID,
+			expected: expected{
+				statusCode: http.StatusBadRequest,
+				body:       `{"code":400,"message":"некорректный uuid"}`,
 			},
 		},
 		{
@@ -60,6 +92,22 @@ func TestErrorHandler(t *testing.T) {
 			expected: expected{
 				statusCode: http.StatusBadRequest,
 				body:       `{"code":400,"message":"не удалось оплатить заказ"}`,
+			},
+		},
+		{
+			name: "некорректный способ оплаты",
+			err:  errs.ErrInvalidPaymentMethod,
+			expected: expected{
+				statusCode: http.StatusBadRequest,
+				body:       `{"code":400,"message":"некорректный способ оплаты"}`,
+			},
+		},
+		{
+			name: "неизвестная ошибка",
+			err:  errors.New("boom"),
+			expected: expected{
+				statusCode: http.StatusInternalServerError,
+				body:       `{"code":500,"message":"внутренняя ошибка"}`,
 			},
 		},
 	}
@@ -76,6 +124,7 @@ func TestErrorHandler(t *testing.T) {
 			response := recorder.Result()
 
 			require.Equal(t, tc.expected.statusCode, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.JSONEq(t, tc.expected.body, recorder.Body.String())
 		})
 	}

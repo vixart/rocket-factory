@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -10,7 +11,8 @@ import (
 	inventoryApiV1 "github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/interceptor"
 	partRepository "github.com/vixart/rocket-factory/inventory/internal/repository/part"
-	"github.com/vixart/rocket-factory/inventory/internal/service/part"
+	"github.com/vixart/rocket-factory/inventory/internal/service/application/part"
+	"github.com/vixart/rocket-factory/inventory/internal/service/domain"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
@@ -41,9 +43,13 @@ func Interceptors() []grpc.ServerOption {
 	}
 }
 
-func RegisterServices(grpcServer *grpc.Server, pool *pgxpool.Pool) {
+func RegisterServices(
+	txManager *manager.Manager,
+	grpcServer *grpc.Server,
+	pool *pgxpool.Pool,
+) {
 	repo := partRepository.NewRepository(pool)
-	service := part.NewService(repo)
+	service := part.NewService(txManager, repo, domain.NewCompatibilityChecker())
 	api := inventoryApiV1.NewApi(service)
 	inventoryv1.RegisterInventoryServiceServer(grpcServer, api)
 }

@@ -1,0 +1,33 @@
+package v1
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+
+	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
+	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
+)
+
+func (a *api) ReleaseParts(
+	ctx context.Context,
+	req *inventoryv1.ReleasePartsRequest,
+) (*inventoryv1.ReleasePartsResponse, error) {
+	parsedUuids := make([]uuid.UUID, 0, len(req.Uuids))
+	for _, uuidStr := range req.Uuids {
+		parsedUuid, err := uuid.Parse(uuidStr)
+		if err != nil {
+			return nil, fmt.Errorf("неверный формат uuid: %s, %w", uuidStr, errs.ErrInvalidUUID)
+		}
+
+		parsedUuids = append(parsedUuids, parsedUuid)
+	}
+
+	err := a.inventoryService.Release(ctx, parsedUuids)
+	if err != nil {
+		return nil, err
+	}
+
+	return &inventoryv1.ReleasePartsResponse{}, nil
+}

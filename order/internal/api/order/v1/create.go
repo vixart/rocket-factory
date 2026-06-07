@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/input"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 )
 
@@ -23,7 +23,7 @@ func (a *api) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) 
 		weaponUUID = &v
 	}
 
-	orderParts := model.OrderParts{
+	orderParts := input.OrderParts{
 		EngineUUID: engineUUID,
 		HullUUID:   hullUUID,
 		ShieldUUID: shieldUUID,

@@ -151,10 +151,23 @@ func TestGetOrder(t *testing.T) {
 				assert.Equal(t, orderUUID, response.OrderUUID)
 				assert.Equal(t, hullUUID, response.HullUUID)
 				assert.Equal(t, engineUUID, response.EngineUUID)
-				assert.Equal(t, shieldUUID, response.ShieldUUID.Value)
-				assert.Equal(t, weaponUUID, response.WeaponUUID.Value)
-				assert.Equal(t, transactionUUID, response.TransactionUUID.Value)
-				assert.Equal(t, orderv1.PaymentMethodCARD, response.PaymentMethod.Value)
+
+				shield, ok := response.ShieldUUID.Get()
+				require.True(t, ok)
+				assert.Equal(t, shieldUUID, shield)
+
+				weapon, ok := response.WeaponUUID.Get()
+				require.True(t, ok)
+				assert.Equal(t, weaponUUID, weapon)
+
+				transaction, ok := response.TransactionUUID.Get()
+				require.True(t, ok)
+				assert.Equal(t, transactionUUID, transaction)
+
+				method, ok := response.PaymentMethod.Get()
+				require.True(t, ok)
+				assert.Equal(t, orderv1.PaymentMethodCARD, method)
+
 				assert.Equal(t, orderv1.OrderStatusPAID, response.Status)
 				assert.Equal(t, int64(205000), response.TotalPrice)
 				assert.Equal(t, createdAt, response.CreatedAt)

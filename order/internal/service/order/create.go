@@ -9,9 +9,10 @@ import (
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	"github.com/vixart/rocket-factory/order/internal/service/input"
 )
 
-func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*model.Order, error) {
+func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*model.Order, error) {
 	partsUuids := []uuid.UUID{orderParts.HullUUID, orderParts.EngineUUID}
 
 	if orderParts.ShieldUUID != nil {
@@ -20,6 +21,11 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 
 	if orderParts.WeaponUUID != nil {
 		partsUuids = append(partsUuids, *orderParts.WeaponUUID)
+	}
+
+	err := validateUniqueUUIDs(partsUuids)
+	if err != nil {
+		return nil, err
 	}
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -36,13 +42,23 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 	orderItems := make([]model.OrderItem, 0, len(parts))
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
-			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrPartInsufficientStock)
+			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrOutOfStock)
 		}
 		orderItems = append(orderItems, model.OrderItem{
 			UUID:     p.UUID,
 			PartType: p.PartType,
 			Price:    p.Price,
 		})
+	}
+
+	err = s.inventoryClient.ValidateCompatibility(ctx, orderParts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.inventoryClient.ReserveParts(ctx, partsUuids)
+	if err != nil {
+		return nil, err
 	}
 
 	orderUUID := uuid.New()
@@ -59,4 +75,26 @@ func (s *service) Create(ctx context.Context, orderParts model.OrderParts) (*mod
 	}
 
 	return &order, nil
+}
+
+func validateUniqueUUIDs(ids []uuid.UUID) error {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+
+		if _, ok := seen[id]; ok {
+			return fmt.Errorf(
+				"uuid %s задублирован в наборе деталей: %w",
+				id,
+				errs.ErrInvalidUUID,
+			)
+		}
+
+		seen[id] = struct{}{}
+	}
+
+	return nil
 }

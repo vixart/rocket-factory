@@ -1,0 +1,15 @@
+http:
+  host: "localhost"
+  port: "8080"
+
+pg:
+  host: "localhost"
+  port: "55432"
+  database: "demo"
+  user: "demo"
+  password: "demo"
+  sslmode: "disable"
+
+client:
+  inventory_address: "localhost:50051"
+  payment_address: "localhost:50052"

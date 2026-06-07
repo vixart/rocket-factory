@@ -3,52 +3,22 @@ package main
 import (
 	"context"
 	"log/slog"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"github.com/joho/godotenv"
 
-	"github.com/vixart/rocket-factory/payment/pkg/app"
-)
-
-const (
-	// Адрес сервера.
-	grpcAddress = "localhost:50052"
+	"github.com/vixart/rocket-factory/payment/internal/app"
+	"github.com/vixart/rocket-factory/payment/internal/config"
 )
 
 func main() {
-	ctx := context.Background()
-	lc := net.ListenConfig{}
-	lis, err := lc.Listen(ctx, "tcp", grpcAddress)
-	if err != nil {
-		slog.Error("не удалось создать listener", "error", err)
-		os.Exit(1)
+	// Загружаем переменные окружения из ufo.env (если файл существует)
+	_ = godotenv.Load("payment.env") //nolint:gosec // .env файл опционален — ошибка загрузки допустима
+
+	config.MustLoad()
+
+	a := app.New(context.Background())
+
+	if err := a.Run(); err != nil {
+		slog.Error("ошибка при работе приложения", "error", err)
 	}
-
-	grpcServer := grpc.NewServer(app.Interceptors()...)
-
-	app.RegisterServices(grpcServer)
-
-	// Включаем reflection для postman/grpcurl
-	reflection.Register(grpcServer)
-
-	slog.Info("запуск PaymentService", "адрес", grpcAddress)
-
-	go func() {
-		slog.Info("🚀 gRPC сервер запущен", "address", grpcAddress)
-		if serveErr := grpcServer.Serve(lis); serveErr != nil {
-			slog.Error("ошибка запуска сервера", "error", serveErr)
-		}
-	}()
-
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	slog.Info("🛑 остановка gRPC сервера")
-	grpcServer.GracefulStop()
-	slog.Info("✅ сервер остановлен")
 }

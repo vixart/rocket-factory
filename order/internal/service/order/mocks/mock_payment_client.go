@@ -43,23 +43,23 @@ func (_m *PaymentClient) EXPECT() *PaymentClient_Expecter {
 }
 
 // PayOrder provides a mock function for the type PaymentClient
-func (_mock *PaymentClient) PayOrder(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error) {
+func (_mock *PaymentClient) PayOrder(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (uuid.UUID, error) {
 	ret := _mock.Called(ctx, orderUuid, paymentMethod)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PayOrder")
 	}
 
-	var r0 *uuid.UUID
+	var r0 uuid.UUID
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) (*uuid.UUID, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) (uuid.UUID, error)); ok {
 		return returnFunc(ctx, orderUuid, paymentMethod)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) *uuid.UUID); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, model.PaymentMethod) uuid.UUID); ok {
 		r0 = returnFunc(ctx, orderUuid, paymentMethod)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*uuid.UUID)
+			r0 = ret.Get(0).(uuid.UUID)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, model.PaymentMethod) error); ok {
@@ -106,12 +106,12 @@ func (_c *PaymentClient_PayOrder_Call) Run(run func(ctx context.Context, orderUu
 	return _c
 }
 
-func (_c *PaymentClient_PayOrder_Call) Return(txUuid *uuid.UUID, e error) *PaymentClient_PayOrder_Call {
+func (_c *PaymentClient_PayOrder_Call) Return(txUuid uuid.UUID, e error) *PaymentClient_PayOrder_Call {
 	_c.Call.Return(txUuid, e)
 	return _c
 }
 
-func (_c *PaymentClient_PayOrder_Call) RunAndReturn(run func(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error)) *PaymentClient_PayOrder_Call {
+func (_c *PaymentClient_PayOrder_Call) RunAndReturn(run func(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (uuid.UUID, error)) *PaymentClient_PayOrder_Call {
 	_c.Call.Return(run)
 	return _c
 }

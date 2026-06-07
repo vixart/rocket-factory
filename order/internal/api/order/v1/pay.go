@@ -16,6 +16,6 @@ func (a *api) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, params
 	}
 
 	return &orderv1.PayOrderResponse{
-		TransactionUUID: *txUuid,
+		TransactionUUID: txUuid,
 	}, nil
 }

@@ -4,16 +4,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/vixart/rocket-factory/inventory/internal/model"
 )
 
-type Part struct {
-	UUID          uuid.UUID      `db:"uuid"`
-	Name          string         `db:"name"`
-	Description   string         `db:"description"`
-	Price         int64          `db:"price"` // в копейках
-	PartType      model.PartType `db:"part_type"`
-	StockQuantity int64          `db:"stock_quantity"`
-	CreatedAt     time.Time      `db:"created_at"`
+// PartRecord — плоская структура для маппинга строки из БД.
+type PartRecord struct {
+	UUID          uuid.UUID `db:"uuid"`
+	Name          string    `db:"name"`
+	Description   string    `db:"description"`
+	PartType      string    `db:"part_type"`
+	Price         int64     `db:"price"`
+	StockQuantity int       `db:"stock_quantity"`
+	Reserved      int       `db:"reserved"`
+	Properties    []byte    `db:"properties"` // JSONB из PostgreSQL
+	CreatedAt     time.Time `db:"created_at"`
 }

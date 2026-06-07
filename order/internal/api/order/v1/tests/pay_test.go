@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vixart/rocket-factory/order/internal/api/order/v1"
+	v1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
 	"github.com/vixart/rocket-factory/order/internal/api/order/v1/mocks"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
@@ -55,7 +55,7 @@ func TestPayOrder(t *testing.T) {
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
 					Pay(ctx, orderUUID, model.PaymentMethodCard).
-					Return(&transactionUUID, nil)
+					Return(transactionUUID, nil)
 			},
 		},
 		{
@@ -71,7 +71,7 @@ func TestPayOrder(t *testing.T) {
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
 					Pay(ctx, orderUUID, model.PaymentMethodCard).
-					Return(nil, internalErr)
+					Return(uuid.UUID{}, internalErr)
 			},
 			expected: expected{
 				err: internalErr,

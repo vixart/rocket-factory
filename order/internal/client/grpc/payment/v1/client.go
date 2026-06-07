@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,7 +30,7 @@ func (c *client) PayOrder(
 	ctx context.Context,
 	orderUuid uuid.UUID,
 	paymentMethod model.PaymentMethod,
-) (*uuid.UUID, error) {
+) (uuid.UUID, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -38,18 +39,19 @@ func (c *client) PayOrder(
 		PaymentMethod: converter.MapPaymentMethod(paymentMethod),
 	})
 	if err != nil {
-		return nil, mapErrors(err)
+		return uuid.Nil, mapErrors(err)
 	}
 
 	txUuid, err := uuid.Parse(resp.TransactionUuid)
 	if err != nil {
-		return nil, fmt.Errorf("из сервиса payment вернулся неверный uuid: %w", errs.ErrInvalidUUID)
+		return uuid.Nil, fmt.Errorf("из сервиса payment вернулся неверный uuid: %w", errs.ErrInvalidUUID)
 	}
 
-	return &txUuid, nil
+	return txUuid, nil
 }
 
 func mapErrors(err error) error {
+	slog.Error("ошибка при обращении к payment", "error", err)
 	if st, ok := status.FromError(err); ok {
 		switch st.Code() {
 		case codes.InvalidArgument:

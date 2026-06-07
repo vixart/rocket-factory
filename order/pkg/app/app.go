@@ -25,7 +25,7 @@ func NewHTTPHandler(
 	inventoryClient := inventoryClientV1.NewClient(inventoryServiceClient)
 	paymentClient := paymentClientV1.NewClient(paymentServiceClient)
 	orderRepo := orderRepository.NewRepository(pool, txManager)
-	service := orderService.NewService(orderRepo, inventoryClient, paymentClient)
+	service := orderService.NewService(orderRepo, inventoryClient, paymentClient, txManager)
 	api := OrderApiV1.NewApi(service)
 
 	orderServer, err := orderv1.NewServer(api, orderv1.WithErrorHandler(OrderApiV1.ErrorHandler))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,8 @@ import (
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1/mocks"
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
-	"github.com/vixart/rocket-factory/inventory/internal/model"
+	"github.com/vixart/rocket-factory/inventory/internal/model/entity"
+	"github.com/vixart/rocket-factory/inventory/internal/model/valueobject"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
@@ -28,18 +30,20 @@ func TestGetPart(t *testing.T) {
 	}
 
 	var (
-		ctx = context.Background()
-
+		ctx       = context.Background()
 		validUUID = uuid.New()
 
-		validPart = model.Part{
-			UUID:          validUUID,
-			Name:          "Engine X",
-			Description:   "desc",
-			Price:         5000,
-			PartType:      model.PartTypeEngine,
-			StockQuantity: 3,
-		}
+		validPart = entity.RestorePart(
+			validUUID,
+			"Engine X",
+			"desc",
+			valueobject.PartTypeEngine,
+			5000,
+			3,
+			0,
+			valueobject.PartProperties{},
+			time.Now(),
+		)
 
 		repoErr = errors.New("db error")
 	)
@@ -97,7 +101,7 @@ func TestGetPart(t *testing.T) {
 			setupMock: func(svc *mocks.InventoryService) {
 				svc.EXPECT().
 					Get(ctx, validUUID).
-					Return(model.Part{}, errs.ErrPartNotFound)
+					Return(entity.Part{}, errs.ErrPartNotFound)
 			},
 			expected: expected{
 				err: errs.ErrPartNotFound,
@@ -113,7 +117,7 @@ func TestGetPart(t *testing.T) {
 			setupMock: func(svc *mocks.InventoryService) {
 				svc.EXPECT().
 					Get(ctx, validUUID).
-					Return(model.Part{}, repoErr)
+					Return(entity.Part{}, repoErr)
 			},
 			expected: expected{
 				err: repoErr,
@@ -142,12 +146,13 @@ func TestGetPart(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, res)
+			require.NotNil(t, res.Part)
 
-			assert.Equal(t, validUUID.String(), res.Part.Uuid)
-			assert.Equal(t, validPart.Name, res.Part.Name)
-			assert.Equal(t, validPart.Description, res.Part.Description)
-			assert.Equal(t, validPart.Price, res.Part.Price)
-			assert.Equal(t, validPart.StockQuantity, res.Part.StockQuantity)
+			assert.Equal(t, validPart.UUID().String(), res.Part.Uuid)
+			assert.Equal(t, validPart.Name(), res.Part.Name)
+			assert.Equal(t, validPart.Description(), res.Part.Description)
+			assert.Equal(t, validPart.Price(), res.Part.Price)
+			assert.Equal(t, int64(validPart.StockQuantity()), res.Part.StockQuantity)
 		})
 	}
 }

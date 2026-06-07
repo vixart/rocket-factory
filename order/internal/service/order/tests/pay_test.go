@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,7 +12,7 @@ import (
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
-	"github.com/vixart/rocket-factory/order/internal/service/order"
+	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
@@ -27,32 +28,68 @@ func TestPay(t *testing.T) {
 		err error
 	}
 
-	ctx := context.Background()
+	var (
+		ctx = context.Background()
 
-	orderUUID := uuid.New()
-	txUUID := uuid.New()
-
-	validOrder := model.Order{
-		UUID:   orderUUID,
-		Status: model.OrderStatusPendingPayment,
-	}
+		orderUUID       = uuid.New()
+		transactionUUID = uuid.New()
+	)
 
 	tests := []struct {
 		name      string
 		args      args
 		setupMock func(
-			orderRepo *mocks.Repository,
-			paymentClient *mocks.PaymentClient,
+			repo *mocks.Repository,
+			payment *mocks.PaymentClient,
+			tx *mocks.TxManager,
 		)
 		expected expected
 	}{
 		{
-			name: "не указан метод оплаты",
+			name: "успешная оплата заказа",
+			args: args{
+				orderUUID:     orderUUID,
+				paymentMethod: model.PaymentMethodCard,
+			},
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				order := model.Order{
+					UUID:   orderUUID,
+					Status: model.OrderStatusPendingPayment,
+				}
+
+				tx.EXPECT().
+					Do(ctx, mock.AnythingOfType("func(context.Context) error")).
+					RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						repo.EXPECT().
+							Get(ctx, orderUUID).
+							Return(order, nil)
+
+						payment.EXPECT().
+							PayOrder(ctx, orderUUID, model.PaymentMethodCard).
+							Return(transactionUUID, nil)
+
+						repo.EXPECT().
+							Update(ctx, mock.MatchedBy(func(o model.Order) bool {
+								return o.UUID == orderUUID &&
+									o.Status == model.OrderStatusPaid &&
+									o.TransactionUUID != nil &&
+									o.PaymentMethod != nil
+							})).
+							Return(nil)
+
+						return fn(ctx)
+					})
+			},
+		},
+		{
+			name: "невалидный payment method",
 			args: args{
 				orderUUID:     orderUUID,
 				paymentMethod: model.PaymentMethodUnspecified,
 			},
-			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {},
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				// tx не должен вызываться
+			},
 			expected: expected{
 				err: errs.ErrInvalidPaymentMethod,
 			},
@@ -63,80 +100,103 @@ func TestPay(t *testing.T) {
 				orderUUID:     orderUUID,
 				paymentMethod: model.PaymentMethodCard,
 			},
-			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
-				orderRepo.EXPECT().
-					Get(ctx, orderUUID).
-					Return(model.Order{}, errs.ErrOrderNotFound)
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				tx.EXPECT().
+					Do(ctx, mock.AnythingOfType("func(context.Context) error")).
+					RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						repo.EXPECT().
+							Get(ctx, orderUUID).
+							Return(model.Order{}, errs.ErrOrderNotFound)
+
+						return fn(ctx)
+					})
 			},
 			expected: expected{
 				err: errs.ErrOrderNotFound,
 			},
 		},
 		{
-			name: "невалидный статус заказа",
+			name: "неверный статус заказа",
 			args: args{
 				orderUUID:     orderUUID,
 				paymentMethod: model.PaymentMethodCard,
 			},
-			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
-				orderRepo.EXPECT().
-					Get(ctx, orderUUID).
-					Return(model.Order{
-						UUID:   orderUUID,
-						Status: model.OrderStatusPaid,
-					}, nil)
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				tx.EXPECT().
+					Do(ctx, mock.AnythingOfType("func(context.Context) error")).
+					RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						repo.EXPECT().
+							Get(ctx, orderUUID).
+							Return(model.Order{
+								UUID:   orderUUID,
+								Status: model.OrderStatusPaid,
+							}, nil)
+
+						return fn(ctx)
+					})
 			},
 			expected: expected{
 				err: errs.ErrInvalidOrderStatus,
 			},
 		},
 		{
-			name: "ошибка платежного клиента",
+			name: "ошибка платежа",
 			args: args{
 				orderUUID:     orderUUID,
 				paymentMethod: model.PaymentMethodCard,
 			},
-			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
-				orderRepo.EXPECT().
-					Get(ctx, orderUUID).
-					Return(validOrder, nil)
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				tx.EXPECT().
+					Do(ctx, mock.AnythingOfType("func(context.Context) error")).
+					RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						repo.EXPECT().
+							Get(ctx, orderUUID).
+							Return(model.Order{
+								UUID:   orderUUID,
+								Status: model.OrderStatusPendingPayment,
+							}, nil)
 
-				paymentClient.EXPECT().
-					PayOrder(ctx, orderUUID, model.PaymentMethodCard).
-					Return((*uuid.UUID)(nil), errs.ErrPaymentFailed)
+						payment.EXPECT().
+							PayOrder(ctx, orderUUID, model.PaymentMethodCard).
+							Return(uuid.Nil, errors.New("payment failed"))
+
+						return fn(ctx)
+					})
 			},
 			expected: expected{
-				err: errs.ErrPaymentFailed,
+				err: errors.New("payment failed"),
 			},
 		},
 		{
-			name: "успешная оплата",
+			name: "ошибка обновления заказа",
 			args: args{
 				orderUUID:     orderUUID,
 				paymentMethod: model.PaymentMethodCard,
 			},
-			setupMock: func(orderRepo *mocks.Repository, paymentClient *mocks.PaymentClient) {
-				orderRepo.EXPECT().
-					Get(ctx, orderUUID).
-					Return(validOrder, nil)
+			setupMock: func(repo *mocks.Repository, payment *mocks.PaymentClient, tx *mocks.TxManager) {
+				tx.EXPECT().
+					Do(ctx, mock.AnythingOfType("func(context.Context) error")).
+					RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+						repo.EXPECT().
+							Get(ctx, orderUUID).
+							Return(model.Order{
+								UUID:   orderUUID,
+								Status: model.OrderStatusPendingPayment,
+							}, nil)
 
-				paymentClient.EXPECT().
-					PayOrder(ctx, orderUUID, model.PaymentMethodCard).
-					Return(&txUUID, nil)
+						payment.EXPECT().
+							PayOrder(ctx, orderUUID, model.PaymentMethodCard).
+							Return(transactionUUID, nil)
 
-				orderRepo.EXPECT().
-					Update(ctx, mock.MatchedBy(func(o model.Order) bool {
-						return o.UUID == orderUUID &&
-							o.Status == model.OrderStatusPaid &&
-							o.PaymentMethod != nil &&
-							*o.PaymentMethod == model.PaymentMethodCard &&
-							o.TransactionUUID != nil &&
-							*o.TransactionUUID == txUUID
-					})).
-					Return(nil)
+						repo.EXPECT().
+							Update(ctx, mock.Anything).
+							Return(errors.New("update failed"))
+
+						return fn(ctx)
+					})
 			},
 			expected: expected{
-				err: nil,
+				err: errors.New("update failed"),
 			},
 		},
 	}
@@ -145,25 +205,25 @@ func TestPay(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			orderRepo := mocks.NewRepository(t)
-			inventoryClient := mocks.NewInventoryClient(t)
-			paymentClient := mocks.NewPaymentClient(t)
+			repo := mocks.NewRepository(t)
+			payment := mocks.NewPaymentClient(t)
+			tx := mocks.NewTxManager(t)
 
-			tc.setupMock(orderRepo, paymentClient)
+			tc.setupMock(repo, payment, tx)
 
-			svc := order.NewService(orderRepo, inventoryClient, paymentClient)
+			svc := orderService.NewService(repo, nil, payment, tx)
 
-			res, err := svc.Pay(ctx, tc.args.orderUUID, tc.args.paymentMethod)
+			got, err := svc.Pay(ctx, tc.args.orderUUID, tc.args.paymentMethod)
 
 			if tc.expected.err != nil {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, tc.expected.err)
-				assert.Nil(t, res)
+				assert.Contains(t, err.Error(), tc.expected.err.Error())
+				assert.Equal(t, uuid.Nil, got)
 				return
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, res)
+			assert.NotEqual(t, uuid.Nil, got)
 		})
 	}
 }
