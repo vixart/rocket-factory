@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/IBM/sarama"
 
@@ -15,6 +16,11 @@ import (
 	wrappedKafkaConsumer "github.com/vixart/rocket-factory/platform/pkg/kafka/consumer"
 	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
 	kafkaMiddleware "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
+)
+
+const (
+	minBuildTime = 1 * time.Second
+	maxBuildTime = 3 * time.Second
 )
 
 // ConsumerService определяет контракт для запуска Kafka-потребителей.
@@ -129,7 +135,7 @@ func (d *diContainer) ShipAssembledProducerService() assemblyService.ShipAssembl
 
 func (d *diContainer) shipAssembleService() assemblyConsumer.ShipAssembleService {
 	if d.shipAssembleSvc == nil {
-		d.shipAssembleSvc = assemblyService.NewService(d.ShipAssembledProducerService())
+		d.shipAssembleSvc = assemblyService.NewService(d.ShipAssembledProducerService(), minBuildTime, maxBuildTime)
 	}
 
 	return d.shipAssembleSvc

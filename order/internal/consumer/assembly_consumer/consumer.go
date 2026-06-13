@@ -11,13 +11,20 @@ type service struct {
 	shipAssembledConsumer Consumer
 	orderRepository       order.Repository
 	inventoryClient       order.InventoryClient
+	txManager             TxManager
 }
 
-func NewService(consumer Consumer, repository order.Repository, client order.InventoryClient) *service {
+func NewService(
+	consumer Consumer,
+	repository order.Repository,
+	client order.InventoryClient,
+	txManager TxManager,
+) *service {
 	return &service{
 		shipAssembledConsumer: consumer,
 		orderRepository:       repository,
 		inventoryClient:       client,
+		txManager:             txManager,
 	}
 }
 

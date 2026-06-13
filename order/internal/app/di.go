@@ -263,6 +263,7 @@ func (d *diContainer) ShipAssembledConsumerSvc(ctx context.Context) ConsumerServ
 			d.ShipAssembledConsumer(),
 			d.OrderRepo(ctx),
 			d.InventoryClient(),
+			d.TxManager(ctx),
 		)
 	}
 	return d.shipAssembledConsumerSvc

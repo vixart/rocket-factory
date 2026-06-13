@@ -80,9 +80,7 @@ func TestAssemble(t *testing.T) {
 
 			tc.setupMock(producer)
 
-			svc := assemblyService.NewService(producer)
-
-			startedAt := time.Now()
+			svc := assemblyService.NewService(producer, time.Duration(0), time.Duration(0))
 
 			err := svc.Assemble(
 				ctx,
@@ -99,12 +97,6 @@ func TestAssemble(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-
-			assert.GreaterOrEqual(
-				t,
-				time.Since(startedAt),
-				3*time.Second,
-			)
 		})
 	}
 }

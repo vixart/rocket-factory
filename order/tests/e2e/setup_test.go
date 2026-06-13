@@ -143,7 +143,7 @@ func runMain(m *testing.M) int {
 	cleanups.add("order sarama producer", func(_ context.Context) error { return syncProducer.Close() })
 
 	orderPaidKafkaProducer := wrappedKafkaProducer.NewProducer(syncProducer, orderPaidTopic)
-	realOrderProducer := orderProducer.New(orderPaidKafkaProducer)
+	realOrderProducer := orderProducer.NewService(orderPaidKafkaProducer)
 
 	// 7. Order HTTP-сервер с реальным продьюсером (НЕ noopProducer как в api_test)
 	handler := mustNew(app.NewHTTPHandlerWithProducer(orderPool, txManager, inventoryClient, paymentClient, realOrderProducer))
@@ -269,7 +269,11 @@ func createTopics(broker string, topics ...string) {
 func startBufconnGRPCInventory(ctx context.Context, cleanups *cleanupStack, pool *pgxpool.Pool) *grpc.ClientConn {
 	lis := bufconn.Listen(bufSize)
 	server := grpc.NewServer(invApp.Interceptors()...)
-	invApp.RegisterServices(server, pool)
+	txManager, err := manager.New(trmpgx.NewDefaultFactory(pool))
+	if err != nil {
+		panic(err)
+	}
+	invApp.RegisterServices(txManager, server, pool)
 
 	go func() {
 		if err := server.Serve(lis); err != nil {
@@ -340,8 +344,8 @@ func startOrderShipAssembledConsumer(
 	// что использует прод-DI (order/internal/app/di.go)
 	svc := assemblyconsumer.NewService(
 		wrappedConsumer,
-		orderRepoPkg.New(pool, txManager),
-		inventoryClientPkg.New(invClient),
+		orderRepoPkg.NewRepository(pool, txManager),
+		inventoryClientPkg.NewClient(invClient),
 		txManager,
 	)
 

@@ -33,22 +33,24 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 		return nil
 	}
 
-	order, err := s.orderRepository.GetForUpdate(ctx, orderUUID)
-	if err != nil {
-		return err
-	}
+	return s.txManager.Do(ctx, func(txCtx context.Context) error {
+		order, err := s.orderRepository.GetForUpdate(ctx, orderUUID)
+		if err != nil {
+			return err
+		}
 
-	if order.Status == model.OrderStatusAssembled {
-		slog.Info("заказ с UUID: %q уже в статусе ASSEMBLED, игнорируем сообщение", "error", order.UUID)
-		return nil
-	}
+		if order.Status == model.OrderStatusAssembled {
+			slog.Info("заказ с UUID: %q уже в статусе ASSEMBLED, игнорируем сообщение", "error", order.UUID)
+			return nil
+		}
 
-	err = s.inventoryClient.CommitParts(ctx, order.ItemsUUIDs())
-	if err != nil {
-		return err
-	}
+		err = s.inventoryClient.CommitParts(ctx, order.ItemsUUIDs())
+		if err != nil {
+			return err
+		}
 
-	order.Status = model.OrderStatusAssembled
+		order.Status = model.OrderStatusAssembled
 
-	return s.orderRepository.Update(ctx, order)
+		return s.orderRepository.Update(ctx, order)
+	})
 }

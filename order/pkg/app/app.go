@@ -37,12 +37,35 @@ func NewHTTPHandler(
 	return orderServer, nil
 }
 
+func NewHTTPHandlerWithProducer(
+	pool *pgxpool.Pool,
+	txManager *manager.Manager,
+	inventoryServiceClient inventoryv1.InventoryServiceClient,
+	paymentServiceClient paymentv1.PaymentServiceClient,
+	orderProducer orderService.OrderPaidProducer,
+) (*orderv1.Server, error) {
+	inventoryClient := inventoryClientV1.NewClient(inventoryServiceClient)
+	paymentClient := paymentClientV1.NewClient(paymentServiceClient)
+	orderRepo := orderRepository.NewRepository(pool, txManager)
+	service := orderService.NewService(orderRepo, orderProducer, inventoryClient, paymentClient, txManager)
+	api := OrderApiV1.NewApi(service)
+
+	orderServer, err := orderv1.NewServer(api, orderv1.WithErrorHandler(OrderApiV1.ErrorHandler))
+	if err != nil {
+		return nil, fmt.Errorf("ошибка создания сервера OpenAPI: %w", err)
+	}
+	return orderServer, nil
+}
+
 type OrderPaidProducerServiceStub struct{}
 
 func NewOrderPaidProducerServiceStub() *OrderPaidProducerServiceStub {
 	return &OrderPaidProducerServiceStub{}
 }
 
-func (o *OrderPaidProducerServiceStub) ProduceOrderPaid(ctx context.Context, event model.OrderPaidEvent) error {
+func (o *OrderPaidProducerServiceStub) ProduceOrderPaid(
+	_ context.Context,
+	_ model.OrderPaidEvent,
+) error {
 	return nil
 }
