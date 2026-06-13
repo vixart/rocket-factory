@@ -4,11 +4,12 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/vixart/rocket-factory/assembly/internal/model"
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 	eventsv1 "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type service struct {

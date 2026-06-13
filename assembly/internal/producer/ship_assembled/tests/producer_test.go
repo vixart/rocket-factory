@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/vixart/rocket-factory/assembly/internal/model"
 	shipAssembledProducer "github.com/vixart/rocket-factory/assembly/internal/producer/ship_assembled"

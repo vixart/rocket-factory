@@ -2,13 +2,13 @@ version: '3'
 
 vars:
   GO_VERSION: '1.26.0'
-  GOLANGCI_LINT_VERSION: 'v2.11.4'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
   GCI_VERSION: 'v0.14.0'
-  GOFUMPT_VERSION: 'v0.9.2'
-  BUF_VERSION: '1.66.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  BUF_VERSION: '1.69.0'
   PROTOC_GEN_GO_VERSION: 'v1.36.11'
   PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
-  OGEN_VERSION: 'v1.20.1'
+  OGEN_VERSION: 'v1.20.3'
 
   BIN_DIR: '{{.ROOT_DIR}}/bin'
   GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
@@ -22,14 +22,14 @@ vars:
   MOCKERY_VERSION: 'v3.7.0'
   MOCKERY: '{{.BIN_DIR}}/mockery'
 
+  GOOSE_VERSION: 'v3.27.1'
+  GOOSE: '{{.BIN_DIR}}/goose'
+
   COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
   COVERAGE_FILE: '{{.COVERAGE_DIR}}/coverage.out'
   COVERAGE_THRESHOLD: '40'
 
-  GOOSE_VERSION: 'v3.27.1'
-  GOOSE: '{{.BIN_DIR}}/goose'
-
-  MODULES: order inventory payment shared
+  MODULES: assembly order inventory payment
 
 tasks:
   formatters:install:
@@ -82,6 +82,24 @@ tasks:
     desc: "Устанавливает все инструменты"
     deps: [formatters:install, golangci-lint:install, buf:install, proto:install-plugins, ogen:install]
 
+  run:order:
+    desc: "Запускает OrderService (HTTP сервер на :8080)"
+    dir: order
+    cmds:
+      - go run ./cmd
+
+  run:inventory:
+    desc: "Запускает InventoryService (gRPC сервер на :50051)"
+    dir: inventory
+    cmds:
+      - go run ./cmd
+
+  run:payment:
+    desc: "Запускает PaymentService (gRPC сервер на :50052)"
+    dir: payment
+    cmds:
+      - go run ./cmd
+
   format:
     desc: "Форматирует код (gofumpt + gci)"
     deps: [formatters:install]
@@ -89,17 +107,30 @@ tasks:
       - echo '🧹 Форматируем код через gofumpt...'
       - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GOFUMPT}} -extra -w {} +
       - echo '📦 Сортируем импорты через gci...'
-      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/vixart/rocket-factory)" {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/student)" {} +
+
+  build:
+    desc: "Собирает все Go-модули (go build)"
+    cmds:
+      - go build ./assembly/... ./order/... ./inventory/... ./payment/...
 
   lint:
     desc: "Запускает golangci-lint"
     deps: [golangci-lint:install]
     cmds:
-      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners order/... inventory/... payment/... shared/... --config=.golangci.yml'
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./assembly/... order/... inventory/... payment/... --config=.golangci.yml'
+
+  proto:format:
+    desc: "Форматирует .proto-файлы (buf format)"
+    deps: [buf:install]
+    dir: shared/proto
+    cmds:
+      - echo '🧹 Форматируем .proto-файлы...'
+      - '{{.BUF}} format -w'
 
   proto:lint:
     desc: "Проверяет .proto-файлы линтером"
-    deps: [buf:install, proto:install-plugins]
+    deps: [buf:install, proto:install-plugins, proto:format]
     dir: shared/proto
     cmds:
       - echo '🔍 Проверяем .proto-файлы...'
@@ -107,7 +138,7 @@ tasks:
 
   proto:gen:
     desc: "Генерирует Go-код из .proto"
-    deps: [buf:install, proto:install-plugins]
+    deps: [buf:install, proto:install-plugins, proto:format]
     dir: shared/proto
     cmds:
       - echo '🔨 Генерируем Go-код из .proto...'
@@ -132,13 +163,11 @@ tasks:
     cmds:
       - echo '🔄 Синхронизируем go.work...'
       - go work sync
-      - echo '🔄 Обновляем зависимости в модулях...'
-      - for mod in {{.MODULES}}; do (cd "$mod" && go mod tidy -compat={{.GO_VERSION}}); done
-
-  test:api:
-    desc: "Запускает API-тесты"
-    cmds:
-      - go test -v ./order/tests/...
+      - echo '🔄 Обновляем зависимости в сервисах...'
+      - for: { var: MODULES }
+        cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+      - echo '🔄 Обновляем зависимости в shared (proto/openapi)...'
+      - cd shared && go mod tidy -compat={{.GO_VERSION}}
 
   mockery:install:
     desc: "Устанавливает mockery"
@@ -150,7 +179,7 @@ tasks:
 
   mocks:gen:
     desc: "Генерирует моки интерфейсов"
-    deps: [ mockery:install ]
+    deps: [mockery:install]
     cmds:
       - echo '🧪 Генерация моков...'
       - '{{.MOCKERY}}'
@@ -158,7 +187,10 @@ tasks:
   test:
     desc: "Запускает unit-тесты с race-детектором"
     cmds:
-      - for mod in assembly order inventory payment; do echo "=== $mod ===" && (cd "$mod" && go test -v -race -count=1 ./...); done
+      - for: ['assembly', 'order', 'inventory', 'payment']
+        cmd: |
+          echo "=== {{.ITEM}} ==="
+          cd {{.ITEM}} && go test -v -race -count=1 ./...
 
   coverage:clean:
     desc: "Очищает директорию с отчётами покрытия"
@@ -169,7 +201,7 @@ tasks:
 
   test:coverage:
     desc: "Тесты с покрытием бизнес-логики"
-    deps: [ coverage:clean ]
+    deps: [coverage:clean]
     vars:
       TARGET_PACKAGES:
         sh: |
@@ -181,17 +213,14 @@ tasks:
         msg: "Не найдено пакетов для тестирования"
     cmds:
       - echo "📦 Целевые пакеты:{{.TARGET_PACKAGES}}"
-      - |
-        for mod in order inventory payment; do
-          echo "=== $mod ==="
-          (cd "$mod" && go test -v -race -covermode=atomic -coverprofile={{.COVERAGE_DIR}}/${mod}.out -coverpkg={{.TARGET_PACKAGES}} ./...)
-        done
+      - for: ['assembly', 'order', 'inventory', 'payment']
+        cmd: |
+          echo "=== {{.ITEM}} ==="
+          cd {{.ITEM}} && go test -v -race -covermode=atomic -coverprofile={{.COVERAGE_DIR}}/{{.ITEM}}.out -coverpkg={{.TARGET_PACKAGES}} ./...
       - echo "📊 Объединяем отчёты покрытия..."
-      - |
-        head -1 {{.COVERAGE_DIR}}/order.out > {{.COVERAGE_FILE}}
-        for f in {{.COVERAGE_DIR}}/order.out {{.COVERAGE_DIR}}/inventory.out {{.COVERAGE_DIR}}/payment.out; do
-          tail -n +2 "$f" >> {{.COVERAGE_FILE}}
-        done
+      - head -1 {{.COVERAGE_DIR}}/order.out > {{.COVERAGE_FILE}}
+      - for: ['assembly', 'order', 'inventory', 'payment']
+        cmd: tail -n +2 {{.COVERAGE_DIR}}/{{.ITEM}}.out >> {{.COVERAGE_FILE}}
       - echo "📊 Покрытие по функциям:"
       - go tool cover -func={{.COVERAGE_FILE}}
       - task: coverage:threshold
@@ -212,18 +241,14 @@ tasks:
 
   coverage:html:
     desc: "Генерирует HTML-отчёт покрытия"
-    deps: [ test:coverage ]
+    deps: [test:coverage]
     vars:
       HTML_FILE: '{{.COVERAGE_DIR}}/coverage.html'
     cmds:
       - go tool cover -html={{.COVERAGE_FILE}} -o {{.HTML_FILE}}
       - echo "🌐 Отчёт сохранён в {{.HTML_FILE}}"
       - cmd: open {{.HTML_FILE}}
-        platforms: [ darwin ]
-      - cmd: xdg-open {{.HTML_FILE}}
-        platforms: [ linux ]
-      - cmd: start {{.HTML_FILE}}
-        platforms: [ windows ]
+        platforms: [darwin]
 
   coverage:check:
     desc: "Проверяет покрытие без запуска тестов"
@@ -239,59 +264,55 @@ tasks:
       - test -x {{.GOOSE}}
 
   up-core:
-    desc: "Создать общую сеть и поднять core контейнеры (Kafka)"
+    desc: "Создать общую сеть для микросервисов"
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
       - docker network create microservices-net 2>/dev/null || true
-      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka)'
-      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
 
   down-core:
-    desc: "Остановить core контейнеры (Kafka) и удалить сеть"
+    desc: "Удалить общую сеть микросервисов"
     cmds:
-      - echo '[task] 🛑 Останавливаем core контейнеры (Kafka)'
-      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env down --volumes
       - echo '[task] 🛑 Удаляем общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
 
   up-order:
-    desc: Поднять Order сервис и все его зависимости
+    desc: "Поднять Order сервис и все его зависимости"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 📦 Поднимаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env up --build --detach
+      - docker compose --env-file ../../../order.env up --build --detach
 
   down-order:
-    desc: Остановить и удалить Order сервис и все его зависимости
+    desc: "Остановить и удалить Order сервис и все его зависимости"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 🛑 Останавливаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env down --volumes
+      - docker compose --env-file ../../../order.env down --volumes
 
   up-inventory:
-    desc: Поднять Inventory сервис и все его зависимости
+    desc: "Поднять Inventory сервис и все его зависимости"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env up --build --detach
+      - docker compose --env-file ../../../inventory.env up --build --detach
 
   down-inventory:
-    desc: Остановить и удалить Inventory сервис и все его зависимости
+    desc: "Остановить и удалить Inventory сервис и все его зависимости"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env down --volumes
+      - docker compose --env-file ../../../inventory.env down --volumes
 
   up-all:
-    desc: Поднять все сервисы по очереди вместе с зависимостями
+    desc: "Поднять все сервисы по очереди вместе с зависимостями"
     cmds:
       - task up-core
       - task up-inventory
       - task up-order
 
   down-all:
-    desc: Остановить и удалить все сервисы по очереди вместе с зависимостями
+    desc: "Остановить и удалить все сервисы по очереди вместе с зависимостями"
     cmds:
       - task down-order
       - task down-inventory
@@ -299,24 +320,24 @@ tasks:
 
   migrate:order:up:
     desc: "Применяет все миграции Order-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'order.env' ]
+    deps: [goose:install]
+    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres $DB_URI up'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
 
   migrate:order:down:
     desc: "Откатывает последнюю миграцию Order-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'order.env' ]
+    deps: [goose:install]
+    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" down'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
 
   migrate:order:status:
     desc: "Показывает статус миграций Order-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'order.env' ]
+    deps: [goose:install]
+    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" status'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
 
   migrate:order:create:
     desc: "Создаёт новый файл миграции Order-сервиса (NAME=<имя>)"
@@ -333,24 +354,24 @@ tasks:
 
   migrate:inventory:up:
     desc: "Применяет все миграции Inventory-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'inventory.env' ]
+    deps: [goose:install]
+    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres $DB_URI up'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
 
   migrate:inventory:down:
     desc: "Откатывает последнюю миграцию Inventory-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'inventory.env' ]
+    deps: [goose:install]
+    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" down'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
 
   migrate:inventory:status:
     desc: "Показывает статус миграций Inventory-сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'inventory.env' ]
+    deps: [goose:install]
+    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" status'
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
 
   migrate:inventory:create:
     desc: "Создаёт новый файл миграции Inventory-сервиса (NAME=<имя>)"
@@ -365,9 +386,7 @@ tasks:
         mkdir -p "$MIGRATIONS_DIR"
         {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
 
-  test:e2e:
-    desc: "Запускает e2e-тесты order с реальной Kafka (Redpanda) через testcontainers"
-    dir: order
+  test:api:
+    desc: "Запускает API-тесты"
     cmds:
-      - echo '🚀 e2e order (Postgres + Redpanda через testcontainers)...'
-      - go test -tags=e2e -count=1 -timeout=300s -v ./tests/e2e/...
+      - go test -v -count=1 ./order/tests/...

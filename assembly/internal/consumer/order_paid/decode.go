@@ -3,7 +3,8 @@ package order_paid
 import (
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/vixart/rocket-factory/assembly/internal/model"
 	eventsv1 "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1"
 )

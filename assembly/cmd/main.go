@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/joho/godotenv"
+
 	"github.com/vixart/rocket-factory/assembly/internal/app"
 	"github.com/vixart/rocket-factory/assembly/internal/config"
 )

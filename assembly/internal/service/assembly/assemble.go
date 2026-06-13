@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/vixart/rocket-factory/assembly/internal/model"
 )
 
@@ -14,6 +15,7 @@ func (s *service) Assemble(
 	orderUUID uuid.UUID,
 	userUUID uuid.UUID,
 ) error {
+	//nolint:forbidigo // intentionally
 	time.Sleep(time.Millisecond * 3000)
 
 	event := model.ShipAssembledEvent{

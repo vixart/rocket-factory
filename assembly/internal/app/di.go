@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/IBM/sarama"
+
 	"github.com/vixart/rocket-factory/assembly/internal/config"
 	assemblyConsumer "github.com/vixart/rocket-factory/assembly/internal/consumer/order_paid"
 	shipAssembledProducer "github.com/vixart/rocket-factory/assembly/internal/producer/ship_assembled"
@@ -16,7 +17,7 @@ import (
 	kafkaMiddleware "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
 )
 
-// ConsumerService определяет контракт для запуска Kafka-потребителей
+// ConsumerService определяет контракт для запуска Kafka-потребителей.
 type ConsumerService interface {
 	RunConsumer(ctx context.Context) error
 }
@@ -34,8 +35,8 @@ type diContainer struct {
 	shipAssembleSvc          assemblyConsumer.ShipAssembleService
 }
 
-// ConsumerGroup возвращает Kafka consumer group
-// При первом вызове создаёт группу и регистрирует closer
+// ConsumerGroup возвращает Kafka consumer group.
+// При первом вызове создаёт группу и регистрирует closer.
 func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	if d.consumerGroup == nil {
 		consumerGroup, err := sarama.NewConsumerGroup(
@@ -58,8 +59,8 @@ func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	return d.consumerGroup
 }
 
-// SyncProducer возвращает синхронный Kafka-продюсер
-// При первом вызове создаёт продюсер и регистрирует closer
+// SyncProducer возвращает синхронный Kafka-продюсер.
+// При первом вызове создаёт продюсер и регистрирует closer.
 func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	if d.syncProducer == nil {
 		p, err := sarama.NewSyncProducer(
@@ -81,7 +82,7 @@ func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	return d.syncProducer
 }
 
-// ShipAssembledProducer возвращает обёртку Kafka-продюсера для событий ShipAssembled
+// ShipAssembledProducer возвращает обёртку Kafka-продюсера для событий ShipAssembled.
 func (d *diContainer) ShipAssembledProducer() *wrappedKafkaProducer.Producer {
 	if d.shipAssembledProducer == nil {
 		d.shipAssembledProducer = wrappedKafkaProducer.NewProducer(
@@ -93,7 +94,7 @@ func (d *diContainer) ShipAssembledProducer() *wrappedKafkaProducer.Producer {
 	return d.shipAssembledProducer
 }
 
-// OrderPaidConsumer возвращает обёртку Kafka-потребителя для событий OrderPaid
+// OrderPaidConsumer возвращает обёртку Kafka-потребителя для событий OrderPaid.
 func (d *diContainer) OrderPaidConsumer() *wrappedKafkaConsumer.Consumer {
 	if d.orderPaidConsumer == nil {
 		d.orderPaidConsumer = wrappedKafkaConsumer.NewConsumer(

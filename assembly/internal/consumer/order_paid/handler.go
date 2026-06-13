@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 )
 

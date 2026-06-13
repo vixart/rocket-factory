@@ -84,7 +84,7 @@ func (a *App) Run() error {
 	return runErr
 }
 
-// runConsumer запускает Kafka-потребитель OrderPaidConsumer
+// runConsumer запускает Kafka-потребитель OrderPaidConsumer.
 func (a *App) runConsumer(ctx context.Context) error {
 	slog.Info("🚀 Kafka-потребитель OrderPaid запущен")
 

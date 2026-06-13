@@ -8,11 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	orderPaidConsumer "github.com/vixart/rocket-factory/assembly/internal/consumer/order_paid"
 	"github.com/vixart/rocket-factory/assembly/internal/consumer/order_paid/mocks"
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 	eventsv1 "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestOrderPaidHandler(t *testing.T) {
