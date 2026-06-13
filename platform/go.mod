@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/IBM/sarama v1.50.2
+	github.com/go-faster/errors v0.7.1
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.81.1
 )
