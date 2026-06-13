@@ -22,6 +22,7 @@ func TestCreateOrder(t *testing.T) {
 	var (
 		ctx = context.Background()
 
+		userUUID   = uuid.New()
 		orderUUID  = uuid.New()
 		hullUUID   = uuid.New()
 		engineUUID = uuid.New()
@@ -40,6 +41,7 @@ func TestCreateOrder(t *testing.T) {
 		{
 			name: "успешное создание заказа",
 			req: &orderv1.CreateOrderRequest{
+				UserUUID:   userUUID,
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,
 				ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
@@ -47,12 +49,16 @@ func TestCreateOrder(t *testing.T) {
 			},
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
-					Create(ctx, input.OrderParts{
-						HullUUID:   hullUUID,
-						EngineUUID: engineUUID,
-						ShieldUUID: &shieldUUID,
-						WeaponUUID: &weaponUUID,
-					}).
+					Create(
+						ctx,
+						input.OrderParts{
+							HullUUID:   hullUUID,
+							EngineUUID: engineUUID,
+							ShieldUUID: &shieldUUID,
+							WeaponUUID: &weaponUUID,
+						},
+						userUUID,
+					).
 					Return(&model.Order{
 						UUID: orderUUID,
 						Items: []model.OrderItem{
@@ -84,6 +90,7 @@ func TestCreateOrder(t *testing.T) {
 		{
 			name: "ошибка создания заказа",
 			req: &orderv1.CreateOrderRequest{
+				UserUUID:   userUUID,
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,
 				ShieldUUID: orderv1.OptNilUUID{},
@@ -91,10 +98,14 @@ func TestCreateOrder(t *testing.T) {
 			},
 			setupMock: func(service *mocks.OrderService) {
 				service.EXPECT().
-					Create(ctx, input.OrderParts{
-						HullUUID:   hullUUID,
-						EngineUUID: engineUUID,
-					}).
+					Create(
+						ctx,
+						input.OrderParts{
+							HullUUID:   hullUUID,
+							EngineUUID: engineUUID,
+						},
+						userUUID,
+					).
 					Return(nil, internalErr)
 			},
 			check: func(t *testing.T, res orderv1.CreateOrderRes, err error) {

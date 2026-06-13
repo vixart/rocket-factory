@@ -13,3 +13,13 @@ pg:
 client:
   inventory_address: "localhost:50051"
   payment_address: "localhost:50052"
+
+kafka:
+  brokers: [ "localhost:9092" ]
+
+ship_assembled_consumer:
+  topic_name: "assembly.ship-assembled"
+  group: "order-service-ship-assembled-consumer"
+
+order_paid_producer:
+  topic_name: "order.paid"

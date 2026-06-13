@@ -30,7 +30,7 @@ func (a *api) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) 
 		WeaponUUID: weaponUUID,
 	}
 
-	order, err := a.orderService.Create(ctx, orderParts)
+	order, err := a.orderService.Create(ctx, orderParts, req.UserUUID)
 	if err != nil {
 		return nil, err
 	}

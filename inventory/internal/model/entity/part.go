@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,6 +60,10 @@ func (p *Part) CreatedAt() time.Time {
 }
 
 func (p *Part) Reserve() error {
+	slog.Debug("ДЕТАЛИ",
+		"reserved", p.reserved,
+		"stock", p.stockQuantity,
+	)
 	if p.stockQuantity-p.reserved <= 0 {
 		return fmt.Errorf("невозможно зарезервировать деталь с id: \"%s\" : %w", p.uuid, errs.ErrOutOfStock)
 	}
@@ -74,6 +79,21 @@ func (p *Part) Release() error {
 	}
 
 	p.reserved -= 1
+
+	return nil
+}
+
+func (p *Part) Commit() error {
+	if p.reserved <= 0 {
+		return fmt.Errorf("невозможно использовать деталь с id: \"%s\", ее нет в резерве: %w", p.uuid, errs.ErrNothingToCommit)
+	}
+
+	if p.stockQuantity <= 0 {
+		return fmt.Errorf("невозможно использовать деталь с id: \"%s\", ее нет на складе: %w", p.uuid, errs.ErrNothingToCommit)
+	}
+
+	p.reserved -= 1
+	p.stockQuantity -= 1
 
 	return nil
 }

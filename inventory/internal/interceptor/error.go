@@ -31,6 +31,7 @@ func ErrorInterceptor(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 
 	case errors.Is(err, errs.ErrIncompatibleParts),
+		errors.Is(err, errs.ErrNothingToCommit),
 		errors.Is(err, errs.ErrNothingToRelease):
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 

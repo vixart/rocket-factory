@@ -43,6 +43,63 @@ func (_m *InventoryClient) EXPECT() *InventoryClient_Expecter {
 	return &InventoryClient_Expecter{mock: &_m.Mock}
 }
 
+// CommitParts provides a mock function for the type InventoryClient
+func (_mock *InventoryClient) CommitParts(ctx context.Context, uuids []uuid.UUID) error {
+	ret := _mock.Called(ctx, uuids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CommitParts")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, uuids)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// InventoryClient_CommitParts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CommitParts'
+type InventoryClient_CommitParts_Call struct {
+	*mock.Call
+}
+
+// CommitParts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uuids []uuid.UUID
+func (_e *InventoryClient_Expecter) CommitParts(ctx interface{}, uuids interface{}) *InventoryClient_CommitParts_Call {
+	return &InventoryClient_CommitParts_Call{Call: _e.mock.On("CommitParts", ctx, uuids)}
+}
+
+func (_c *InventoryClient_CommitParts_Call) Run(run func(ctx context.Context, uuids []uuid.UUID)) *InventoryClient_CommitParts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].([]uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InventoryClient_CommitParts_Call) Return(err error) *InventoryClient_CommitParts_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *InventoryClient_CommitParts_Call) RunAndReturn(run func(ctx context.Context, uuids []uuid.UUID) error) *InventoryClient_CommitParts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListParts provides a mock function for the type InventoryClient
 func (_mock *InventoryClient) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error) {
 	ret := _mock.Called(ctx, uuids)

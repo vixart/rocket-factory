@@ -16,7 +16,7 @@ func (a *api) ListParts(
 	req *inventoryv1.ListPartsRequest,
 ) (*inventoryv1.ListPartsResponse, error) {
 	parsedUuids := make([]uuid.UUID, 0, len(req.Uuids))
-	for _, uuidStr := range req.Uuids {
+	for _, uuidStr := range req.GetUuids() {
 		parsedUuid, err := uuid.Parse(uuidStr)
 		if err != nil {
 			return nil, fmt.Errorf("неверный формат uuid: %s, %w", uuidStr, errs.ErrInvalidUUID)

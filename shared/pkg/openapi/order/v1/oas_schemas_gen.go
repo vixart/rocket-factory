@@ -50,6 +50,8 @@ func (*CreateOrderNotFound) createOrderRes() {}
 
 // Ref: #
 type CreateOrderRequest struct {
+	// UUID пользователя (обязательный, v4).
+	UserUUID uuid.UUID `json:"user_uuid"`
 	// UUID корпуса (обязательный, v4).
 	HullUUID uuid.UUID `json:"hull_uuid"`
 	// UUID двигателя (обязательный, v4).
@@ -58,6 +60,11 @@ type CreateOrderRequest struct {
 	ShieldUUID OptNilUUID `json:"shield_uuid"`
 	// UUID вооружения (опциональный, v4).
 	WeaponUUID OptNilUUID `json:"weapon_uuid"`
+}
+
+// GetUserUUID returns the value of UserUUID.
+func (s *CreateOrderRequest) GetUserUUID() uuid.UUID {
+	return s.UserUUID
 }
 
 // GetHullUUID returns the value of HullUUID.
@@ -78,6 +85,11 @@ func (s *CreateOrderRequest) GetShieldUUID() OptNilUUID {
 // GetWeaponUUID returns the value of WeaponUUID.
 func (s *CreateOrderRequest) GetWeaponUUID() OptNilUUID {
 	return s.WeaponUUID
+}
+
+// SetUserUUID sets the value of UserUUID.
+func (s *CreateOrderRequest) SetUserUUID(val uuid.UUID) {
+	s.UserUUID = val
 }
 
 // SetHullUUID sets the value of HullUUID.
@@ -300,6 +312,8 @@ func (o OptNilUUID) Or(d uuid.UUID) uuid.UUID {
 type OrderDto struct {
 	// UUID заказа (v4).
 	OrderUUID uuid.UUID `json:"order_uuid"`
+	// UUID пользователя (v4).
+	UserUUID uuid.UUID `json:"user_uuid"`
 	// UUID корпуса (v4).
 	HullUUID uuid.UUID `json:"hull_uuid"`
 	// UUID двигателя (v4).
@@ -322,6 +336,11 @@ type OrderDto struct {
 // GetOrderUUID returns the value of OrderUUID.
 func (s *OrderDto) GetOrderUUID() uuid.UUID {
 	return s.OrderUUID
+}
+
+// GetUserUUID returns the value of UserUUID.
+func (s *OrderDto) GetUserUUID() uuid.UUID {
+	return s.UserUUID
 }
 
 // GetHullUUID returns the value of HullUUID.
@@ -372,6 +391,11 @@ func (s *OrderDto) GetCreatedAt() time.Time {
 // SetOrderUUID sets the value of OrderUUID.
 func (s *OrderDto) SetOrderUUID(val uuid.UUID) {
 	s.OrderUUID = val
+}
+
+// SetUserUUID sets the value of UserUUID.
+func (s *OrderDto) SetUserUUID(val uuid.UUID) {
+	s.UserUUID = val
 }
 
 // SetHullUUID sets the value of HullUUID.
@@ -429,6 +453,7 @@ const (
 	OrderStatusPENDINGPAYMENT OrderStatus = "PENDING_PAYMENT"
 	OrderStatusPAID           OrderStatus = "PAID"
 	OrderStatusCANCELLED      OrderStatus = "CANCELLED"
+	OrderStatusASSEMBLED      OrderStatus = "ASSEMBLED"
 )
 
 // AllValues returns all OrderStatus values.
@@ -437,6 +462,7 @@ func (OrderStatus) AllValues() []OrderStatus {
 		OrderStatusPENDINGPAYMENT,
 		OrderStatusPAID,
 		OrderStatusCANCELLED,
+		OrderStatusASSEMBLED,
 	}
 }
 
@@ -448,6 +474,8 @@ func (s OrderStatus) MarshalText() ([]byte, error) {
 	case OrderStatusPAID:
 		return []byte(s), nil
 	case OrderStatusCANCELLED:
+		return []byte(s), nil
+	case OrderStatusASSEMBLED:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -465,6 +493,9 @@ func (s *OrderStatus) UnmarshalText(data []byte) error {
 		return nil
 	case OrderStatusCANCELLED:
 		*s = OrderStatusCANCELLED
+		return nil
+	case OrderStatusASSEMBLED:
+		*s = OrderStatusASSEMBLED
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)

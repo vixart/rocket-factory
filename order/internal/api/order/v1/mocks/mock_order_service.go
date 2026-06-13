@@ -101,8 +101,8 @@ func (_c *OrderService_Cancel_Call) RunAndReturn(run func(ctx context.Context, u
 }
 
 // Create provides a mock function for the type OrderService
-func (_mock *OrderService) Create(ctx context.Context, orderParts input.OrderParts) (*model.Order, error) {
-	ret := _mock.Called(ctx, orderParts)
+func (_mock *OrderService) Create(ctx context.Context, orderParts input.OrderParts, userUUID uuid.UUID) (*model.Order, error) {
+	ret := _mock.Called(ctx, orderParts, userUUID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -110,18 +110,18 @@ func (_mock *OrderService) Create(ctx context.Context, orderParts input.OrderPar
 
 	var r0 *model.Order
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts) (*model.Order, error)); ok {
-		return returnFunc(ctx, orderParts)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts, uuid.UUID) (*model.Order, error)); ok {
+		return returnFunc(ctx, orderParts, userUUID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts) *model.Order); ok {
-		r0 = returnFunc(ctx, orderParts)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, input.OrderParts, uuid.UUID) *model.Order); ok {
+		r0 = returnFunc(ctx, orderParts, userUUID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*model.Order)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, input.OrderParts) error); ok {
-		r1 = returnFunc(ctx, orderParts)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, input.OrderParts, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, orderParts, userUUID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -136,11 +136,12 @@ type OrderService_Create_Call struct {
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
 //   - orderParts input.OrderParts
-func (_e *OrderService_Expecter) Create(ctx interface{}, orderParts interface{}) *OrderService_Create_Call {
-	return &OrderService_Create_Call{Call: _e.mock.On("Create", ctx, orderParts)}
+//   - userUUID uuid.UUID
+func (_e *OrderService_Expecter) Create(ctx interface{}, orderParts interface{}, userUUID interface{}) *OrderService_Create_Call {
+	return &OrderService_Create_Call{Call: _e.mock.On("Create", ctx, orderParts, userUUID)}
 }
 
-func (_c *OrderService_Create_Call) Run(run func(ctx context.Context, orderParts input.OrderParts)) *OrderService_Create_Call {
+func (_c *OrderService_Create_Call) Run(run func(ctx context.Context, orderParts input.OrderParts, userUUID uuid.UUID)) *OrderService_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -150,9 +151,14 @@ func (_c *OrderService_Create_Call) Run(run func(ctx context.Context, orderParts
 		if args[1] != nil {
 			arg1 = args[1].(input.OrderParts)
 		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -163,7 +169,7 @@ func (_c *OrderService_Create_Call) Return(order *model.Order, err error) *Order
 	return _c
 }
 
-func (_c *OrderService_Create_Call) RunAndReturn(run func(ctx context.Context, orderParts input.OrderParts) (*model.Order, error)) *OrderService_Create_Call {
+func (_c *OrderService_Create_Call) RunAndReturn(run func(ctx context.Context, orderParts input.OrderParts, userUUID uuid.UUID) (*model.Order, error)) *OrderService_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

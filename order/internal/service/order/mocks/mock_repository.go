@@ -165,6 +165,72 @@ func (_c *Repository_Get_Call) RunAndReturn(run func(ctx context.Context, uuid1 
 	return _c
 }
 
+// GetForUpdate provides a mock function for the type Repository
+func (_mock *Repository) GetForUpdate(ctx context.Context, uuid1 uuid.UUID) (model.Order, error) {
+	ret := _mock.Called(ctx, uuid1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetForUpdate")
+	}
+
+	var r0 model.Order
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) (model.Order, error)); ok {
+		return returnFunc(ctx, uuid1)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) model.Order); ok {
+		r0 = returnFunc(ctx, uuid1)
+	} else {
+		r0 = ret.Get(0).(model.Order)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, uuid1)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Repository_GetForUpdate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetForUpdate'
+type Repository_GetForUpdate_Call struct {
+	*mock.Call
+}
+
+// GetForUpdate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uuid1 uuid.UUID
+func (_e *Repository_Expecter) GetForUpdate(ctx interface{}, uuid1 interface{}) *Repository_GetForUpdate_Call {
+	return &Repository_GetForUpdate_Call{Call: _e.mock.On("GetForUpdate", ctx, uuid1)}
+}
+
+func (_c *Repository_GetForUpdate_Call) Run(run func(ctx context.Context, uuid1 uuid.UUID)) *Repository_GetForUpdate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Repository_GetForUpdate_Call) Return(order model.Order, err error) *Repository_GetForUpdate_Call {
+	_c.Call.Return(order, err)
+	return _c
+}
+
+func (_c *Repository_GetForUpdate_Call) RunAndReturn(run func(ctx context.Context, uuid1 uuid.UUID) (model.Order, error)) *Repository_GetForUpdate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function for the type Repository
 func (_mock *Repository) Update(ctx context.Context, order model.Order) error {
 	ret := _mock.Called(ctx, order)

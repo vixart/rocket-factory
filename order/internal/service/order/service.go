@@ -1,22 +1,25 @@
 package order
 
 type service struct {
-	orderRepository Repository
-	inventoryClient InventoryClient
-	paymentClient   PaymentClient
-	txManager       TxManager
+	orderRepository   Repository
+	orderPaidProducer OrderPaidProducer
+	inventoryClient   InventoryClient
+	paymentClient     PaymentClient
+	txManager         TxManager
 }
 
 func NewService(
 	orderRepository Repository,
+	orderPaidProducer OrderPaidProducer,
 	inventoryClient InventoryClient,
 	paymentClient PaymentClient,
 	txManager TxManager,
 ) *service {
 	return &service{
-		orderRepository: orderRepository,
-		inventoryClient: inventoryClient,
-		paymentClient:   paymentClient,
-		txManager:       txManager,
+		orderRepository:   orderRepository,
+		orderPaidProducer: orderPaidProducer,
+		inventoryClient:   inventoryClient,
+		paymentClient:     paymentClient,
+		txManager:         txManager,
 	}
 }

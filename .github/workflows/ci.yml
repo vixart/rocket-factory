@@ -1,64 +1,36 @@
-name: CI
+name: "CI"
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  extract-vars:
-    name: Extract Variables from Taskfile
-    runs-on: ubuntu-latest
-    outputs:
-      go-version: ${{ steps.extract.outputs.GO_VERSION }}
-      golangci-lint-version: ${{ steps.extract.outputs.GOLANGCI_LINT_VERSION }}
-      modules: ${{ steps.extract.outputs.MODULES }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4.2.2
-
-      - name: Extract variables from Taskfile
-        id: extract
-        run: |
-          chmod +x .github/scripts/extract-versions.sh
-          .github/scripts/extract-versions.sh
-
-  go-task-cache:
-    needs: extract-vars
-    uses: ./.github/workflows/go-task-cache.yml
-    with:
-      go-version: ${{ needs.extract-vars.outputs.go-version }}
+  build:
+    name: "Build"
+    uses: ./.github/workflows/build.yml
 
   lint:
-    needs: [extract-vars, go-task-cache]
-    uses: ./.github/workflows/lint-reusable.yml
-    with:
-      modules: ${{ needs.extract-vars.outputs.modules }}
-      go-version: ${{ needs.extract-vars.outputs.go-version }}
-      golangci-lint-version: ${{ needs.extract-vars.outputs.golangci-lint-version }}
+    name: "Lint"
+    needs: build
+    uses: ./.github/workflows/lint.yml
 
-  test:
-    uses: ./.github/workflows/test-reusable.yml
-    needs: [lint, extract-vars]
-    with:
-      modules: ${{ needs.extract-vars.outputs.modules }}
-      go-version: ${{ needs.extract-vars.outputs.go-version }}
+  test-api:
+    name: "Test API"
+    needs: build
+    uses: ./.github/workflows/test-api.yml
 
-  integration-test:
-    if: false
-    uses: ./.github/workflows/test-integration-reusable.yml
-    needs: [test, extract-vars]
-    with:
-      modules: ${{ needs.extract-vars.outputs.modules }}
-      go-version: ${{ needs.extract-vars.outputs.go-version }}
+  test-unit:
+    name: "Test Unit"
+    needs: build
+    uses: ./.github/workflows/test-unit.yml
 
-  coverage:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/test-coverage-reusable.yml
-    needs: [test, extract-vars]
-    with:
-      modules: ${{ needs.extract-vars.outputs.modules }}
-      go-version: ${{ needs.extract-vars.outputs.go-version }}
-      gist-id: "67f50bd37b7dc5e95c8feae5fb8f7228"
-    secrets:
-      GIST_SECRET: ${{ secrets.GIST_SECRET }}
+  test-e2e:
+    name: "Test E2E"
+    needs: build
+    uses: ./.github/workflows/test-e2e.yml

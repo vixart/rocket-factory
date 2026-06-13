@@ -43,6 +43,63 @@ func (_m *InventoryService) EXPECT() *InventoryService_Expecter {
 	return &InventoryService_Expecter{mock: &_m.Mock}
 }
 
+// Commit provides a mock function for the type InventoryService
+func (_mock *InventoryService) Commit(ctx context.Context, uuids []uuid.UUID) error {
+	ret := _mock.Called(ctx, uuids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Commit")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, uuids)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// InventoryService_Commit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Commit'
+type InventoryService_Commit_Call struct {
+	*mock.Call
+}
+
+// Commit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uuids []uuid.UUID
+func (_e *InventoryService_Expecter) Commit(ctx interface{}, uuids interface{}) *InventoryService_Commit_Call {
+	return &InventoryService_Commit_Call{Call: _e.mock.On("Commit", ctx, uuids)}
+}
+
+func (_c *InventoryService_Commit_Call) Run(run func(ctx context.Context, uuids []uuid.UUID)) *InventoryService_Commit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].([]uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *InventoryService_Commit_Call) Return(err error) *InventoryService_Commit_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *InventoryService_Commit_Call) RunAndReturn(run func(ctx context.Context, uuids []uuid.UUID) error) *InventoryService_Commit_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Get provides a mock function for the type InventoryService
 func (_mock *InventoryService) Get(ctx context.Context, uuid1 uuid.UUID) (entity.Part, error) {
 	ret := _mock.Called(ctx, uuid1)

@@ -9,13 +9,12 @@ func OrderStatusFromModelToApi(status model.OrderStatus) orderv1.OrderStatus {
 	switch status {
 	case model.OrderStatusPendingPayment:
 		return orderv1.OrderStatusPENDINGPAYMENT
-
 	case model.OrderStatusPaid:
 		return orderv1.OrderStatusPAID
-
 	case model.OrderStatusCancelled:
 		return orderv1.OrderStatusCANCELLED
-
+	case model.OrderStatusAssembled:
+		return orderv1.OrderStatusASSEMBLED
 	default:
 		return ""
 	}

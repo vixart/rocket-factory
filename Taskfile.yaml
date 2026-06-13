@@ -158,7 +158,7 @@ tasks:
   test:
     desc: "Запускает unit-тесты с race-детектором"
     cmds:
-      - for mod in order inventory payment; do echo "=== $mod ===" && (cd "$mod" && go test -v -race -count=1 ./...); done
+      - for mod in assembly order inventory payment; do echo "=== $mod ===" && (cd "$mod" && go test -v -race -count=1 ./...); done
 
   coverage:clean:
     desc: "Очищает директорию с отчётами покрытия"
@@ -239,15 +239,19 @@ tasks:
       - test -x {{.GOOSE}}
 
   up-core:
-    desc: "Создать общую сеть для микросервисов"
+    desc: "Создать общую сеть и поднять core контейнеры (Kafka)"
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
       - docker network create microservices-net 2>/dev/null || true
+      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka)'
+      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
 
   down-core:
-    desc: "Удалить общую сеть микросервисов"
+    desc: "Остановить core контейнеры (Kafka) и удалить сеть"
     cmds:
+      - echo '[task] 🛑 Останавливаем core контейнеры (Kafka)'
+      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env down --volumes
       - echo '[task] 🛑 Удаляем общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
 
@@ -256,28 +260,28 @@ tasks:
     dir: deploy/compose/order
     cmds:
       - echo "[task] 📦 Поднимаем Order с зависимостями"
-      - docker compose --env-file ../../../order.env up --build --detach
+      - docker compose --env-file ../../../order/order.env up --build --detach
 
   down-order:
     desc: Остановить и удалить Order сервис и все его зависимости
     dir: deploy/compose/order
     cmds:
       - echo "[task] 🛑 Останавливаем Order с зависимостями"
-      - docker compose --env-file ../../../order.env down --volumes
+      - docker compose --env-file ../../../order/order.env down --volumes
 
   up-inventory:
     desc: Поднять Inventory сервис и все его зависимости
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory.env up --build --detach
+      - docker compose --env-file ../../../inventory/inventory.env up --build --detach
 
   down-inventory:
     desc: Остановить и удалить Inventory сервис и все его зависимости
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory.env down --volumes
+      - docker compose --env-file ../../../inventory/inventory.env down --volumes
 
   up-all:
     desc: Поднять все сервисы по очереди вместе с зависимостями
@@ -360,3 +364,10 @@ tasks:
         fi
         mkdir -p "$MIGRATIONS_DIR"
         {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
+
+  test:e2e:
+    desc: "Запускает e2e-тесты order с реальной Kafka (Redpanda) через testcontainers"
+    dir: order
+    cmds:
+      - echo '🚀 e2e order (Postgres + Redpanda через testcontainers)...'
+      - go test -tags=e2e -count=1 -timeout=300s -v ./tests/e2e/...

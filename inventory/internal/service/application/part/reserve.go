@@ -3,6 +3,7 @@ package part
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -16,8 +17,9 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 		PartType: valueobject.PartTypeUnspecified,
 	}
 
-	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
-		parts, err := s.partRepo.List(ctx, partFilter)
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
+		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
+		slog.Debug("детали получены", slog.Any("parts", parts))
 		if err != nil {
 			return fmt.Errorf("не удалось получить детали: %w", err)
 		}
@@ -29,7 +31,9 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 			}
 		}
 
-		return s.partRepo.UpdateReservedBatch(ctx, parts)
+		err = s.partRepo.UpdateReservedBatch(ctx, parts)
+		slog.Debug("детали обновлены", slog.Any("parts", parts))
+		return err
 	})
 
 	return err

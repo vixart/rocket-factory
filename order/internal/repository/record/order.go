@@ -10,6 +10,7 @@ import (
 
 type Order struct {
 	UUID            uuid.UUID            `db:"uuid"`
+	UserUUID        uuid.UUID            `db:"user_uuid"`
 	Status          model.OrderStatus    `db:"status"`
 	TransactionUUID *uuid.UUID           `db:"transaction_uuid"`
 	PaymentMethod   *model.PaymentMethod `db:"payment_method"`

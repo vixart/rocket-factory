@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/IBM/sarama"
 	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,18 +19,33 @@ import (
 	inventoryClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/inventory/v1"
 	paymentClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/payment/v1"
 	"github.com/vixart/rocket-factory/order/internal/config"
+	orderShipAssembledConsumerService "github.com/vixart/rocket-factory/order/internal/consumer/assembly_consumer"
+	orderPaidProducerService "github.com/vixart/rocket-factory/order/internal/producer/order_producer"
 	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
+	wrappedKafkaConsumer "github.com/vixart/rocket-factory/platform/pkg/kafka/consumer"
+	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
+	kafkaMiddleware "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
+// ConsumerService определяет контракт для запуска Kafka-потребителей.
+type ConsumerService interface {
+	RunConsumer(ctx context.Context) error
+}
+
 type diContainer struct {
 	// Инфраструктура
-	pgPool    *pgxpool.Pool
-	txManager orderRepository.TxManager
+	pgPool        *pgxpool.Pool
+	txManager     orderRepository.TxManager
+	syncProducer  sarama.SyncProducer
+	consumerGroup sarama.ConsumerGroup
+
+	orderPaidProducer     *wrappedKafkaProducer.Producer
+	shipAssembledConsumer *wrappedKafkaConsumer.Consumer
 
 	// Клиенты
 	inventory order.InventoryClient
@@ -39,7 +55,9 @@ type diContainer struct {
 	orderRepo order.Repository
 
 	// Сервисы
-	orderSvc orderApiV1.OrderService
+	orderSvc                 orderApiV1.OrderService
+	shipAssembledConsumerSvc ConsumerService
+	orderPaidProducerSvc     order.OrderPaidProducer
 
 	// API-обработчики
 	orderv1Server *orderv1.Server
@@ -130,7 +148,13 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 
 func (d *diContainer) OrderService(ctx context.Context) orderApiV1.OrderService {
 	if d.orderSvc == nil {
-		d.orderSvc = order.NewService(d.OrderRepo(ctx), d.InventoryClient(), d.PaymentClient(), d.TxManager(ctx))
+		d.orderSvc = order.NewService(
+			d.OrderRepo(ctx),
+			d.OrderPaidProducerSvc(),
+			d.InventoryClient(),
+			d.PaymentClient(),
+			d.TxManager(ctx),
+		)
 	}
 
 	return d.orderSvc
@@ -148,6 +172,100 @@ func (d *diContainer) OrderV1Server(ctx context.Context) *orderv1.Server {
 	}
 
 	return d.orderv1Server
+}
+
+// SyncProducer возвращает синхронный Kafka-продюсер.
+// При первом вызове создаёт продюсер и регистрирует closer.
+func (d *diContainer) SyncProducer() sarama.SyncProducer {
+	if d.syncProducer == nil {
+		p, err := sarama.NewSyncProducer(
+			config.AppConfig().Kafka.Brokers,
+			config.AppConfig().OrderPaidProducer.SaramaConfig(),
+		)
+		if err != nil {
+			slog.Error("не удалось создать sync producer", "error", err)
+			os.Exit(1)
+		}
+
+		closer.Add("Kafka sync producer", func(_ context.Context) error {
+			return p.Close()
+		})
+
+		d.syncProducer = p
+	}
+
+	return d.syncProducer
+}
+
+// ConsumerGroup возвращает Kafka consumer group.
+// При первом вызове создаёт группу и регистрирует closer.
+func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
+	if d.consumerGroup == nil {
+		consumerGroup, err := sarama.NewConsumerGroup(
+			config.AppConfig().Kafka.Brokers,
+			config.AppConfig().ShipAssembledConsumer.GroupID(),
+			config.AppConfig().ShipAssembledConsumer.SaramaConfig(),
+		)
+		if err != nil {
+			slog.Error("не удалось создать consumer group", "error", err)
+			os.Exit(1)
+		}
+
+		closer.Add("Kafka consumer group", func(_ context.Context) error {
+			return consumerGroup.Close()
+		})
+
+		d.consumerGroup = consumerGroup
+	}
+
+	return d.consumerGroup
+}
+
+// OrderPaidProducer возвращает обёртку Kafka-продюсера для событий OrderPaid.
+func (d *diContainer) OrderPaidProducer() *wrappedKafkaProducer.Producer {
+	if d.orderPaidProducer == nil {
+		d.orderPaidProducer = wrappedKafkaProducer.NewProducer(
+			d.SyncProducer(),
+			config.AppConfig().OrderPaidProducer.Topic(),
+		)
+	}
+
+	return d.orderPaidProducer
+}
+
+// ShipAssembledConsumer возвращает обёртку Kafka-потребителя для событий ShipAssembled.
+func (d *diContainer) ShipAssembledConsumer() *wrappedKafkaConsumer.Consumer {
+	if d.shipAssembledConsumer == nil {
+		d.shipAssembledConsumer = wrappedKafkaConsumer.NewConsumer(
+			d.ConsumerGroup(),
+			[]string{
+				config.AppConfig().ShipAssembledConsumer.Topic(),
+			},
+			wrappedKafkaConsumer.WithMiddlewares(
+				kafkaMiddleware.ConsumerLogging(),
+			),
+		)
+	}
+
+	return d.shipAssembledConsumer
+}
+
+func (d *diContainer) OrderPaidProducerSvc() order.OrderPaidProducer {
+	if d.orderPaidProducerSvc == nil {
+		d.orderPaidProducerSvc = orderPaidProducerService.NewService(d.OrderPaidProducer())
+	}
+	return d.orderPaidProducerSvc
+}
+
+func (d *diContainer) ShipAssembledConsumerSvc(ctx context.Context) ConsumerService {
+	if d.shipAssembledConsumerSvc == nil {
+		d.shipAssembledConsumerSvc = orderShipAssembledConsumerService.NewService(
+			d.ShipAssembledConsumer(),
+			d.OrderRepo(ctx),
+			d.InventoryClient(),
+		)
+	}
+	return d.shipAssembledConsumerSvc
 }
 
 func newGRPCConnection(address, serviceName string) (*grpc.ClientConn, error) {
