@@ -38,7 +38,7 @@ func (p *service) ProduceShipAssembled(ctx context.Context, event model.ShipAsse
 	}
 
 	return p.shipAssembledProducer.Send(ctx, &kafka.Message{
-		Key:   []byte(event.UUID),
+		Key:   []byte(event.OrderUUID),
 		Value: payload,
 	})
 }

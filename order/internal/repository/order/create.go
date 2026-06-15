@@ -11,11 +11,11 @@ import (
 )
 
 func (r *repository) Create(ctx context.Context, order model.Order) error {
-	return r.txManager.Do(ctx, func(txCtx context.Context) error {
-		if err := r.createOrder(txCtx, order); err != nil {
+	return r.txManager.Do(ctx, func(ctx context.Context) error {
+		if err := r.createOrder(ctx, order); err != nil {
 			return err
 		}
-		return r.createOrderItems(txCtx, order)
+		return r.createOrderItems(ctx, order)
 	})
 }
 

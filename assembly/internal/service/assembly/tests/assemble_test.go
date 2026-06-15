@@ -45,7 +45,7 @@ func TestAssemble(t *testing.T) {
 							return event.UUID == orderUUID.String() &&
 								event.OrderUUID == orderUUID.String() &&
 								event.UserUUID == userUUID.String() &&
-								event.BuildTimeSec == 3 &&
+								event.BuildTimeSec > 0 &&
 								!event.AssembledAt.IsZero()
 						}),
 					).
@@ -80,7 +80,7 @@ func TestAssemble(t *testing.T) {
 
 			tc.setupMock(producer)
 
-			svc := assemblyService.NewService(producer, time.Duration(0), time.Duration(0))
+			svc := assemblyService.NewService(producer, 1*time.Second, 3*time.Second)
 
 			err := svc.Assemble(
 				ctx,

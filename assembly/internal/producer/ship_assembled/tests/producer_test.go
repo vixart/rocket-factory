@@ -54,7 +54,7 @@ func TestProduceShipAssembled(t *testing.T) {
 						err := proto.Unmarshal(msg.Value, &pb)
 						require.NoError(t, err)
 
-						if string(msg.Key) != event.UUID {
+						if string(msg.Key) != event.OrderUUID {
 							return false
 						}
 

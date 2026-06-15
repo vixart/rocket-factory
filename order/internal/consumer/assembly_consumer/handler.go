@@ -33,7 +33,7 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 		return nil
 	}
 
-	return s.txManager.Do(ctx, func(txCtx context.Context) error {
+	return s.txManager.Do(ctx, func(ctx context.Context) error {
 		order, err := s.orderRepository.GetForUpdate(ctx, orderUUID)
 		if err != nil {
 			return err

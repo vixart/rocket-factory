@@ -22,14 +22,17 @@ func (s *service) Assemble(
 		return err
 	}
 
-	//nolint:forbidigo // intentionally
-	time.Sleep(sleepDuration)
+	select {
+	case <-time.After(sleepDuration):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
 	event := model.ShipAssembledEvent{
 		UUID:         orderUUID.String(),
 		OrderUUID:    orderUUID.String(),
 		UserUUID:     userUUID.String(),
-		BuildTimeSec: int64(3),
+		BuildTimeSec: int64(sleepDuration.Seconds()),
 		AssembledAt:  time.Now(),
 	}
 
