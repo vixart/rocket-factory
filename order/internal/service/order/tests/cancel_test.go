@@ -33,17 +33,28 @@ func TestService_Cancel(t *testing.T) {
 		setupMock func(
 			repo *mocks.Repository,
 			inventory *mocks.InventoryClient,
+			txManager *mocks.TxManager,
 		)
 		expectedErr error
 	}{
 		{
-			name: "success",
+			name: "успешная отмена заказа",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
+				txManager *mocks.TxManager,
 			) {
+				txManager.EXPECT().
+					Do(ctx, mock.Anything).
+					RunAndReturn(func(
+						ctx context.Context,
+						fn func(context.Context) error,
+					) error {
+						return fn(ctx)
+					})
+
 				repo.EXPECT().
-					Get(ctx, orderUUID).
+					GetForUpdate(ctx, orderUUID).
 					Return(
 						model.Order{
 							UUID:   orderUUID,
@@ -72,25 +83,45 @@ func TestService_Cancel(t *testing.T) {
 			},
 		},
 		{
-			name: "order not found",
+			name: "заказ не найден",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
+				txManager *mocks.TxManager,
 			) {
+				txManager.EXPECT().
+					Do(ctx, mock.Anything).
+					RunAndReturn(func(
+						ctx context.Context,
+						fn func(context.Context) error,
+					) error {
+						return fn(ctx)
+					})
+
 				repo.EXPECT().
-					Get(ctx, orderUUID).
+					GetForUpdate(ctx, orderUUID).
 					Return(model.Order{}, errs.ErrOrderNotFound)
 			},
 			expectedErr: errs.ErrOrderNotFound,
 		},
 		{
-			name: "invalid order status",
+			name: "неверный статус заказа",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
+				txManager *mocks.TxManager,
 			) {
+				txManager.EXPECT().
+					Do(ctx, mock.Anything).
+					RunAndReturn(func(
+						ctx context.Context,
+						fn func(context.Context) error,
+					) error {
+						return fn(ctx)
+					})
+
 				repo.EXPECT().
-					Get(ctx, orderUUID).
+					GetForUpdate(ctx, orderUUID).
 					Return(
 						model.Order{
 							UUID:   orderUUID,
@@ -102,13 +133,23 @@ func TestService_Cancel(t *testing.T) {
 			expectedErr: errs.ErrInvalidOrderStatus,
 		},
 		{
-			name: "release parts error",
+			name: "ошибка release parts",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
+				txManager *mocks.TxManager,
 			) {
+				txManager.EXPECT().
+					Do(ctx, mock.Anything).
+					RunAndReturn(func(
+						ctx context.Context,
+						fn func(context.Context) error,
+					) error {
+						return fn(ctx)
+					})
+
 				repo.EXPECT().
-					Get(ctx, orderUUID).
+					GetForUpdate(ctx, orderUUID).
 					Return(
 						model.Order{
 							UUID:   orderUUID,
@@ -127,13 +168,23 @@ func TestService_Cancel(t *testing.T) {
 			expectedErr: inventoryErr,
 		},
 		{
-			name: "update error",
+			name: "ошибка обновления",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
+				txManager *mocks.TxManager,
 			) {
+				txManager.EXPECT().
+					Do(ctx, mock.Anything).
+					RunAndReturn(func(
+						ctx context.Context,
+						fn func(context.Context) error,
+					) error {
+						return fn(ctx)
+					})
+
 				repo.EXPECT().
-					Get(ctx, orderUUID).
+					GetForUpdate(ctx, orderUUID).
 					Return(
 						model.Order{
 							UUID:   orderUUID,
@@ -169,15 +220,16 @@ func TestService_Cancel(t *testing.T) {
 
 			repo := mocks.NewRepository(t)
 			inventory := mocks.NewInventoryClient(t)
+			txManager := mocks.NewTxManager(t)
 
-			tt.setupMock(repo, inventory)
+			tt.setupMock(repo, inventory, txManager)
 
 			sut := order.NewService(
 				repo,
 				nil,
 				inventory,
 				nil,
-				nil,
+				txManager,
 			)
 
 			err := sut.Cancel(ctx, orderUUID)
