@@ -2,6 +2,7 @@ name: OrderDTO
 type: object
 required:
   - order_uuid
+  - user_uuid
   - hull_uuid
   - engine_uuid
   - total_price
@@ -13,6 +14,11 @@ properties:
     format: uuid
     description: UUID заказа (v4)
     example: "550e8400-e29b-41d4-a716-446655440000"
+  user_uuid:
+    type: string
+    format: uuid
+    description: UUID пользователя (v4)
+    example: "550e8400-e29b-41d4-a716-446655440007"
   hull_uuid:
     type: string
     format: uuid

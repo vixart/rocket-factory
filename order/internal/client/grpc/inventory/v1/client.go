@@ -86,6 +86,21 @@ func (c *client) ReleaseParts(ctx context.Context, uuids []uuid.UUID) error {
 	return nil
 }
 
+func (c *client) CommitParts(ctx context.Context, uuids []uuid.UUID) error {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_, err := c.grpcClient.CommitParts(
+		ctxWithTimeout,
+		&inventoryv1.CommitPartsRequest{Uuids: converter.UuidsToStrings(uuids)},
+	)
+	if err != nil {
+		return mapErrors(err)
+	}
+
+	return nil
+}
+
 func (c *client) ValidateCompatibility(ctx context.Context, orderParts input.OrderParts) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

@@ -30,6 +30,7 @@ func (a *api) GetOrder(ctx context.Context, params orderv1.GetOrderParams) (orde
 	orderParts := getOrderItemByType(order.Items)
 
 	return &orderv1.OrderDto{
+		UserUUID:        order.UserUUID,
 		OrderUUID:       order.UUID,
 		HullUUID:        orderParts.HullUUID,
 		EngineUUID:      orderParts.EngineUUID,

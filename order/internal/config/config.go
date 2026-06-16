@@ -11,10 +11,13 @@ import (
 var appConfig *config
 
 type config struct {
-	HTTP   httpConfig   `yaml:"http"`
-	Client clientConfig `yaml:"client"`
-	Logger loggerConfig `yaml:"logger"`
-	PG     pgConfig     `yaml:"pg"`
+	HTTP                  httpConfig                  `yaml:"http"`
+	Client                clientConfig                `yaml:"client"`
+	Logger                loggerConfig                `yaml:"logger"`
+	PG                    pgConfig                    `yaml:"pg"`
+	Kafka                 kafkaConfig                 `yaml:"kafka"`
+	ShipAssembledConsumer shipAssembledConsumerConfig `yaml:"ship_assembled_consumer"`
+	OrderPaidProducer     orderPaidProducerConfig     `yaml:"order_paid_producer"`
 }
 
 func MustLoad() {

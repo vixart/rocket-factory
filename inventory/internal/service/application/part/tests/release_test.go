@@ -58,7 +58,7 @@ func TestRelease(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				repo.EXPECT().
-					List(
+					ListForUpdate(
 						ctx,
 						input.PartFilter{
 							UUIDs:    []uuid.UUID{id},
@@ -83,7 +83,7 @@ func TestRelease(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				repo.EXPECT().
-					List(
+					ListForUpdate(
 						ctx,
 						input.PartFilter{
 							UUIDs:    []uuid.UUID{id},
@@ -103,7 +103,7 @@ func TestRelease(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				repo.EXPECT().
-					List(
+					ListForUpdate(
 						ctx,
 						input.PartFilter{
 							UUIDs:    []uuid.UUID{id},
@@ -135,7 +135,7 @@ func TestRelease(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.Repository) {
 				repo.EXPECT().
-					List(
+					ListForUpdate(
 						ctx,
 						input.PartFilter{
 							UUIDs:    []uuid.UUID{id},

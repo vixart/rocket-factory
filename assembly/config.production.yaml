@@ -1,0 +1,12 @@
+kafka:
+  brokers: ["localhost:9092"]
+
+logger:
+  level: "debug"
+
+order_paid_consumer:
+  topic_name: "order.paid"
+  group: "assembly-service-order-paid-consumer"
+
+ship_assembled_producer:
+  topic_name: "assembly.ship-assembled"

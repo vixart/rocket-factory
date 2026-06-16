@@ -12,7 +12,7 @@ import (
 	"github.com/vixart/rocket-factory/order/internal/service/input"
 )
 
-func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*model.Order, error) {
+func (s *service) Create(ctx context.Context, orderParts input.OrderParts, userUUID uuid.UUID) (*model.Order, error) {
 	partsUuids := []uuid.UUID{orderParts.HullUUID, orderParts.EngineUUID}
 
 	if orderParts.ShieldUUID != nil {
@@ -64,6 +64,7 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	orderUUID := uuid.New()
 	order := model.Order{
 		UUID:      orderUUID,
+		UserUUID:  userUUID,
 		Items:     orderItems,
 		Status:    model.OrderStatusPendingPayment,
 		CreatedAt: time.Now(),

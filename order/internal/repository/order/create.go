@@ -11,22 +11,23 @@ import (
 )
 
 func (r *repository) Create(ctx context.Context, order model.Order) error {
-	return r.txManager.Do(ctx, func(txCtx context.Context) error {
-		if err := r.createOrder(txCtx, order); err != nil {
+	return r.txManager.Do(ctx, func(ctx context.Context) error {
+		if err := r.createOrder(ctx, order); err != nil {
 			return err
 		}
-		return r.createOrderItems(txCtx, order)
+		return r.createOrderItems(ctx, order)
 	})
 }
 
 // createOrder вставляет запись в таблицу orders.
 func (r *repository) createOrder(ctx context.Context, order model.Order) error {
-	const query = `INSERT INTO orders (uuid, status, created_at) VALUES ($1, $2, $3)`
+	const query = `INSERT INTO orders (uuid, user_uuid, status, created_at) VALUES ($1, $2, $3, $4)`
 
 	_, err := r.getter.DefaultTrOrDB(ctx, r.pool).Exec(
 		ctx,
 		query,
 		order.UUID,
+		order.UserUUID,
 		order.Status,
 		order.CreatedAt,
 	)

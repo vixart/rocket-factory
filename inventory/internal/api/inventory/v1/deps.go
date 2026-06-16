@@ -14,5 +14,6 @@ type InventoryService interface {
 	List(ctx context.Context, uuids []uuid.UUID, partType valueobject.PartType) ([]entity.Part, error)
 	Release(ctx context.Context, uuids []uuid.UUID) error
 	Reserve(ctx context.Context, uuids []uuid.UUID) error
+	Commit(ctx context.Context, uuids []uuid.UUID) error
 	ValidateCompatibility(ctx context.Context, slots valueobject.ShipSlots) error
 }

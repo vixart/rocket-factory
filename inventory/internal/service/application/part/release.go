@@ -16,8 +16,8 @@ func (s *service) Release(ctx context.Context, uuids []uuid.UUID) error {
 		PartType: valueobject.PartTypeUnspecified,
 	}
 
-	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
-		parts, err := s.partRepo.List(ctx, partFilter)
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
+		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
 		if err != nil {
 			return fmt.Errorf("не удалось получить детали: %w", err)
 		}

@@ -16,6 +16,7 @@ type TxManager interface {
 type Repository interface {
 	Get(ctx context.Context, uuid uuid.UUID) (entity.Part, error)
 	List(_ context.Context, partFilter input.PartFilter) ([]entity.Part, error)
+	ListForUpdate(ctx context.Context, partFilter input.PartFilter) ([]entity.Part, error)
 	UpdateReservedBatch(ctx context.Context, parts []entity.Part) error
 }
 

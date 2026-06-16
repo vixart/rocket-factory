@@ -27,13 +27,24 @@ template-data:
   boilerplate-file: ".mockery_boilerplate_text.txt"
 
 packages:
+  # Assembly service
+  github.com/vixart/rocket-factory/assembly/internal/service/assembly:
+    config:
+      include-interface-regex: ".*Producer"
+  github.com/vixart/rocket-factory/assembly/internal/consumer/order_paid:
+    config:
+      include-interface-regex: ".*(Consumer|Service)"
+  github.com/vixart/rocket-factory/assembly/internal/producer/ship_assembled:
+    config:
+      include-interface-regex: ".*Producer"
+
   # Order service
   github.com/vixart/rocket-factory/order/internal/api/order/v1:
     config:
       include-interface-regex: ".*Service"
   github.com/vixart/rocket-factory/order/internal/service/order:
     config:
-      include-interface-regex: ".*(Repository|Client|TxManager)"
+      include-interface-regex: ".*(Repository|Client|TxManager|Producer)"
 
   # Inventory service
   github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1:

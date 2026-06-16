@@ -22,6 +22,7 @@ func TestCreate(t *testing.T) {
 
 	type args struct {
 		orderParts input.OrderParts
+		userUUID   uuid.UUID
 	}
 
 	type expected struct {
@@ -31,10 +32,17 @@ func TestCreate(t *testing.T) {
 	var (
 		ctx = context.Background()
 
+		userUUID = uuid.New()
+
 		hullUUID   = uuid.New()
 		engineUUID = uuid.New()
 		shieldUUID = uuid.New()
 		weaponUUID = uuid.New()
+
+		inventoryErr     = errors.New("inventory unavailable")
+		compatibilityErr = errors.New("compatibility error")
+		reserveErr       = errors.New("reserve error")
+		repositoryErr    = errors.New("repository error")
 	)
 
 	tests := []struct {
@@ -49,59 +57,35 @@ func TestCreate(t *testing.T) {
 		{
 			name: "успешное создание заказа только с обязательными деталями",
 			args: args{
+				userUUID: userUUID,
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
 				},
 			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				parts := []model.Part{
-					{UUID: hullUUID, Price: 100000, StockQuantity: 5, PartType: model.PartTypeHull},
-					{UUID: engineUUID, Price: 50000, StockQuantity: 3, PartType: model.PartTypeEngine},
-				}
-
-				inventory.EXPECT().
-					ListParts(mock.Anything, []uuid.UUID{hullUUID, engineUUID}).
-					Return(parts, nil)
-
-				inventory.EXPECT().
-					ValidateCompatibility(mock.Anything, mock.Anything).
-					Return(nil)
-
-				inventory.EXPECT().
-					ReserveParts(mock.Anything, []uuid.UUID{hullUUID, engineUUID}).
-					Return(nil)
-
-				repo.EXPECT().
-					Create(mock.Anything, mock.MatchedBy(func(order model.Order) bool {
-						return order.Status == model.OrderStatusPendingPayment &&
-							len(order.Items) == 2 &&
-							order.TotalPrice() == 150000
-					})).
-					Return(nil)
-			},
-		},
-		{
-			name: "успешное создание заказа со всеми деталями",
-			args: args{
-				orderParts: input.OrderParts{
-					HullUUID:   hullUUID,
-					EngineUUID: engineUUID,
-					ShieldUUID: &shieldUUID,
-					WeaponUUID: &weaponUUID,
-				},
-			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
-				parts := []model.Part{
-					{UUID: hullUUID, Price: 100000, StockQuantity: 5, PartType: model.PartTypeHull},
-					{UUID: engineUUID, Price: 50000, StockQuantity: 3, PartType: model.PartTypeEngine},
-					{UUID: shieldUUID, Price: 25000, StockQuantity: 2, PartType: model.PartTypeShield},
-					{UUID: weaponUUID, Price: 30000, StockQuantity: 1, PartType: model.PartTypeWeapon},
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+						PartType:      model.PartTypeHull,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+						PartType:      model.PartTypeEngine,
+					},
 				}
 
 				inventory.EXPECT().
 					ListParts(mock.Anything, []uuid.UUID{
-						hullUUID, engineUUID, shieldUUID, weaponUUID,
+						hullUUID,
+						engineUUID,
 					}).
 					Return(parts, nil)
 
@@ -111,46 +95,150 @@ func TestCreate(t *testing.T) {
 
 				inventory.EXPECT().
 					ReserveParts(mock.Anything, []uuid.UUID{
-						hullUUID, engineUUID, shieldUUID, weaponUUID,
+						hullUUID,
+						engineUUID,
 					}).
 					Return(nil)
 
 				repo.EXPECT().
-					Create(mock.Anything, mock.MatchedBy(func(order model.Order) bool {
-						return len(order.Items) == 4 &&
-							order.TotalPrice() == 205000
-					})).
+					Create(
+						mock.Anything,
+						mock.MatchedBy(func(order model.Order) bool {
+							return order.UserUUID == userUUID &&
+								order.Status == model.OrderStatusPendingPayment &&
+								len(order.Items) == 2 &&
+								order.TotalPrice() == 150000
+						}),
+					).
 					Return(nil)
+			},
+		},
+		{
+			name: "успешное создание заказа со всеми деталями",
+			args: args{
+				userUUID: userUUID,
+				orderParts: input.OrderParts{
+					HullUUID:   hullUUID,
+					EngineUUID: engineUUID,
+					ShieldUUID: &shieldUUID,
+					WeaponUUID: &weaponUUID,
+				},
+			},
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				parts := []model.Part{
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+						PartType:      model.PartTypeHull,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+						PartType:      model.PartTypeEngine,
+					},
+					{
+						UUID:          shieldUUID,
+						Price:         25000,
+						StockQuantity: 2,
+						PartType:      model.PartTypeShield,
+					},
+					{
+						UUID:          weaponUUID,
+						Price:         30000,
+						StockQuantity: 1,
+						PartType:      model.PartTypeWeapon,
+					},
+				}
+
+				partUUIDs := []uuid.UUID{
+					hullUUID,
+					engineUUID,
+					shieldUUID,
+					weaponUUID,
+				}
+
+				inventory.EXPECT().
+					ListParts(mock.Anything, partUUIDs).
+					Return(parts, nil)
+
+				inventory.EXPECT().
+					ValidateCompatibility(mock.Anything, mock.Anything).
+					Return(nil)
+
+				inventory.EXPECT().
+					ReserveParts(mock.Anything, partUUIDs).
+					Return(nil)
+
+				repo.EXPECT().
+					Create(
+						mock.Anything,
+						mock.MatchedBy(func(order model.Order) bool {
+							return order.UserUUID == userUUID &&
+								len(order.Items) == 4 &&
+								order.TotalPrice() == 205000
+						}),
+					).
+					Return(nil)
+			},
+		},
+		{
+			name: "duplicate uuids",
+			args: args{
+				userUUID: userUUID,
+				orderParts: input.OrderParts{
+					HullUUID:   hullUUID,
+					EngineUUID: hullUUID,
+				},
+			},
+			expected: expected{
+				err: errs.ErrInvalidUUID,
 			},
 		},
 		{
 			name: "ошибка inventory ListParts",
 			args: args{
+				userUUID: userUUID,
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
 				},
 			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(nil, errors.New("inventory unavailable"))
+					Return(nil, inventoryErr)
 			},
 			expected: expected{
-				err: errors.New("inventory unavailable"),
+				err: inventoryErr,
 			},
 		},
 		{
 			name: "деталь не найдена",
 			args: args{
+				userUUID: userUUID,
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
 				},
 			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				parts := []model.Part{
-					{UUID: hullUUID, Price: 100000, StockQuantity: 5},
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+					},
 				}
 
 				inventory.EXPECT().
@@ -164,15 +252,27 @@ func TestCreate(t *testing.T) {
 		{
 			name: "нет товара на складе",
 			args: args{
+				userUUID: userUUID,
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
 				},
 			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				parts := []model.Part{
-					{UUID: hullUUID, Price: 100000, StockQuantity: 0},
-					{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 0,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+					},
 				}
 
 				inventory.EXPECT().
@@ -184,17 +284,109 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сохранения заказа",
+			name: "ошибка проверки совместимости",
 			args: args{
+				userUUID: userUUID,
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
 				},
 			},
-			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
 				parts := []model.Part{
-					{UUID: hullUUID, Price: 100000, StockQuantity: 5},
-					{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+					},
+				}
+
+				inventory.EXPECT().
+					ListParts(mock.Anything, mock.Anything).
+					Return(parts, nil)
+
+				inventory.EXPECT().
+					ValidateCompatibility(mock.Anything, mock.Anything).
+					Return(compatibilityErr)
+			},
+			expected: expected{
+				err: compatibilityErr,
+			},
+		},
+		{
+			name: "ошибка резервирования деталей",
+			args: args{
+				userUUID: userUUID,
+				orderParts: input.OrderParts{
+					HullUUID:   hullUUID,
+					EngineUUID: engineUUID,
+				},
+			},
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				parts := []model.Part{
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+					},
+				}
+
+				inventory.EXPECT().
+					ListParts(mock.Anything, mock.Anything).
+					Return(parts, nil)
+
+				inventory.EXPECT().
+					ValidateCompatibility(mock.Anything, mock.Anything).
+					Return(nil)
+
+				inventory.EXPECT().
+					ReserveParts(mock.Anything, mock.Anything).
+					Return(reserveErr)
+			},
+			expected: expected{
+				err: reserveErr,
+			},
+		},
+		{
+			name: "ошибка сохранения заказа",
+			args: args{
+				userUUID: userUUID,
+				orderParts: input.OrderParts{
+					HullUUID:   hullUUID,
+					EngineUUID: engineUUID,
+				},
+			},
+			setupMock: func(
+				repo *mocks.Repository,
+				inventory *mocks.InventoryClient,
+			) {
+				parts := []model.Part{
+					{
+						UUID:          hullUUID,
+						Price:         100000,
+						StockQuantity: 5,
+					},
+					{
+						UUID:          engineUUID,
+						Price:         50000,
+						StockQuantity: 3,
+					},
 				}
 
 				inventory.EXPECT().
@@ -211,10 +403,10 @@ func TestCreate(t *testing.T) {
 
 				repo.EXPECT().
 					Create(mock.Anything, mock.Anything).
-					Return(errors.New("repository error"))
+					Return(repositoryErr)
 			},
 			expected: expected{
-				err: errors.New("repository error"),
+				err: repositoryErr,
 			},
 		},
 	}
@@ -227,23 +419,40 @@ func TestCreate(t *testing.T) {
 			inventory := mocks.NewInventoryClient(t)
 			payment := mocks.NewPaymentClient(t)
 			txManager := mocks.NewTxManager(t)
+			orderPaidProducer := mocks.NewOrderPaidProducer(t)
 
-			tc.setupMock(repo, inventory)
+			if tc.setupMock != nil {
+				tc.setupMock(repo, inventory)
+			}
 
-			svc := orderService.NewService(repo, inventory, payment, txManager)
+			sut := orderService.NewService(
+				repo,
+				orderPaidProducer,
+				inventory,
+				payment,
+				txManager,
+			)
 
-			order, err := svc.Create(ctx, tc.args.orderParts)
+			order, err := sut.Create(
+				ctx,
+				tc.args.orderParts,
+				tc.args.userUUID,
+			)
 
 			if tc.expected.err != nil {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expected.err.Error())
+				assert.ErrorIs(t, err, tc.expected.err)
 				assert.Nil(t, order)
+
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, order)
+
 			assert.NotEqual(t, uuid.Nil, order.UUID)
+			assert.Equal(t, userUUID, order.UserUUID)
+			assert.Equal(t, model.OrderStatusPendingPayment, order.Status)
 		})
 	}
 }

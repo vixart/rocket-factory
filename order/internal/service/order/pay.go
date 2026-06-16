@@ -17,9 +17,9 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 
 	var transactionUUID uuid.UUID
 
-	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		// 1. Читаем заказ в транзакции
-		order, err := s.orderRepository.Get(txCtx, orderUUID)
+		order, err := s.orderRepository.GetForUpdate(ctx, orderUUID)
 		if err != nil {
 			return fmt.Errorf("получить заказ: %w", err)
 		}
@@ -30,7 +30,7 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 		}
 
 		// 3. Вызываем PaymentService (gRPC внутри транзакции — учебный пример)
-		transactionUUID, err = s.paymentClient.PayOrder(txCtx, orderUUID, paymentMethod)
+		transactionUUID, err = s.paymentClient.PayOrder(ctx, orderUUID, paymentMethod)
 		if err != nil {
 			return fmt.Errorf("оплатить заказ: %w", err)
 		}
@@ -40,9 +40,20 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 		order.TransactionUUID = &transactionUUID
 		order.PaymentMethod = &paymentMethod
 
-		err = s.orderRepository.Update(txCtx, order)
+		err = s.orderRepository.Update(ctx, order)
 		if err != nil {
 			return fmt.Errorf("обновить заказ: %w", err)
+		}
+
+		event := model.OrderPaidEvent{
+			UUID:      order.UUID.String(),
+			OrderUUID: order.UUID.String(),
+			UserUUID:  order.UserUUID.String(),
+		}
+
+		err = s.orderPaidProducer.ProduceOrderPaid(ctx, event)
+		if err != nil {
+			return fmt.Errorf("отправить OrderPaid: %w", err)
 		}
 
 		return nil

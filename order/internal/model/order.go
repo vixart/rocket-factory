@@ -12,6 +12,7 @@ const (
 	OrderStatusPendingPayment OrderStatus = "PENDING_PAYMENT"
 	OrderStatusPaid           OrderStatus = "PAID"
 	OrderStatusCancelled      OrderStatus = "CANCELLED"
+	OrderStatusAssembled      OrderStatus = "ASSEMBLED"
 )
 
 type OrderItem struct {
@@ -22,6 +23,7 @@ type OrderItem struct {
 
 type Order struct {
 	UUID            uuid.UUID
+	UserUUID        uuid.UUID
 	Items           []OrderItem
 	TransactionUUID *uuid.UUID
 	PaymentMethod   *PaymentMethod

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os/signal"
@@ -57,6 +58,14 @@ func (a *App) Run() error {
 
 	go func() {
 		errCh <- a.runHTTPServer()
+	}()
+
+	go func() {
+		if err := a.runConsumer(ctx); err != nil {
+			errCh <- fmt.Errorf("потребитель упал: %w", err)
+			return
+		}
+		errCh <- nil
 	}()
 
 	var runErr error
@@ -137,4 +146,11 @@ func (a *App) runHTTPServer() error {
 	)
 
 	return a.httpServer.ListenAndServe()
+}
+
+// runConsumer запускает Kafka-потребитель ShipAssembledConsumer.
+func (a *App) runConsumer(ctx context.Context) error {
+	slog.Info("🚀 Kafka-потребитель ShipAssembled запущен")
+
+	return a.diContainer.ShipAssembledConsumerSvc(ctx).RunConsumer(ctx)
 }
