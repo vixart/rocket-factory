@@ -13,6 +13,7 @@ pg:
 client:
   inventory_address: "localhost:50051"
   payment_address: "localhost:50052"
+  iam_address: "localhost:50053"
 
 kafka:
   brokers: [ "localhost:9092" ]

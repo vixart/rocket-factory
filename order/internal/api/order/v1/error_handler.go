@@ -43,6 +43,10 @@ func mapError(err error) (int, string) {
 		errors.Is(err, errs.ErrPartNotFound):
 		return http.StatusNotFound, err.Error()
 
+	// 401 Unauthorized
+	case errors.Is(err, errs.ErrUnauthorized):
+		return http.StatusUnauthorized, err.Error()
+
 	// 409 Conflict
 	case errors.Is(err, errs.ErrInvalidOrderStatus),
 		errors.Is(err, errs.ErrIncompatibleParts),

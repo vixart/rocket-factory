@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vixart/rocket-factory/platform/pkg/auth"
+
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	"github.com/vixart/rocket-factory/order/internal/service/input"
@@ -17,12 +19,16 @@ import (
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 
+func ctxWithUser(userUUID uuid.UUID) context.Context {
+	return auth.WithUserUUID(context.Background(), userUUID)
+}
+
 func TestCreate(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
+		ctx        context.Context
 		orderParts input.OrderParts
-		userUUID   uuid.UUID
 	}
 
 	type expected struct {
@@ -30,8 +36,6 @@ func TestCreate(t *testing.T) {
 	}
 
 	var (
-		ctx = context.Background()
-
 		userUUID = uuid.New()
 
 		hullUUID   = uuid.New()
@@ -55,9 +59,23 @@ func TestCreate(t *testing.T) {
 		expected expected
 	}{
 		{
+			name: "не авторизован",
+			args: args{
+				ctx: context.Background(),
+				orderParts: input.OrderParts{
+					HullUUID:   hullUUID,
+					EngineUUID: engineUUID,
+				},
+			},
+			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {},
+			expected: expected{
+				err: errs.ErrUnauthorized,
+			},
+		},
+		{
 			name: "успешное создание заказа только с обязательными деталями",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -83,10 +101,7 @@ func TestCreate(t *testing.T) {
 				}
 
 				inventory.EXPECT().
-					ListParts(mock.Anything, []uuid.UUID{
-						hullUUID,
-						engineUUID,
-					}).
+					ListParts(mock.Anything, []uuid.UUID{hullUUID, engineUUID}).
 					Return(parts, nil)
 
 				inventory.EXPECT().
@@ -94,10 +109,7 @@ func TestCreate(t *testing.T) {
 					Return(nil)
 
 				inventory.EXPECT().
-					ReserveParts(mock.Anything, []uuid.UUID{
-						hullUUID,
-						engineUUID,
-					}).
+					ReserveParts(mock.Anything, []uuid.UUID{hullUUID, engineUUID}).
 					Return(nil)
 
 				repo.EXPECT().
@@ -116,7 +128,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "успешное создание заказа со всеми деталями",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -155,12 +167,7 @@ func TestCreate(t *testing.T) {
 					},
 				}
 
-				partUUIDs := []uuid.UUID{
-					hullUUID,
-					engineUUID,
-					shieldUUID,
-					weaponUUID,
-				}
+				partUUIDs := []uuid.UUID{hullUUID, engineUUID, shieldUUID, weaponUUID}
 
 				inventory.EXPECT().
 					ListParts(mock.Anything, partUUIDs).
@@ -189,12 +196,13 @@ func TestCreate(t *testing.T) {
 		{
 			name: "duplicate uuids",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: hullUUID,
 				},
 			},
+			setupMock: func(repo *mocks.Repository, inventory *mocks.InventoryClient) {},
 			expected: expected{
 				err: errs.ErrInvalidUUID,
 			},
@@ -202,7 +210,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "ошибка inventory ListParts",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -223,7 +231,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "деталь не найдена",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -233,17 +241,11 @@ func TestCreate(t *testing.T) {
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
 			) {
-				parts := []model.Part{
-					{
-						UUID:          hullUUID,
-						Price:         100000,
-						StockQuantity: 5,
-					},
-				}
-
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(parts, nil)
+					Return([]model.Part{
+						{UUID: hullUUID, Price: 100000, StockQuantity: 5},
+					}, nil)
 			},
 			expected: expected{
 				err: errs.ErrPartNotFound,
@@ -252,7 +254,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "нет товара на складе",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -262,22 +264,12 @@ func TestCreate(t *testing.T) {
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
 			) {
-				parts := []model.Part{
-					{
-						UUID:          hullUUID,
-						Price:         100000,
-						StockQuantity: 0,
-					},
-					{
-						UUID:          engineUUID,
-						Price:         50000,
-						StockQuantity: 3,
-					},
-				}
-
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(parts, nil)
+					Return([]model.Part{
+						{UUID: hullUUID, Price: 100000, StockQuantity: 0},
+						{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					}, nil)
 			},
 			expected: expected{
 				err: errs.ErrOutOfStock,
@@ -286,7 +278,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "ошибка проверки совместимости",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -296,22 +288,12 @@ func TestCreate(t *testing.T) {
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
 			) {
-				parts := []model.Part{
-					{
-						UUID:          hullUUID,
-						Price:         100000,
-						StockQuantity: 5,
-					},
-					{
-						UUID:          engineUUID,
-						Price:         50000,
-						StockQuantity: 3,
-					},
-				}
-
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(parts, nil)
+					Return([]model.Part{
+						{UUID: hullUUID, Price: 100000, StockQuantity: 5},
+						{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					}, nil)
 
 				inventory.EXPECT().
 					ValidateCompatibility(mock.Anything, mock.Anything).
@@ -324,7 +306,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "ошибка резервирования деталей",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -334,22 +316,12 @@ func TestCreate(t *testing.T) {
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
 			) {
-				parts := []model.Part{
-					{
-						UUID:          hullUUID,
-						Price:         100000,
-						StockQuantity: 5,
-					},
-					{
-						UUID:          engineUUID,
-						Price:         50000,
-						StockQuantity: 3,
-					},
-				}
-
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(parts, nil)
+					Return([]model.Part{
+						{UUID: hullUUID, Price: 100000, StockQuantity: 5},
+						{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					}, nil)
 
 				inventory.EXPECT().
 					ValidateCompatibility(mock.Anything, mock.Anything).
@@ -366,7 +338,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "ошибка сохранения заказа",
 			args: args{
-				userUUID: userUUID,
+				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
 					HullUUID:   hullUUID,
 					EngineUUID: engineUUID,
@@ -376,22 +348,12 @@ func TestCreate(t *testing.T) {
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
 			) {
-				parts := []model.Part{
-					{
-						UUID:          hullUUID,
-						Price:         100000,
-						StockQuantity: 5,
-					},
-					{
-						UUID:          engineUUID,
-						Price:         50000,
-						StockQuantity: 3,
-					},
-				}
-
 				inventory.EXPECT().
 					ListParts(mock.Anything, mock.Anything).
-					Return(parts, nil)
+					Return([]model.Part{
+						{UUID: hullUUID, Price: 100000, StockQuantity: 5},
+						{UUID: engineUUID, Price: 50000, StockQuantity: 3},
+					}, nil)
 
 				inventory.EXPECT().
 					ValidateCompatibility(mock.Anything, mock.Anything).
@@ -433,11 +395,7 @@ func TestCreate(t *testing.T) {
 				txManager,
 			)
 
-			order, err := sut.Create(
-				ctx,
-				tc.args.orderParts,
-				tc.args.userUUID,
-			)
+			order, err := sut.Create(tc.args.ctx, tc.args.orderParts)
 
 			if tc.expected.err != nil {
 				require.Error(t, err)

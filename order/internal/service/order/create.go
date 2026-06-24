@@ -10,9 +10,15 @@ import (
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	"github.com/vixart/rocket-factory/order/internal/service/input"
+	"github.com/vixart/rocket-factory/platform/pkg/auth"
 )
 
-func (s *service) Create(ctx context.Context, orderParts input.OrderParts, userUUID uuid.UUID) (*model.Order, error) {
+func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*model.Order, error) {
+	userUUID, ok := auth.UserUUIDFromContext(ctx)
+	if !ok {
+		return nil, errs.ErrUnauthorized
+	}
+
 	partsUuids := []uuid.UUID{orderParts.HullUUID, orderParts.EngineUUID}
 
 	if orderParts.ShieldUUID != nil {

@@ -32,6 +32,10 @@ type PaymentClient interface {
 	PayOrder(ctx context.Context, orderUuid uuid.UUID, paymentMethod model.PaymentMethod) (txUuid uuid.UUID, e error)
 }
 
+type IAMClient interface {
+	Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, uuid.UUID, error)
+}
+
 type OrderPaidProducer interface {
 	ProduceOrderPaid(ctx context.Context, event model.OrderPaidEvent) error
 }

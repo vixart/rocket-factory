@@ -12,4 +12,6 @@ var (
 	ErrIncompatibleParts = errors.New("детали несовместимы")
 	ErrPartTypeMismatch  = errors.New("деталь не совпала")
 	ErrInvalidProperties = errors.New("неверное свойство")
+	ErrInternalError     = errors.New("внутренняя ошибка")
+	ErrUnauthenticated   = errors.New("не удалось авторизоваться")
 )

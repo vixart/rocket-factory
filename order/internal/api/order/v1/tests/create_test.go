@@ -22,7 +22,6 @@ func TestCreateOrder(t *testing.T) {
 	var (
 		ctx = context.Background()
 
-		userUUID   = uuid.New()
 		orderUUID  = uuid.New()
 		hullUUID   = uuid.New()
 		engineUUID = uuid.New()
@@ -41,7 +40,6 @@ func TestCreateOrder(t *testing.T) {
 		{
 			name: "успешное создание заказа",
 			req: &orderv1.CreateOrderRequest{
-				UserUUID:   userUUID,
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,
 				ShieldUUID: orderv1.NewOptNilUUID(shieldUUID),
@@ -57,7 +55,6 @@ func TestCreateOrder(t *testing.T) {
 							ShieldUUID: &shieldUUID,
 							WeaponUUID: &weaponUUID,
 						},
-						userUUID,
 					).
 					Return(&model.Order{
 						UUID: orderUUID,
@@ -90,7 +87,6 @@ func TestCreateOrder(t *testing.T) {
 		{
 			name: "ошибка создания заказа",
 			req: &orderv1.CreateOrderRequest{
-				UserUUID:   userUUID,
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,
 				ShieldUUID: orderv1.OptNilUUID{},
@@ -104,7 +100,6 @@ func TestCreateOrder(t *testing.T) {
 							HullUUID:   hullUUID,
 							EngineUUID: engineUUID,
 						},
-						userUUID,
 					).
 					Return(nil, internalErr)
 			},

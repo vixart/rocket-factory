@@ -109,6 +109,7 @@ func (d *diContainer) OrderPaidConsumer() *wrappedKafkaConsumer.Consumer {
 				config.AppConfig().OrderPaidConsumer.Topic(),
 			},
 			wrappedKafkaConsumer.WithMiddlewares(
+				kafkaMiddleware.ConsumerSession(),
 				kafkaMiddleware.ConsumerLogging(),
 			),
 		)

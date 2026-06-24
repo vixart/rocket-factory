@@ -12,6 +12,7 @@ import (
 	"github.com/go-faster/errors"
 
 	"github.com/vixart/rocket-factory/order/internal/config"
+	"github.com/vixart/rocket-factory/order/internal/middleware"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	"github.com/vixart/rocket-factory/platform/pkg/logger"
 )
@@ -124,9 +125,11 @@ func (a *App) initLogger(_ context.Context) {
 }
 
 func (a *App) initHTTPServer(ctx context.Context) {
+	authMiddleware := middleware.NewAuthMiddleware(a.diContainer.IAMClient())
+	serverHandler := a.diContainer.OrderV1Server(ctx)
 	a.httpServer = &http.Server{
 		Addr:              config.AppConfig().HTTP.Address(),
-		Handler:           a.diContainer.OrderV1Server(ctx),
+		Handler:           authMiddleware.AuthMiddleware(serverHandler),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,

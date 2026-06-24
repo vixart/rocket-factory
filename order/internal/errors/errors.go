@@ -14,4 +14,6 @@ var (
 	ErrOutOfStock        = errors.New("детали нет на складе")
 	ErrIncompatibleParts = errors.New("детали несовместимы")
 	ErrPartTypeMismatch  = errors.New("неверный тип детали")
+
+	ErrUnauthorized = errors.New("не удалось авторизоваться")
 )

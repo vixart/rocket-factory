@@ -2,6 +2,9 @@ grpc:
   host: "localhost"
   port: "50051"
 
+logger:
+  level: "debug"
+
 pg:
   host: "localhost"
   port: "55433"
@@ -9,3 +12,6 @@ pg:
   user: "demo"
   password: "demo"
   sslmode: "disable"
+
+client:
+  iam_address: "localhost:50053"

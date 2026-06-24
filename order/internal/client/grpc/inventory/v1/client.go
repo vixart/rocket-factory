@@ -37,7 +37,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part
 		&inventoryv1.ListPartsRequest{Uuids: converter.UuidsToStrings(uuids)},
 	)
 	if err != nil {
-		return nil, mapErrors(err)
+		return nil, mapErrors(ctx, err)
 	}
 
 	parts := resp.GetParts()
@@ -47,7 +47,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part
 	for _, part := range parts {
 		parsedUuid, err := uuid.Parse(part.GetUuid())
 		if err != nil {
-			return nil, mapErrors(err)
+			return nil, mapErrors(ctx, err)
 		}
 
 		result = append(result, converter.PartFromProto(part, parsedUuid))
@@ -65,7 +65,7 @@ func (c *client) ReserveParts(ctx context.Context, uuids []uuid.UUID) error {
 		&inventoryv1.ReservePartsRequest{Uuids: converter.UuidsToStrings(uuids)},
 	)
 	if err != nil {
-		return mapErrors(err)
+		return mapErrors(ctx, err)
 	}
 
 	return nil
@@ -80,7 +80,7 @@ func (c *client) ReleaseParts(ctx context.Context, uuids []uuid.UUID) error {
 		&inventoryv1.ReleasePartsRequest{Uuids: converter.UuidsToStrings(uuids)},
 	)
 	if err != nil {
-		return mapErrors(err)
+		return mapErrors(ctx, err)
 	}
 
 	return nil
@@ -95,7 +95,7 @@ func (c *client) CommitParts(ctx context.Context, uuids []uuid.UUID) error {
 		&inventoryv1.CommitPartsRequest{Uuids: converter.UuidsToStrings(uuids)},
 	)
 	if err != nil {
-		return mapErrors(err)
+		return mapErrors(ctx, err)
 	}
 
 	return nil
@@ -115,14 +115,14 @@ func (c *client) ValidateCompatibility(ctx context.Context, orderParts input.Ord
 		},
 	)
 	if err != nil {
-		return mapErrors(err)
+		return mapErrors(ctx, err)
 	}
 
 	return nil
 }
 
-func mapErrors(err error) error {
-	slog.Error("ошибка при обращении к inventory сервису", "error", err)
+func mapErrors(ctx context.Context, err error) error {
+	slog.ErrorContext(ctx, "ошибка при обращении к inventory сервису", "error", err)
 
 	if st, ok := status.FromError(err); ok {
 		var errType error

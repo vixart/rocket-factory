@@ -124,6 +124,7 @@ func (a *App) initListener(_ context.Context) {
 
 // initGRPCServer создаёт и настраивает gRPC-сервер, регистрирует обработчики.
 func (a *App) initGRPCServer(ctx context.Context) {
+	authInterceptor := interceptor.NewAuthInterceptor(a.diContainer.IAMClient())
 	a.grpcServer = grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -137,7 +138,10 @@ func (a *App) initGRPCServer(ctx context.Context) {
 			MinTime:             grpcMinPingInterval,
 			PermitWithoutStream: false,
 		}),
-		grpc.UnaryInterceptor(interceptor.ErrorInterceptor),
+		grpc.ChainUnaryInterceptor(
+			interceptor.ErrorInterceptor,
+			authInterceptor.AuthInterceptor,
+		),
 	)
 
 	// Получаем API-обработчик до регистрации closer'а: ленивая инициализация
