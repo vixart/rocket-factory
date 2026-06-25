@@ -138,7 +138,11 @@ func (d *diContainer) InventoryClient() order.InventoryClient {
 
 func (d *diContainer) PaymentClient() order.PaymentClient {
 	if d.payment == nil {
-		paymentConn, err := newGRPCConnection(config.AppConfig().Client.PaymentAddress, "PaymentService")
+		paymentConn, err := newGRPCConnection(
+			config.AppConfig().Client.PaymentAddress,
+			"PaymentService",
+			grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
+		)
 		if err != nil {
 			slog.Error("не удалось создать клиент PaymentService", "error", err)
 			os.Exit(1)

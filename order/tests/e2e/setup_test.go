@@ -406,6 +406,7 @@ func startBufconnGRPCPayment(ctx context.Context, cleanups *cleanupStack) *grpc.
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
 	)
 	if err != nil {
 		panic(fmt.Errorf("payment grpc client: %w", err))

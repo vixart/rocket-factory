@@ -31,14 +31,8 @@ func TestRegister(t *testing.T) {
 	}
 
 	var (
-		ctx          = context.Background()
-		repoErr      = errors.New("repo error")
-		now          = time.Now().UTC().Truncate(time.Second)
-		existingUser = model.User{
-			UUID:      uuid.New(),
-			Login:     "user@example.com",
-			CreatedAt: now,
-		}
+		ctx     = context.Background()
+		repoErr = errors.New("repo error")
 	)
 
 	tests := []struct {
@@ -56,9 +50,6 @@ func TestRegister(t *testing.T) {
 				},
 			},
 			setupMock: func(userRepo *mocks.UserRepository, sessionRepo *mocks.SessionRepository) {
-				userRepo.EXPECT().
-					GetByLogin(ctx, "user@example.com").
-					Return(model.User{}, errs.ErrUserNotFound)
 				userRepo.EXPECT().
 					Create(ctx, mock.MatchedBy(func(u model.User) bool {
 						return u.Login == "user@example.com" &&
@@ -108,40 +99,6 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "пользователь уже существует",
-			args: args{
-				input: input.UserRegisterInput{
-					Login:    "user@example.com",
-					Password: "secret123",
-				},
-			},
-			setupMock: func(userRepo *mocks.UserRepository, sessionRepo *mocks.SessionRepository) {
-				userRepo.EXPECT().
-					GetByLogin(ctx, "user@example.com").
-					Return(existingUser, nil)
-			},
-			expected: expected{
-				err: errs.ErrUserAlreadyExists,
-			},
-		},
-		{
-			name: "неожиданная ошибка репозитория при поиске",
-			args: args{
-				input: input.UserRegisterInput{
-					Login:    "user@example.com",
-					Password: "secret123",
-				},
-			},
-			setupMock: func(userRepo *mocks.UserRepository, sessionRepo *mocks.SessionRepository) {
-				userRepo.EXPECT().
-					GetByLogin(ctx, "user@example.com").
-					Return(model.User{}, repoErr)
-			},
-			expected: expected{
-				err: repoErr,
-			},
-		},
-		{
 			name: "ошибка репозитория при создании",
 			args: args{
 				input: input.UserRegisterInput{
@@ -150,9 +107,6 @@ func TestRegister(t *testing.T) {
 				},
 			},
 			setupMock: func(userRepo *mocks.UserRepository, sessionRepo *mocks.SessionRepository) {
-				userRepo.EXPECT().
-					GetByLogin(ctx, "user@example.com").
-					Return(model.User{}, errs.ErrUserNotFound)
 				userRepo.EXPECT().
 					Create(ctx, mock.MatchedBy(func(u model.User) bool {
 						return u.Login == "user@example.com"

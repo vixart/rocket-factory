@@ -13,7 +13,6 @@ func UserModelToSessionView(sessionUUID uuid.UUID, user model.User, expiredAt ti
 	view := redis_view.SessionRedisView{
 		UserUUID:           user.UUID.String(),
 		UserLogin:          user.Login,
-		UserPasswordHash:   user.PasswordHash,
 		UserCreatedAtNS:    user.CreatedAt.UnixNano(),
 		SessionUUID:        sessionUUID.String(),
 		SessionCreatedAtNS: time.Now().UnixNano(),
@@ -29,14 +28,13 @@ func UserModelToSessionView(sessionUUID uuid.UUID, user model.User, expiredAt ti
 
 func SessionViewToUserModel(sessionView redis_view.SessionRedisView) model.User {
 	user := model.User{
-		UUID:         uuid.MustParse(sessionView.UserUUID),
-		Login:        sessionView.UserLogin,
-		PasswordHash: sessionView.UserPasswordHash,
-		CreatedAt:    time.Unix(0, sessionView.UserCreatedAtNS),
+		UUID:      uuid.MustParse(sessionView.UserUUID),
+		Login:     sessionView.UserLogin,
+		CreatedAt: time.Unix(0, sessionView.UserCreatedAtNS),
 	}
 
 	if sessionView.UserUpdatedAtNS != nil {
-		user.UpdatedAt = new(time.Unix(0, sessionView.UserCreatedAtNS))
+		user.UpdatedAt = new(time.Unix(0, *sessionView.UserUpdatedAtNS))
 	}
 
 	return user

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
@@ -15,16 +14,6 @@ import (
 
 func (s *service) Register(ctx context.Context, input input.UserRegisterInput) (model.User, error) {
 	if err := validateData(input.Login, input.Password); err != nil {
-		return model.User{}, err
-	}
-
-	_, err := s.userRepository.GetByLogin(ctx, input.Login)
-
-	if err == nil {
-		return model.User{}, errs.ErrUserAlreadyExists
-	}
-
-	if !errors.Is(err, errs.ErrUserNotFound) {
 		return model.User{}, err
 	}
 
