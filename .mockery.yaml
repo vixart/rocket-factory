@@ -27,6 +27,17 @@ template-data:
   boilerplate-file: ".mockery_boilerplate_text.txt"
 
 packages:
+  # IAM service
+  github.com/vixart/rocket-factory/iam/internal/api/auth/v1:
+    config:
+      include-interface-regex: ".*Service"
+  github.com/vixart/rocket-factory/iam/internal/api/user/v1:
+    config:
+      include-interface-regex: ".*Service"
+  github.com/vixart/rocket-factory/iam/internal/service/iam:
+    config:
+      include-interface-regex: ".*Repository"
+
   # Assembly service
   github.com/vixart/rocket-factory/assembly/internal/service/assembly:
     config:

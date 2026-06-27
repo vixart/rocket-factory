@@ -2,6 +2,9 @@ grpc:
   host: "0.0.0.0"
   port: "50051"
 
+logger:
+  level: "debug"
+
 pg:
   host: "postgres-production"
   port: "55433"
@@ -9,3 +12,6 @@ pg:
   user: "MUST_BE_SET_VIA_ENV"
   password: "MUST_BE_SET_VIA_ENV"
   sslmode: "require"
+
+client:
+  iam_address: "0.0.0.0:50053"

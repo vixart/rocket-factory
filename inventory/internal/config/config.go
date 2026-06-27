@@ -14,6 +14,7 @@ type config struct {
 	GRPC   grpcConfig   `yaml:"grpc"`
 	Logger loggerConfig `yaml:"logger"`
 	PG     pgConfig     `yaml:"pg"`
+	Client clientConfig `yaml:"client"`
 }
 
 func MustLoad() {

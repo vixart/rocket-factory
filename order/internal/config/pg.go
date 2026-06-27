@@ -5,9 +5,9 @@ import "fmt"
 type pgConfig struct {
 	Host     string `yaml:"host"     env:"POSTGRES_HOST"     env-default:"localhost"`
 	Port     string `yaml:"port"     env:"POSTGRES_PORT"     env-default:"5432"`
-	Database string `yaml:"database" env:"POSTGRES_DB"       env-default:"ufo"`
-	User     string `yaml:"user"     env:"POSTGRES_USER"     env-default:"ufo_admin"`
-	Password string `yaml:"password" env:"POSTGRES_PASSWORD" env-default:"ufo_secret"`
+	Database string `yaml:"database" env:"POSTGRES_DB"       env-default:"postgres"`
+	User     string `yaml:"user"     env:"POSTGRES_USER"     env-default:"admin"`
+	Password string `yaml:"password" env:"POSTGRES_PASSWORD" env-default:"secret"`
 	SSLMode  string `yaml:"sslmode"  env:"POSTGRES_SSLMODE"  env-default:"disable"`
 }
 

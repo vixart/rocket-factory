@@ -49,6 +49,7 @@ func newOrderPaidConsumer(cg sarama.ConsumerGroup, config Config) *wrappedKafkaC
 			config.OrderPaidTopic,
 		},
 		wrappedKafkaConsumer.WithMiddlewares(
+			kafkaMiddleware.ConsumerSession(),
 			kafkaMiddleware.ConsumerLogging(),
 		),
 	)

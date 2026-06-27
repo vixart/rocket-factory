@@ -8,6 +8,7 @@ import (
 
 	"github.com/vixart/rocket-factory/order/internal/model"
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
+	kafkamw "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
 	eventsv1 "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1"
 )
 
@@ -15,7 +16,7 @@ type service struct {
 	orderPaidProducer KafkaProducer
 }
 
-func NewService(orderPaidProducer KafkaProducer) *service {
+func New(orderPaidProducer KafkaProducer) *service {
 	return &service{
 		orderPaidProducer: orderPaidProducer,
 	}
@@ -35,7 +36,8 @@ func (p *service) ProduceOrderPaid(ctx context.Context, event model.OrderPaidEve
 	}
 
 	return p.orderPaidProducer.Send(ctx, &kafka.Message{
-		Key:   []byte(event.UUID),
-		Value: payload,
+		Key:     []byte(event.UUID),
+		Value:   payload,
+		Headers: kafkamw.ProducerSessionHeaders(ctx),
 	})
 }

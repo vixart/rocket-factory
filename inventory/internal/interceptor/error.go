@@ -41,6 +41,9 @@ func ErrorInterceptor(
 	case errors.Is(err, errs.ErrInvalidProperties):
 		return nil, status.Error(codes.Internal, err.Error())
 
+	case status.Code(err) != codes.OK:
+		return nil, err
+
 	default:
 		return nil, status.Error(codes.Internal, "внутренняя ошибка")
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	// Загружаем переменные окружения из ufo.env (если файл существует)
+	// Загружаем переменные окружения из payment.env (если файл существует)
 	_ = godotenv.Load("payment.env") //nolint:gosec // .env файл опционален — ошибка загрузки допустима
 
 	config.MustLoad()

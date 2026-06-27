@@ -16,10 +16,12 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	orderApiV1 "github.com/vixart/rocket-factory/order/internal/api/order/v1"
+	iamClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/iam/v1"
 	inventoryClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/inventory/v1"
 	paymentClientV1 "github.com/vixart/rocket-factory/order/internal/client/grpc/payment/v1"
 	"github.com/vixart/rocket-factory/order/internal/config"
 	orderShipAssembledConsumerService "github.com/vixart/rocket-factory/order/internal/consumer/assembly_consumer"
+	"github.com/vixart/rocket-factory/order/internal/interceptor"
 	orderPaidProducerService "github.com/vixart/rocket-factory/order/internal/producer/order_producer"
 	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order"
@@ -28,6 +30,7 @@ import (
 	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
 	kafkaMiddleware "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
+	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
@@ -48,6 +51,7 @@ type diContainer struct {
 	shipAssembledConsumer *wrappedKafkaConsumer.Consumer
 
 	// Клиенты
+	iam       order.IAMClient
 	inventory order.InventoryClient
 	payment   order.PaymentClient
 
@@ -111,7 +115,11 @@ func (d *diContainer) OrderRepo(ctx context.Context) order.Repository {
 
 func (d *diContainer) InventoryClient() order.InventoryClient {
 	if d.inventory == nil {
-		inventoryConn, err := newGRPCConnection(config.AppConfig().Client.InventoryAddress, "InventoryService")
+		inventoryConn, err := newGRPCConnection(
+			config.AppConfig().Client.InventoryAddress,
+			"InventoryService",
+			grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
+		)
 		if err != nil {
 			slog.Error("не удалось создать клиент InventoryService", "error", err)
 			os.Exit(1)
@@ -130,7 +138,11 @@ func (d *diContainer) InventoryClient() order.InventoryClient {
 
 func (d *diContainer) PaymentClient() order.PaymentClient {
 	if d.payment == nil {
-		paymentConn, err := newGRPCConnection(config.AppConfig().Client.PaymentAddress, "PaymentService")
+		paymentConn, err := newGRPCConnection(
+			config.AppConfig().Client.PaymentAddress,
+			"PaymentService",
+			grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
+		)
 		if err != nil {
 			slog.Error("не удалось создать клиент PaymentService", "error", err)
 			os.Exit(1)
@@ -144,6 +156,24 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 	}
 
 	return d.payment
+}
+
+func (d *diContainer) IAMClient() order.IAMClient {
+	if d.iam == nil {
+		iamConn, err := newGRPCConnection(config.AppConfig().Client.IAMAddress, "IAMService")
+		if err != nil {
+			slog.Error("не удалось создать клиент IAMService", "error", err)
+			os.Exit(1)
+		}
+		closer.Add("IAMService grpc client", func(_ context.Context) error {
+			return iamConn.Close()
+		})
+
+		iamServiceClient := authv1.NewAuthServiceClient(iamConn)
+		d.iam = iamClientV1.NewClient(iamServiceClient)
+	}
+
+	return d.iam
 }
 
 func (d *diContainer) OrderService(ctx context.Context) orderApiV1.OrderService {
@@ -242,6 +272,7 @@ func (d *diContainer) ShipAssembledConsumer() *wrappedKafkaConsumer.Consumer {
 				config.AppConfig().ShipAssembledConsumer.Topic(),
 			},
 			wrappedKafkaConsumer.WithMiddlewares(
+				kafkaMiddleware.ConsumerSession(),
 				kafkaMiddleware.ConsumerLogging(),
 			),
 		)
@@ -252,7 +283,7 @@ func (d *diContainer) ShipAssembledConsumer() *wrappedKafkaConsumer.Consumer {
 
 func (d *diContainer) OrderPaidProducerSvc() order.OrderPaidProducer {
 	if d.orderPaidProducerSvc == nil {
-		d.orderPaidProducerSvc = orderPaidProducerService.NewService(d.OrderPaidProducer())
+		d.orderPaidProducerSvc = orderPaidProducerService.New(d.OrderPaidProducer())
 	}
 	return d.orderPaidProducerSvc
 }
@@ -269,9 +300,8 @@ func (d *diContainer) ShipAssembledConsumerSvc(ctx context.Context) ConsumerServ
 	return d.shipAssembledConsumerSvc
 }
 
-func newGRPCConnection(address, serviceName string) (*grpc.ClientConn, error) {
-	conn, err := grpc.NewClient(
-		address,
+func newGRPCConnection(address, serviceName string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	defaultOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(
 			keepalive.ClientParameters{
@@ -280,6 +310,11 @@ func newGRPCConnection(address, serviceName string) (*grpc.ClientConn, error) {
 				PermitWithoutStream: true,
 			},
 		),
+	}
+
+	conn, err := grpc.NewClient(
+		address,
+		append(defaultOpts, opts...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к %s: %w", serviceName, err)

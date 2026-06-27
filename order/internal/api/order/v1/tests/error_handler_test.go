@@ -39,11 +39,21 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "ошибка декодирования тела запроса",
+			err: &ogenerrors.DecodeRequestError{
+				Err: errors.New("invalid body"),
+			},
+			expected: expected{
+				statusCode: http.StatusBadRequest,
+				body:       `{"code":400,"message":"operation : decode request: invalid body"}`,
+			},
+		},
+		{
 			name: "заказ не найден",
 			err:  errs.ErrOrderNotFound,
 			expected: expected{
 				statusCode: http.StatusNotFound,
-				body:       `{"code":404,"message":"заказ не найден"}`,
+				body:       `{"code":404,"message":"` + errs.ErrOrderNotFound.Error() + `"}`,
 			},
 		},
 		{
@@ -51,7 +61,15 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrPartNotFound,
 			expected: expected{
 				statusCode: http.StatusNotFound,
-				body:       `{"code":404,"message":"деталь не найдена"}`,
+				body:       `{"code":404,"message":"` + errs.ErrPartNotFound.Error() + `"}`,
+			},
+		},
+		{
+			name: "не авторизован",
+			err:  errs.ErrUnauthorized,
+			expected: expected{
+				statusCode: http.StatusUnauthorized,
+				body:       `{"code":401,"message":"` + errs.ErrUnauthorized.Error() + `"}`,
 			},
 		},
 		{
@@ -59,7 +77,7 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrInvalidOrderStatus,
 			expected: expected{
 				statusCode: http.StatusConflict,
-				body:       `{"code":409,"message":"заказ имеет недопустимый статус"}`,
+				body:       `{"code":409,"message":"` + errs.ErrInvalidOrderStatus.Error() + `"}`,
 			},
 		},
 		{
@@ -67,7 +85,7 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrIncompatibleParts,
 			expected: expected{
 				statusCode: http.StatusConflict,
-				body:       `{"code":409,"message":"детали несовместимы"}`,
+				body:       `{"code":409,"message":"` + errs.ErrIncompatibleParts.Error() + `"}`,
 			},
 		},
 		{
@@ -75,7 +93,7 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrOutOfStock,
 			expected: expected{
 				statusCode: http.StatusConflict,
-				body:       `{"code":409,"message":"детали нет на складе"}`,
+				body:       `{"code":409,"message":"` + errs.ErrOutOfStock.Error() + `"}`,
 			},
 		},
 		{
@@ -83,7 +101,7 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrInvalidUUID,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
-				body:       `{"code":400,"message":"некорректный uuid"}`,
+				body:       `{"code":400,"message":"` + errs.ErrInvalidUUID.Error() + `"}`,
 			},
 		},
 		{
@@ -91,7 +109,15 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrPaymentFailed,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
-				body:       `{"code":400,"message":"не удалось оплатить заказ"}`,
+				body:       `{"code":400,"message":"` + errs.ErrPaymentFailed.Error() + `"}`,
+			},
+		},
+		{
+			name: "несоответствие типа детали",
+			err:  errs.ErrPartTypeMismatch,
+			expected: expected{
+				statusCode: http.StatusBadRequest,
+				body:       `{"code":400,"message":"` + errs.ErrPartTypeMismatch.Error() + `"}`,
 			},
 		},
 		{
@@ -99,7 +125,7 @@ func TestErrorHandler(t *testing.T) {
 			err:  errs.ErrInvalidPaymentMethod,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
-				body:       `{"code":400,"message":"некорректный способ оплаты"}`,
+				body:       `{"code":400,"message":"` + errs.ErrInvalidPaymentMethod.Error() + `"}`,
 			},
 		},
 		{

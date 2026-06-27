@@ -2,21 +2,33 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	inventoryApiV1 "github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
+	iamClientV1 "github.com/vixart/rocket-factory/inventory/internal/client/grpc/iam/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/config"
 	partRepo "github.com/vixart/rocket-factory/inventory/internal/repository/part"
 	partService "github.com/vixart/rocket-factory/inventory/internal/service/application/part"
 	"github.com/vixart/rocket-factory/inventory/internal/service/domain"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
+	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
+
+type IAMClient interface {
+	Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, uuid.UUID, error)
+}
 
 type diContainer struct {
 	// Инфраструктура
@@ -26,6 +38,9 @@ type diContainer struct {
 	// Зависимости приложения
 	partRepo                 partService.Repository
 	partCompatibilityChecker partService.CompatibilityChecker
+
+	// Клиенты
+	iam IAMClient
 
 	// Зависимости API
 	partSvc inventoryApiV1.InventoryService
@@ -96,10 +111,51 @@ func (d *diContainer) PartService(ctx context.Context) inventoryApiV1.InventoryS
 	return d.partSvc
 }
 
+func (d *diContainer) IAMClient() IAMClient {
+	if d.iam == nil {
+		iamConn, err := newGRPCConnection(config.AppConfig().Client.IAMAddress, "IAMService")
+		if err != nil {
+			slog.Error("не удалось создать клиент IAMService", "error", err)
+			os.Exit(1)
+		}
+		closer.Add("IAMService grpc client", func(_ context.Context) error {
+			return iamConn.Close()
+		})
+
+		iamServiceClient := authv1.NewAuthServiceClient(iamConn)
+		d.iam = iamClientV1.NewClient(iamServiceClient)
+	}
+
+	return d.iam
+}
+
 func (d *diContainer) InventoryV1API(ctx context.Context) inventoryv1.InventoryServiceServer {
 	if d.inventoryv1Handler == nil {
 		d.inventoryv1Handler = inventoryApiV1.NewApi(d.PartService(ctx))
 	}
 
 	return d.inventoryv1Handler
+}
+
+func newGRPCConnection(address, serviceName string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	defaultOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(
+			keepalive.ClientParameters{
+				Time:                10 * time.Second,
+				Timeout:             3 * time.Second,
+				PermitWithoutStream: true,
+			},
+		),
+	}
+
+	conn, err := grpc.NewClient(
+		address,
+		append(defaultOpts, opts...)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось подключиться к %s: %w", serviceName, err)
+	}
+
+	return conn, nil
 }

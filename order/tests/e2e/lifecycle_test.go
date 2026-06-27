@@ -14,14 +14,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vixart/rocket-factory/platform/pkg/auth"
+	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
+	commonv1 "github.com/vixart/rocket-factory/shared/pkg/proto/common/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
+	userv1 "github.com/vixart/rocket-factory/shared/pkg/proto/user/v1"
 )
 
 // HTTP DTOs дублируются с api_test намеренно: e2e — самостоятельная сьюта,
-// которая держит свой контракт с HTTP-API явно перед глазами
+// которая держит свой контракт с HTTP-API явно перед глазами.
+// На неделе 6 user_uuid в теле запроса больше не передаётся: OrderService
+// берёт его из сессии (middleware кладёт в ctx)
 
 type createOrderRequest struct {
-	UserUUID   string  `json:"user_uuid"`
 	HullUUID   string  `json:"hull_uuid"`
 	EngineUUID string  `json:"engine_uuid"`
 	ShieldUUID *string `json:"shield_uuid,omitempty"`
@@ -55,61 +60,64 @@ type orderDTO struct {
 // TestE2E_OrderFullLifecycle_Assembled — happy-path через ВСЮ Kafka-цепочку.
 //
 // Шаги:
-//  1. POST /orders — создаём заказ, ждём 201
-//  2. POST /orders/{uuid}/pay — оплачиваем, ждём 200 и статус PAID
-//  3. order продьюсит OrderPaid → test-assembler → ShipAssembled
-//  4. order ship-assembled-консьюмер обрабатывает событие, переводит в ASSEMBLED
-//  5. Eventually GET /orders/{uuid} — статус ASSEMBLED, transaction_uuid сохранён
-//  6. Проверяем, что CommitParts действительно списал stock_quantity
+//  1. Регистрируемся и логинимся в IAM — получаем sessionUUID для Bearer
+//  2. POST /orders — создаём заказ (с Authorization: Bearer), ждём 201
+//  3. POST /orders/{uuid}/pay — оплачиваем, ждём 200 и статус PAID
+//  4. order продьюсит OrderPaid → реальный AssemblyService → ShipAssembled
+//  5. order ship-assembled-консьюмер обрабатывает событие, переводит в ASSEMBLED
+//  6. Eventually GET /orders/{uuid} — статус ASSEMBLED, transaction_uuid сохранён
+//  7. Проверяем, что CommitParts действительно списал stock_quantity
 func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 	ctx := context.Background()
 
-	// Снимок stock_quantity ДО заказа — для проверки CommitParts позже.
-	// Используем общий пул деталей (HullAluminum + EngineIonC), значит другие
-	// e2e-тесты могли бы интерферировать. Сейчас тест в сьюте один — ок,
-	// если будет больше, лучше брать уникальные seed-детали под каждый
-	stockBefore := getStock(ctx, t, []string{HullAluminumUUID, EngineIonCUUID})
+	// 1. Регистрация + логин: один пользователь на весь тест
+	sessionUUID := registerAndLogin(t, ctx)
 
-	// 1. Create
-	order := mustCreateOrder(t, &createOrderRequest{
-		UserUUID:   uuid.New().String(),
+	// Снимок stock_quantity ДО заказа — для проверки CommitParts позже.
+	// Прокидываем session_uuid через ctx — bufconn-клиент Inventory снабжён
+	// SessionForwarder'ом, который положит его в исходящие gRPC metadata
+	authCtx := auth.WithSessionUUID(ctx, sessionUUID)
+	stockBefore := getStock(authCtx, t, []string{HullAluminumUUID, EngineIonCUUID})
+
+	// 2. Create
+	order := mustCreateOrder(t, sessionUUID, &createOrderRequest{
 		HullUUID:   HullAluminumUUID,
 		EngineUUID: EngineIonCUUID,
 	})
 	require.Equal(t, int64(HullAluminumPrice+EngineIonCPrice), order.TotalPrice)
 
 	// Сразу после Create — статус PENDING_PAYMENT
-	got := mustGetOrder(t, order.OrderUUID)
+	got := mustGetOrder(t, sessionUUID, order.OrderUUID)
 	require.Equal(t, "PENDING_PAYMENT", got.Status)
 	require.Nil(t, got.TransactionUUID)
 
-	// 2. Pay
-	pay := mustPayOrder(t, order.OrderUUID, &payOrderRequest{PaymentMethod: "CARD"})
+	// 3. Pay
+	pay := mustPayOrder(t, sessionUUID, order.OrderUUID, &payOrderRequest{PaymentMethod: "CARD"})
 	require.NotEmpty(t, pay.TransactionUUID)
 
 	// Сразу после Pay — статус PAID. ASSEMBLED ещё не наступил, цепочка асинхронная
-	got = mustGetOrder(t, order.OrderUUID)
+	got = mustGetOrder(t, sessionUUID, order.OrderUUID)
 	require.Equal(t, "PAID", got.Status)
 	require.NotNil(t, got.TransactionUUID)
 	assert.Equal(t, pay.TransactionUUID, *got.TransactionUUID)
 
-	// 3-5. Ждём ASSEMBLED. Таймаут с запасом: Sarama-консьюмеру нужно
-	// зарегистрироваться в группе (может занять несколько секунд при первом
-	// rebalance), плюс round-trip сообщений через Redpanda
-	waitForOrderStatus(t, order.OrderUUID, "ASSEMBLED", 30*time.Second)
+	// 4-6. Ждём ASSEMBLED. Таймаут с запасом: assembly эмулирует сборку 5-15 сек
+	// (захардкожено в week 6), плюс время на rebalance consumer-group и round-trip
+	// сообщений через Redpanda. 60 секунд — комфортный запас
+	waitForOrderStatus(t, sessionUUID, order.OrderUUID, "ASSEMBLED", 60*time.Second)
 
 	// Финальная проверка: все ключевые поля сохранены, цепочка прошла полностью
-	final := mustGetOrder(t, order.OrderUUID)
+	final := mustGetOrder(t, sessionUUID, order.OrderUUID)
 	assert.Equal(t, "ASSEMBLED", final.Status)
 	require.NotNil(t, final.TransactionUUID)
 	assert.Equal(t, pay.TransactionUUID, *final.TransactionUUID)
 	require.NotNil(t, final.PaymentMethod)
 	assert.Equal(t, "CARD", *final.PaymentMethod)
 
-	// 6. CommitParts должен был списать по 1 от каждой использованной детали.
+	// 7. CommitParts должен был списать по 1 от каждой использованной детали.
 	// Это контракт ShipAssembledHandler → InventoryClient.CommitParts —
 	// именно его проверка, которой не хватает в api_test (там noopProducer)
-	stockAfter := getStock(ctx, t, []string{HullAluminumUUID, EngineIonCUUID})
+	stockAfter := getStock(authCtx, t, []string{HullAluminumUUID, EngineIonCUUID})
 	assert.Equal(t, stockBefore[HullAluminumUUID]-1, stockAfter[HullAluminumUUID],
 		"hull stock должен уменьшиться на 1 после ASSEMBLED")
 	assert.Equal(t, stockBefore[EngineIonCUUID]-1, stockAfter[EngineIonCUUID],
@@ -117,10 +125,43 @@ func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 }
 
 // =============================================================================
+// IAM helper
+// =============================================================================
+
+// registerAndLogin регистрирует уникального пользователя и сразу логинится.
+// Возвращает sessionUUID — его кладём в Authorization: Bearer для всех HTTP-запросов
+// и в auth.WithSessionUUID для прямых gRPC-вызовов Inventory
+func registerAndLogin(t *testing.T, ctx context.Context) string {
+	t.Helper()
+
+	login := "e2e-" + uuid.New().String()[:8]
+	const password = "password123"
+
+	_, err := userSvcClient.Register(ctx, &userv1.RegisterRequest{
+		Info: &userv1.UserRegistrationInfo{
+			Info:     &commonv1.UserInfo{Login: login},
+			Password: password,
+		},
+	})
+	require.NoError(t, err, "register")
+
+	loginResp, err := authSvcClient.Login(ctx, &authv1.LoginRequest{
+		Login:    login,
+		Password: password,
+	})
+	require.NoError(t, err, "login")
+
+	sessionUUID := loginResp.GetSessionUuid()
+	require.NotEmpty(t, sessionUUID, "session uuid")
+
+	return sessionUUID
+}
+
+// =============================================================================
 // HTTP helpers
 // =============================================================================
 
-func mustCreateOrder(t *testing.T, req *createOrderRequest) *createOrderResponse {
+func mustCreateOrder(t *testing.T, sessionUUID string, req *createOrderRequest) *createOrderResponse {
 	t.Helper()
 
 	body, err := json.Marshal(req)
@@ -129,6 +170,7 @@ func mustCreateOrder(t *testing.T, req *createOrderRequest) *createOrderResponse
 	httpReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/orders", bytes.NewReader(body))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+sessionUUID)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -141,7 +183,7 @@ func mustCreateOrder(t *testing.T, req *createOrderRequest) *createOrderResponse
 	return &out
 }
 
-func mustPayOrder(t *testing.T, orderUUID string, req *payOrderRequest) *payOrderResponse {
+func mustPayOrder(t *testing.T, sessionUUID, orderUUID string, req *payOrderRequest) *payOrderResponse {
 	t.Helper()
 
 	body, err := json.Marshal(req)
@@ -150,6 +192,7 @@ func mustPayOrder(t *testing.T, orderUUID string, req *payOrderRequest) *payOrde
 	httpReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/orders/"+orderUUID+"/pay", bytes.NewReader(body))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+sessionUUID)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -162,10 +205,14 @@ func mustPayOrder(t *testing.T, orderUUID string, req *payOrderRequest) *payOrde
 	return &out
 }
 
-func mustGetOrder(t *testing.T, orderUUID string) *orderDTO {
+func mustGetOrder(t *testing.T, sessionUUID, orderUUID string) *orderDTO {
 	t.Helper()
 
-	resp, err := httpClient.Get(ts.URL + "/api/v1/orders/" + orderUUID)
+	httpReq, err := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/orders/"+orderUUID, nil)
+	require.NoError(t, err)
+	httpReq.Header.Set("Authorization", "Bearer "+sessionUUID)
+
+	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -181,12 +228,12 @@ func mustGetOrder(t *testing.T, orderUUID string) *orderDTO {
 // явно описывает «жду конечного состояния», а не «жду фиксированный интервал».
 // 200мс между попытками — компромисс: чаще = лишняя нагрузка, реже = пропустим
 // окно между сменой статуса и тестовой паузой.
-func waitForOrderStatus(t *testing.T, orderUUID, expected string, timeout time.Duration) {
+func waitForOrderStatus(t *testing.T, sessionUUID, orderUUID, expected string, timeout time.Duration) {
 	t.Helper()
 
 	var lastStatus string
 	require.Eventuallyf(t, func() bool {
-		got := mustGetOrder(t, orderUUID)
+		got := mustGetOrder(t, sessionUUID, orderUUID)
 		lastStatus = got.Status
 		return got.Status == expected
 	}, timeout, 200*time.Millisecond,
@@ -198,6 +245,10 @@ func waitForOrderStatus(t *testing.T, orderUUID, expected string, timeout time.D
 // Inventory helper
 // =============================================================================
 
+// getStock читает stock_quantity деталей напрямую через bufconn gRPC.
+// Вызывающий код должен предварительно положить session_uuid в ctx
+// (через auth.WithSessionUUID) — SessionForwarder автоматически
+// положит его в outgoing gRPC metadata
 func getStock(ctx context.Context, t *testing.T, partUUIDs []string) map[string]int64 {
 	t.Helper()
 

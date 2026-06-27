@@ -1,3 +1,5 @@
+//go:build apitest
+
 package tests
 
 import (
@@ -5,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -21,22 +22,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
+	iamApp "github.com/vixart/rocket-factory/iam/pkg/app"
 	invApp "github.com/vixart/rocket-factory/inventory/pkg/app"
+	"github.com/vixart/rocket-factory/order/internal/interceptor"
 	"github.com/vixart/rocket-factory/order/pkg/app"
 	"github.com/vixart/rocket-factory/order/tests/testutil"
 	payApp "github.com/vixart/rocket-factory/payment/pkg/app"
+	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
+	commonv1 "github.com/vixart/rocket-factory/shared/pkg/proto/common/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
+	userv1 "github.com/vixart/rocket-factory/shared/pkg/proto/user/v1"
 )
 
 // Предзагруженные UUID и цены деталей (из migrations/inventory/00002_seed_parts.sql)
@@ -64,9 +74,12 @@ const bufSize = 1024 * 1024
 var (
 	invLis *bufconn.Listener
 	payLis *bufconn.Listener
+	iamLis *bufconn.Listener
 
 	inventoryClient inventoryv1.InventoryServiceClient
 	paymentClient   paymentv1.PaymentServiceClient
+	userClient      userv1.UserServiceClient
+	authSvcClient   authv1.AuthServiceClient
 	httpClient      = &http.Client{Timeout: 10 * time.Second}
 	ts              *httptest.Server
 
@@ -78,6 +91,14 @@ var (
 	// inventoryDBPool нужен в тестах конкурентности, где требуется подготовить
 	// деталь с конкретным stock_quantity напрямую в БД
 	inventoryDBPool *pgxpool.Pool
+
+	// defaultSessionUUID — сессия дефолтного тестового пользователя, регистрируется
+	// в TestMain. Используется по умолчанию во всех HTTP- и gRPC-хелперах.
+	defaultSessionUUID string
+
+	// defaultUserUUID — UUID дефолтного пользователя, нужен в тестах, проверяющих
+	// связь заказа с владельцем.
+	defaultUserUUID string
 )
 
 func invBufDialer(context.Context, string) (net.Conn, error) {
@@ -86,6 +107,10 @@ func invBufDialer(context.Context, string) (net.Conn, error) {
 
 func payBufDialer(context.Context, string) (net.Conn, error) {
 	return payLis.Dial()
+}
+
+func iamBufDialer(context.Context, string) (net.Conn, error) {
+	return iamLis.Dial()
 }
 
 // orderBaseURL возвращает базовый URL для HTTP тестов заказов
@@ -135,15 +160,33 @@ func runMigrations(dsn, migrationsDir string) error {
 	return goose.Up(db, absDir)
 }
 
-// TestMain запускает все сервисы перед тестами и останавливает после
-func TestMain(m *testing.M) {
-	logger := slog.New(
-		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		}),
-	)
+// startRedis поднимает Redis-контейнер для IAM-сессий и возвращает host:port
+// без префикса "redis://" — чтобы можно было передать в redis.Options{Addr: ...}
+func startRedis(ctx context.Context) (*tcredis.RedisContainer, string, error) {
+	container, err := tcredis.Run(ctx, "redis:8.6.1-alpine3.23")
+	if err != nil {
+		return nil, "", err
+	}
 
-	slog.SetDefault(logger)
+	addr, err := container.ConnectionString(ctx)
+	if err != nil {
+		_ = container.Terminate(ctx)
+		return nil, "", err
+	}
+
+	const prefix = "redis://"
+	if len(addr) > len(prefix) {
+		addr = addr[len(prefix):]
+	}
+
+	return container, addr, nil
+}
+
+// TestMain запускает все сервисы перед тестами и останавливает после.
+// На неделе 6 в окружение добавлен IAM (PostgreSQL + Redis + gRPC-сервер) — он нужен
+// и для проверок аутентификации, и для регистрации дефолтной сессии, под которой
+// идут все «обычные» тесты Order/Inventory.
+func TestMain(m *testing.M) {
 	ctx := context.Background()
 
 	// 1. Запускаем PostgreSQL контейнер для order-сервиса
@@ -168,46 +211,87 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// 3. Накатываем миграции для order-сервиса
+	// 3. Запускаем PostgreSQL контейнер для IAM
+	iamContainer, iamDSN, err := startPostgres(
+		ctx,
+		"iam-service",
+		"iam-service-user",
+		"iam-service-password",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// 4. Запускаем Redis для сессий IAM
+	redisContainer, redisAddr, err := startRedis(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	// 5. Накатываем миграции
 	if err = runMigrations(orderDSN, "../../migrations/order"); err != nil {
 		panic(err)
 	}
-
-	// 4. Накатываем миграции для inventory-сервиса
 	if err = runMigrations(inventoryDSN, "../../migrations/inventory"); err != nil {
 		panic(err)
 	}
+	if err = runMigrations(iamDSN, "../../migrations/iam"); err != nil {
+		panic(err)
+	}
 
-	// 5. Создаём pgxpool для order-сервиса
+	// 6. Создаём pgxpool'ы
 	orderPool, err := pgxpool.New(ctx, orderDSN)
 	if err != nil {
 		panic(err)
 	}
 	orderDBPool = orderPool
 
-	// 6. Создаём pgxpool для inventory-сервиса
 	inventoryPool, err := pgxpool.New(ctx, inventoryDSN)
 	if err != nil {
 		panic(err)
 	}
 	inventoryDBPool = inventoryPool
 
-	// 7. Создаём TxManager для order-сервиса
-	txManagerOrder, err := manager.New(trmpgx.NewDefaultFactory(orderPool))
+	iamPool, err := pgxpool.New(ctx, iamDSN)
 	if err != nil {
 		panic(err)
 	}
 
-	// 8. Создаём TxManager для order-сервиса
-	txManagerInventory, err := manager.New(trmpgx.NewDefaultFactory(inventoryPool))
+	// 7. Redis-клиент для IAM
+	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+
+	// 8. TxManager для order-сервиса
+	txManager, err := manager.New(trmpgx.NewDefaultFactory(orderPool))
 	if err != nil {
 		panic(err)
 	}
 
-	// 8. Inventory gRPC через bufconn
+	// 9. IAM gRPC через bufconn (нужен и Inventory-серверу — для auth-interceptor,
+	//    и Order HTTP-обработчику — для middleware)
+	iamLis = bufconn.Listen(bufSize)
+	iamGRPCServer := iamApp.NewGRPCServer(iamPool, rdb, time.Hour, bcrypt.MinCost)
+	go func() {
+		if iamServeErr := iamGRPCServer.Serve(iamLis); iamServeErr != nil {
+			panic(iamServeErr)
+		}
+	}()
+
+	iamConn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithContextDialer(iamBufDialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		panic(err)
+	}
+	userClient = userv1.NewUserServiceClient(iamConn)
+	authSvcClient = authv1.NewAuthServiceClient(iamConn)
+
+	// 10. Inventory gRPC через bufconn — теперь с auth-interceptor'ом
 	invLis = bufconn.Listen(bufSize)
-	invGRPCServer := grpc.NewServer(invApp.Interceptors()...)
-	invApp.RegisterServices(txManagerInventory, invGRPCServer, inventoryPool)
+	invGRPCServer := grpc.NewServer(invApp.Interceptors(authSvcClient)...)
+	invTxManager, err := manager.New(trmpgx.NewDefaultFactory(inventoryPool))
+	invApp.RegisterServices(invTxManager, invGRPCServer, inventoryPool)
 	go func() {
 		if invServeErr := invGRPCServer.Serve(invLis); invServeErr != nil {
 			panic(invServeErr)
@@ -218,13 +302,14 @@ func TestMain(m *testing.M) {
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(invBufDialer),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
 	)
 	if err != nil {
 		panic(err)
 	}
 	inventoryClient = inventoryv1.NewInventoryServiceClient(invConn)
 
-	// 9. Payment gRPC через bufconn
+	// 11. Payment gRPC через bufconn (без auth)
 	payLis = bufconn.Listen(bufSize)
 	payGRPCServer := grpc.NewServer(payApp.Interceptors()...)
 	payApp.RegisterServices(payGRPCServer)
@@ -238,18 +323,27 @@ func TestMain(m *testing.M) {
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(payBufDialer),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
 	)
 	if err != nil {
 		panic(err)
 	}
 	paymentClient = paymentv1.NewPaymentServiceClient(payConn)
 
-	// 10. Order HTTP через httptest
-	orderServer, err := app.NewHTTPHandler(orderPool, txManagerOrder, inventoryClient, paymentClient)
+	// 12. Order HTTP через httptest, с реальным IAM-клиентом для middleware
+	orderServer, err := app.NewHTTPHandler(orderPool, txManager, inventoryClient, paymentClient, authSvcClient)
 	if err != nil {
 		panic(err)
 	}
 	ts = httptest.NewServer(orderServer)
+
+	// 13. Регистрируем дефолтного пользователя и логинимся — все «обычные» тесты
+	//     ходят под этой сессией. defaultSessionUUID и defaultUserUUID становятся
+	//     глобальным контекстом.
+	defaultSessionUUID, defaultUserUUID, err = registerAndLoginCtx(ctx, "default-user", "password123")
+	if err != nil {
+		panic(err)
+	}
 
 	code := m.Run()
 
@@ -260,11 +354,17 @@ func TestMain(m *testing.M) {
 	if err = payConn.Close(); err != nil {
 		panic(err)
 	}
+	if err = iamConn.Close(); err != nil {
+		panic(err)
+	}
 	invGRPCServer.Stop()
 	payGRPCServer.Stop()
+	iamGRPCServer.Stop()
 
 	orderPool.Close()
 	inventoryPool.Close()
+	iamPool.Close()
+	_ = rdb.Close()
 
 	if err = orderContainer.Terminate(ctx); err != nil {
 		panic(err)
@@ -272,15 +372,71 @@ func TestMain(m *testing.M) {
 	if err = inventoryContainer.Terminate(ctx); err != nil {
 		panic(err)
 	}
+	if err = iamContainer.Terminate(ctx); err != nil {
+		panic(err)
+	}
+	if err = redisContainer.Terminate(ctx); err != nil {
+		panic(err)
+	}
 
 	os.Exit(code)
 }
 
+// authCtx добавляет session-uuid в outgoing metadata — нужно для прямых gRPC-вызовов
+// в InventoryService, чей сервер требует metadata.session-uuid (auth-interceptor).
+func authCtx(ctx context.Context) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, "session-uuid", defaultSessionUUID)
+}
+
+// authCtxWith — то же, что authCtx, но с произвольной сессией. Используется
+// в тестах, где явно нужно проверить поведение interceptor'а с заданным значением.
+func authCtxWith(ctx context.Context, sessionUUID string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, "session-uuid", sessionUUID)
+}
+
+// registerAndLogin регистрирует нового пользователя и сразу логинится —
+// возвращает session UUID и user UUID. Помогает тестам, которым нужна своя
+// сессия, отличная от дефолтной (например, проверка user_uuid из сессии).
+func registerAndLogin(t *testing.T, login, password string) (sessionUUID, userUUID string) {
+	t.Helper()
+	sUUID, uUUID, err := registerAndLoginCtx(context.Background(), login, password)
+	require.NoError(t, err)
+	return sUUID, uUUID
+}
+
+// registerAndLoginCtx — версия registerAndLogin без зависимости от *testing.T,
+// нужна в TestMain для регистрации дефолтного пользователя до первого теста.
+func registerAndLoginCtx(ctx context.Context, login, password string) (sessionUUID, userUUID string, err error) {
+	regResp, err := userClient.Register(ctx, &userv1.RegisterRequest{
+		Info: &userv1.UserRegistrationInfo{
+			Info:     &commonv1.UserInfo{Login: login},
+			Password: password,
+		},
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	loginResp, err := authSvcClient.Login(ctx, &authv1.LoginRequest{
+		Login:    login,
+		Password: password,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return loginResp.GetSessionUuid(), regResp.GetUserUuid(), nil
+}
+
 // HTTP типы запросов/ответов
 
-// CreateOrderRequest представляет тело запроса для создания заказа
+// CreateOrderRequest представляет тело запроса для создания заказа.
+// На неделе 6 поле user_uuid убрано из HTTP-тела (берётся из аутентифицированной
+// сессии). UserUUID оставлен в структуре для совместимости с существующими тестами,
+// но в JSON не сериализуется (тег "-"); фактический владелец заказа определяется
+// дефолтной сессией defaultSessionUUID или явно созданной через registerAndLogin.
 type CreateOrderRequest struct {
-	UserUUID   string  `json:"user_uuid"`
+	UserUUID   string  `json:"-"`
 	HullUUID   string  `json:"hull_uuid"`
 	EngineUUID string  `json:"engine_uuid"`
 	ShieldUUID *string `json:"shield_uuid,omitempty"`
@@ -329,6 +485,13 @@ type ErrorResponse struct {
 
 // Вспомогательные HTTP функции
 
+// withDefaultAuth выставляет Authorization-заголовок дефолтной сессии.
+// Используется во всех HTTP-хелперах ниже — на неделе 6 без Bearer-сессии
+// middleware вернёт 401.
+func withDefaultAuth(req *http.Request) {
+	req.Header.Set("Authorization", "Bearer "+defaultSessionUUID)
+}
+
 func createOrder(t *testing.T, req *CreateOrderRequest) (*CreateOrderResponse, *http.Response) {
 	t.Helper()
 
@@ -338,6 +501,7 @@ func createOrder(t *testing.T, req *CreateOrderRequest) (*CreateOrderResponse, *
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader(jsonBody))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -355,7 +519,11 @@ func createOrder(t *testing.T, req *CreateOrderRequest) (*CreateOrderResponse, *
 func getOrder(t *testing.T, orderUUID string) (*OrderDTO, *http.Response) {
 	t.Helper()
 
-	resp, err := httpClient.Get(orderBaseURL() + "/api/v1/orders/" + orderUUID)
+	httpReq, err := http.NewRequest(http.MethodGet, orderBaseURL()+"/api/v1/orders/"+orderUUID, nil)
+	require.NoError(t, err)
+	withDefaultAuth(httpReq)
+
+	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
 
 	if resp.StatusCode == http.StatusOK {
@@ -377,6 +545,7 @@ func payOrder(t *testing.T, orderUUID string, req *PayOrderRequest) (*PayOrderRe
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders/"+orderUUID+"/pay", bytes.NewReader(jsonBody))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -396,6 +565,7 @@ func cancelOrder(t *testing.T, orderUUID string) (*CancelOrderResponse, *http.Re
 
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders/"+orderUUID+"/cancel", nil)
 	require.NoError(t, err)
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -413,7 +583,7 @@ func cancelOrder(t *testing.T, orderUUID string) (*CancelOrderResponse, *http.Re
 // Тесты InventoryService (gRPC)
 
 func TestInventory_GetPart_Success(t *testing.T) {
-	resp, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	resp, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: HullAluminumUUID,
 	})
 	require.NoError(t, err)
@@ -445,7 +615,7 @@ func TestInventory_GetPart_AllTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+			resp, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 				Uuid: tc.uuid,
 			})
 			require.NoError(t, err)
@@ -460,7 +630,7 @@ func TestInventory_GetPart_AllTypes(t *testing.T) {
 }
 
 func TestInventory_GetPart_NotFound(t *testing.T) {
-	_, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	_, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: uuid.New().String(),
 	})
 	require.Error(t, err)
@@ -468,7 +638,7 @@ func TestInventory_GetPart_NotFound(t *testing.T) {
 }
 
 func TestInventory_GetPart_EmptyUUID(t *testing.T) {
-	_, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	_, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: "",
 	})
 	require.Error(t, err)
@@ -476,7 +646,7 @@ func TestInventory_GetPart_EmptyUUID(t *testing.T) {
 }
 
 func TestInventory_GetPart_InvalidUUID(t *testing.T) {
-	_, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	_, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: "invalid-uuid-format",
 	})
 	require.Error(t, err)
@@ -484,7 +654,7 @@ func TestInventory_GetPart_InvalidUUID(t *testing.T) {
 }
 
 func TestInventory_ListParts_All(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_UNSPECIFIED,
 	})
 	require.NoError(t, err)
@@ -492,7 +662,7 @@ func TestInventory_ListParts_All(t *testing.T) {
 }
 
 func TestInventory_ListParts_ByType_Hull(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_HULL,
 	})
 	require.NoError(t, err)
@@ -504,7 +674,7 @@ func TestInventory_ListParts_ByType_Hull(t *testing.T) {
 }
 
 func TestInventory_ListParts_ByType_Engine(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_ENGINE,
 	})
 	require.NoError(t, err)
@@ -516,7 +686,7 @@ func TestInventory_ListParts_ByType_Engine(t *testing.T) {
 }
 
 func TestInventory_ListParts_ByType_Shield(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_SHIELD,
 	})
 	require.NoError(t, err)
@@ -525,7 +695,7 @@ func TestInventory_ListParts_ByType_Shield(t *testing.T) {
 }
 
 func TestInventory_ListParts_ByType_Weapon(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_WEAPON,
 	})
 	require.NoError(t, err)
@@ -534,7 +704,7 @@ func TestInventory_ListParts_ByType_Weapon(t *testing.T) {
 }
 
 func TestInventory_ListParts_SortedByName(t *testing.T) {
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		PartType: inventoryv1.PartType_PART_TYPE_UNSPECIFIED,
 	})
 	require.NoError(t, err)
@@ -551,7 +721,7 @@ func TestInventory_ListParts_SortedByName(t *testing.T) {
 func TestInventory_ListParts_ByUuids_Success(t *testing.T) {
 	uuids := []string{HullAluminumUUID, EngineIonCUUID, ShieldEnergyUUID}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -569,7 +739,7 @@ func TestInventory_ListParts_ByUuids_PreservesOrder(t *testing.T) {
 	// Запрос в определённом порядке: Engine, Hull, Weapon
 	uuids := []string{EngineIonCUUID, HullAluminumUUID, WeaponLaserUUID}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -586,7 +756,7 @@ func TestInventory_ListParts_ByUuids_IgnoresPartType(t *testing.T) {
 	// Запрос с uuids И part_type — part_type должен быть проигнорирован
 	uuids := []string{HullAluminumUUID, EngineIonCUUID}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids:    uuids,
 		PartType: inventoryv1.PartType_PART_TYPE_WEAPON, // Должен быть проигнорирован
 	})
@@ -603,7 +773,7 @@ func TestInventory_ListParts_ByUuids_NotFound(t *testing.T) {
 	nonExistentUUID := uuid.New().String()
 	uuids := []string{HullAluminumUUID, nonExistentUUID, EngineIonCUUID}
 
-	_, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	_, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.Error(t, err)
@@ -613,7 +783,7 @@ func TestInventory_ListParts_ByUuids_NotFound(t *testing.T) {
 func TestInventory_ListParts_ByUuids_InvalidUUID(t *testing.T) {
 	uuids := []string{HullAluminumUUID, "invalid-uuid-format"}
 
-	_, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	_, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.Error(t, err)
@@ -623,7 +793,7 @@ func TestInventory_ListParts_ByUuids_InvalidUUID(t *testing.T) {
 func TestInventory_ListParts_ByUuids_SingleUUID(t *testing.T) {
 	uuids := []string{WeaponLaserUUID}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -640,7 +810,7 @@ func TestInventory_ListParts_ByUuids_AllParts(t *testing.T) {
 		ShieldEnergyUUID, WeaponLaserUUID,
 	}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -654,7 +824,7 @@ func TestInventory_ListParts_ByUuids_AllParts(t *testing.T) {
 
 func TestInventory_ListParts_ByUuids_EmptyList(t *testing.T) {
 	// Пустой список UUID — должен вернуть все детали (фильтрация по типу UNSPECIFIED)
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: []string{},
 	})
 	require.NoError(t, err)
@@ -1298,6 +1468,7 @@ func TestOrder_Create_InvalidBody_EmptyJSON(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte("{}")))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1310,6 +1481,7 @@ func TestOrder_Create_InvalidBody_NotJSON(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte("not json")))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1323,6 +1495,7 @@ func TestOrder_Create_InvalidBody_MissingHullUUID(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1336,6 +1509,7 @@ func TestOrder_Create_InvalidBody_MissingEngineUUID(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1349,6 +1523,7 @@ func TestOrder_Create_InvalidBody_InvalidHullUUID(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1358,7 +1533,11 @@ func TestOrder_Create_InvalidBody_InvalidHullUUID(t *testing.T) {
 }
 
 func TestOrder_Get_InvalidUUIDInPath(t *testing.T) {
-	resp, err := httpClient.Get(orderBaseURL() + "/api/v1/orders/not-a-uuid")
+	httpReq, err := http.NewRequest(http.MethodGet, orderBaseURL()+"/api/v1/orders/not-a-uuid", nil)
+	require.NoError(t, err)
+	withDefaultAuth(httpReq)
+
+	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1370,6 +1549,7 @@ func TestOrder_Pay_InvalidUUIDInPath(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders/not-a-uuid/pay", bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1396,6 +1576,7 @@ func TestOrder_Pay_InvalidPaymentMethod(t *testing.T) {
 		bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1422,6 +1603,7 @@ func TestOrder_Pay_MissingPaymentMethod(t *testing.T) {
 		bytes.NewReader([]byte(body)))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1446,6 +1628,7 @@ func TestOrder_Pay_EmptyBody(t *testing.T) {
 		bytes.NewReader([]byte("")))
 	require.NoError(t, err)
 	httpReq.Header.Set("Content-Type", "application/json")
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1457,6 +1640,7 @@ func TestOrder_Pay_EmptyBody(t *testing.T) {
 func TestOrder_Cancel_InvalidUUIDInPath(t *testing.T) {
 	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders/not-a-uuid/cancel", nil)
 	require.NoError(t, err)
+	withDefaultAuth(httpReq)
 
 	resp, err := httpClient.Do(httpReq)
 	require.NoError(t, err)
@@ -1500,7 +1684,7 @@ func TestOrder_Create_OutOfStock_WithOptionalParts(t *testing.T) {
 // Тесты Inventory: out of stock деталь присутствует в списке
 
 func TestInventory_GetPart_OutOfStock(t *testing.T) {
-	resp, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	resp, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: HullOutOfStockUUID,
 	})
 	require.NoError(t, err)
@@ -1516,7 +1700,7 @@ func TestInventory_GetPart_OutOfStock(t *testing.T) {
 func TestInventory_ListParts_ByUuids_IncludesOutOfStock(t *testing.T) {
 	uuids := []string{HullAluminumUUID, HullOutOfStockUUID}
 
-	resp, err := inventoryClient.ListParts(context.Background(), &inventoryv1.ListPartsRequest{
+	resp, err := inventoryClient.ListParts(authCtx(context.Background()), &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -1641,7 +1825,7 @@ func TestOrder_Create_DuplicateUUID_HullAndEngine(t *testing.T) {
 
 func TestInventory_ValidateCompatibility_Success_Compatible(t *testing.T) {
 	// Алюминиевый корпус (strength=50) + Ионный двигатель C (required_strength=30) — совместимы
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullAluminumUUID,
 		EngineUuid: EngineIonCUUID,
 	})
@@ -1650,7 +1834,7 @@ func TestInventory_ValidateCompatibility_Success_Compatible(t *testing.T) {
 
 func TestInventory_ValidateCompatibility_Success_StrongHull(t *testing.T) {
 	// Титановый корпус (strength=150) + Ионный двигатель B (required_strength=70) — совместимы
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullTitaniumUUID,
 		EngineUuid: EngineIonBUUID,
 	})
@@ -1659,7 +1843,7 @@ func TestInventory_ValidateCompatibility_Success_StrongHull(t *testing.T) {
 
 func TestInventory_ValidateCompatibility_Success_AllParts(t *testing.T) {
 	// Титановый корпус + Ion B + Energy shield + Laser — всё совместимо
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullTitaniumUUID,
 		EngineUuid: EngineIonBUUID,
 		ShieldUuid: ShieldEnergyUUID,
@@ -1671,7 +1855,7 @@ func TestInventory_ValidateCompatibility_Success_AllParts(t *testing.T) {
 func TestInventory_ValidateCompatibility_Fail_WeakHull(t *testing.T) {
 	// Алюминиевый корпус (strength=50) + Ионный двигатель B (required_strength=70) — несовместимы
 	// Корпус слишком слаб для двигателя класса B
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullAluminumUUID,
 		EngineUuid: EngineIonBUUID,
 	})
@@ -1681,7 +1865,7 @@ func TestInventory_ValidateCompatibility_Fail_WeakHull(t *testing.T) {
 
 func TestInventory_ValidateCompatibility_MissingHull(t *testing.T) {
 	// Без hull_uuid — это нарушение контракта (обязательный слот)
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		EngineUuid: EngineIonBUUID,
 	})
 	require.Error(t, err)
@@ -1689,7 +1873,7 @@ func TestInventory_ValidateCompatibility_MissingHull(t *testing.T) {
 }
 
 func TestInventory_ValidateCompatibility_MissingEngine(t *testing.T) {
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid: HullAluminumUUID,
 	})
 	require.Error(t, err)
@@ -1698,7 +1882,7 @@ func TestInventory_ValidateCompatibility_MissingEngine(t *testing.T) {
 
 func TestInventory_ValidateCompatibility_TypeMismatch_WeaponInHullSlot(t *testing.T) {
 	// В слот корпуса передан UUID оружия — InvalidArgument
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   WeaponLaserUUID,
 		EngineUuid: EngineIonCUUID,
 	})
@@ -1708,7 +1892,7 @@ func TestInventory_ValidateCompatibility_TypeMismatch_WeaponInHullSlot(t *testin
 
 func TestInventory_ValidateCompatibility_TypeMismatch_HullInEngineSlot(t *testing.T) {
 	// В слот двигателя передан UUID корпуса (фактически второй корпус) — InvalidArgument
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullAluminumUUID,
 		EngineUuid: HullTitaniumUUID,
 	})
@@ -1718,7 +1902,7 @@ func TestInventory_ValidateCompatibility_TypeMismatch_HullInEngineSlot(t *testin
 
 func TestInventory_ValidateCompatibility_DuplicateUUID_HullAndEngine(t *testing.T) {
 	// Один и тот же UUID в двух слотах — InvalidArgument
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullAluminumUUID,
 		EngineUuid: HullAluminumUUID,
 	})
@@ -1728,7 +1912,7 @@ func TestInventory_ValidateCompatibility_DuplicateUUID_HullAndEngine(t *testing.
 
 func TestInventory_ValidateCompatibility_NotFound(t *testing.T) {
 	// Несуществующий UUID — ошибка NotFound
-	_, err := inventoryClient.ValidateCompatibility(context.Background(), &inventoryv1.ValidateCompatibilityRequest{
+	_, err := inventoryClient.ValidateCompatibility(authCtx(context.Background()), &inventoryv1.ValidateCompatibilityRequest{
 		HullUuid:   HullAluminumUUID,
 		EngineUuid: uuid.New().String(),
 	})
@@ -1740,13 +1924,13 @@ func TestInventory_ValidateCompatibility_NotFound(t *testing.T) {
 
 func TestInventory_ReserveParts_Success(t *testing.T) {
 	// Резервируем доступные детали — ожидаем успех
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: []string{HullAluminumUUID, EngineIonCUUID},
 	})
 	require.NoError(t, err)
 
 	// Освобождаем обратно, чтобы не ломать другие тесты
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: []string{HullAluminumUUID, EngineIonCUUID},
 	})
 	require.NoError(t, err)
@@ -1754,7 +1938,7 @@ func TestInventory_ReserveParts_Success(t *testing.T) {
 
 func TestInventory_ReserveParts_OutOfStock(t *testing.T) {
 	// Плазменный корпус (stock=0) — резервирование невозможно
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: []string{HullOutOfStockUUID},
 	})
 	require.Error(t, err)
@@ -1762,7 +1946,7 @@ func TestInventory_ReserveParts_OutOfStock(t *testing.T) {
 }
 
 func TestInventory_ReserveParts_NotFound(t *testing.T) {
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: []string{uuid.New().String()},
 	})
 	require.Error(t, err)
@@ -1771,13 +1955,13 @@ func TestInventory_ReserveParts_NotFound(t *testing.T) {
 
 func TestInventory_ReserveParts_SinglePart(t *testing.T) {
 	// Резервируем одну деталь
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: []string{ShieldEnergyUUID},
 	})
 	require.NoError(t, err)
 
 	// Освобождаем обратно
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: []string{ShieldEnergyUUID},
 	})
 	require.NoError(t, err)
@@ -1789,12 +1973,12 @@ func TestInventory_ReleaseParts_Success(t *testing.T) {
 	// Сначала резервируем, потом освобождаем — полный цикл
 	uuids := []string{HullTitaniumUUID, EngineIonBUUID}
 
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
@@ -1802,7 +1986,7 @@ func TestInventory_ReleaseParts_Success(t *testing.T) {
 
 func TestInventory_ReleaseParts_NothingToRelease(t *testing.T) {
 	// Плазменный корпус (stock=0, reserved=0) — нечего освобождать
-	_, err := inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err := inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: []string{HullOutOfStockUUID},
 	})
 	require.Error(t, err)
@@ -1810,7 +1994,7 @@ func TestInventory_ReleaseParts_NothingToRelease(t *testing.T) {
 }
 
 func TestInventory_ReleaseParts_NotFound(t *testing.T) {
-	_, err := inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err := inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: []string{uuid.New().String()},
 	})
 	require.Error(t, err)
@@ -1876,78 +2060,65 @@ func TestInventory_ReserveRelease_FullCycle(t *testing.T) {
 	uuids := []string{WeaponLaserUUID}
 
 	// Первый резерв
-	_, err := inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err := inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
 	// Освобождаем
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
 	// Повторный резерв должен пройти (деталь снова доступна)
-	_, err = inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err = inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
 	// Финальное освобождение
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 }
 
-// Тесты user_uuid (валидация и проброс через всю цепочку)
-
-func TestOrder_Create_MissingUserUUID(t *testing.T) {
-	// Без user_uuid — ogen отклоняет запрос ещё до сервиса
-	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
-	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
-	require.NoError(t, err)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(httpReq)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-}
-
-func TestOrder_Create_InvalidUserUUIDFormat(t *testing.T) {
-	// Невалидный формат user_uuid — ogen отклоняет запрос
-	body := `{"user_uuid": "not-a-uuid", "hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
-	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
-	require.NoError(t, err)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(httpReq)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-}
+// Тесты user_uuid (проброс через всю цепочку из аутентифицированной сессии)
 
 func TestOrder_Get_ReturnsUserUUID(t *testing.T) {
-	// user_uuid из CreateOrderRequest должен сохраняться в БД и возвращаться в GET
-	userUUID := uuid.New().String()
-	req := &CreateOrderRequest{
-		UserUUID:   userUUID,
-		HullUUID:   HullAluminumUUID,
-		EngineUUID: EngineIonCUUID,
-	}
+	// На неделе 6 user_uuid берётся из аутентифицированной сессии, а не из request body.
+	// Регистрируем нового пользователя и логинимся, чтобы получить «свою» сессию,
+	// затем создаём заказ под этой сессией и проверяем, что order.UserUUID совпадает
+	// с UUID этого пользователя.
+	sessionUUID, userUUID := registerAndLogin(t, "owner-"+uuid.New().String()[:8], "password123")
 
-	createResult, createResp := createOrder(t, req)
+	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
+	createReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", "Bearer "+sessionUUID)
+
+	createResp, err := httpClient.Do(createReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+
+	var created CreateOrderResponse
+	require.NoError(t, json.NewDecoder(createResp.Body).Decode(&created))
 	_ = createResp.Body.Close()
-	require.NotNil(t, createResult)
 
-	order, resp := getOrder(t, createResult.OrderUUID)
-	defer func() { _ = resp.Body.Close() }()
+	getReq, err := http.NewRequest(http.MethodGet, orderBaseURL()+"/api/v1/orders/"+created.OrderUUID, nil)
+	require.NoError(t, err)
+	getReq.Header.Set("Authorization", "Bearer "+sessionUUID)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, userUUID, order.UserUUID, "user_uuid должен пробрасываться из запроса в ответ GET")
+	getResp, err := httpClient.Do(getReq)
+	require.NoError(t, err)
+	defer func() { _ = getResp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var order OrderDTO
+	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&order))
+	assert.Equal(t, userUUID, order.UserUUID, "user_uuid должен браться из аутентифицированной сессии и сохраняться в БД")
 }
 
 // Тесты Cancel по статусу ASSEMBLED
@@ -1997,23 +2168,23 @@ func TestInventory_CommitParts_Success(t *testing.T) {
 	// Полный цикл: резервируем → списываем. После Commit stock должен уменьшиться на 1.
 	uuids := []string{ShieldEnergyUUID}
 
-	partBefore, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partBefore, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: ShieldEnergyUUID,
 	})
 	require.NoError(t, err)
 	stockBefore := partBefore.GetPart().GetStockQuantity()
 
-	_, err = inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err = inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
-	_, err = inventoryClient.CommitParts(context.Background(), &inventoryv1.CommitPartsRequest{
+	_, err = inventoryClient.CommitParts(authCtx(context.Background()), &inventoryv1.CommitPartsRequest{
 		Uuids: uuids,
 	})
 	require.NoError(t, err)
 
-	partAfter, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partAfter, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: ShieldEnergyUUID,
 	})
 	require.NoError(t, err)
@@ -2025,7 +2196,7 @@ func TestInventory_CommitParts_NothingToCommit(t *testing.T) {
 	// Плазменный корпус: существует, но stock=0 и reserved=0 — списывать нечего
 	// ListForUpdate находит деталь, но SQL-условие stock>0 AND reserved>0 не проходит,
 	// RowsAffected=0 → ErrNothingToCommit → FailedPrecondition
-	_, err := inventoryClient.CommitParts(context.Background(), &inventoryv1.CommitPartsRequest{
+	_, err := inventoryClient.CommitParts(authCtx(context.Background()), &inventoryv1.CommitPartsRequest{
 		Uuids: []string{HullOutOfStockUUID},
 	})
 	require.Error(t, err)
@@ -2035,7 +2206,7 @@ func TestInventory_CommitParts_NothingToCommit(t *testing.T) {
 func TestInventory_CommitParts_NotFound(t *testing.T) {
 	// Несуществующий UUID → ListForUpdate возвращает ErrPartNotFound → NotFound
 	// Это защита перед самим Commit: мы различаем «детали нет» и «нечего списывать»
-	_, err := inventoryClient.CommitParts(context.Background(), &inventoryv1.CommitPartsRequest{
+	_, err := inventoryClient.CommitParts(authCtx(context.Background()), &inventoryv1.CommitPartsRequest{
 		Uuids: []string{uuid.New().String()},
 	})
 	require.Error(t, err)
@@ -2047,24 +2218,24 @@ func TestInventory_CommitParts_PartialCommit_RollbackOnMissing(t *testing.T) {
 	// весь Commit должен откатиться: stock первой детали не должен измениться
 	validUUID := HullTitaniumUUID
 
-	partBefore, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partBefore, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: validUUID,
 	})
 	require.NoError(t, err)
 	stockBefore := partBefore.GetPart().GetStockQuantity()
 
-	_, err = inventoryClient.ReserveParts(context.Background(), &inventoryv1.ReservePartsRequest{
+	_, err = inventoryClient.ReserveParts(authCtx(context.Background()), &inventoryv1.ReservePartsRequest{
 		Uuids: []string{validUUID},
 	})
 	require.NoError(t, err)
 
 	// Батч с валидной и несуществующей деталью → FailedPrecondition, транзакция откатывается
-	_, err = inventoryClient.CommitParts(context.Background(), &inventoryv1.CommitPartsRequest{
+	_, err = inventoryClient.CommitParts(authCtx(context.Background()), &inventoryv1.CommitPartsRequest{
 		Uuids: []string{validUUID, uuid.New().String()},
 	})
 	require.Error(t, err)
 
-	partAfter, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partAfter, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: validUUID,
 	})
 	require.NoError(t, err)
@@ -2072,7 +2243,7 @@ func TestInventory_CommitParts_PartialCommit_RollbackOnMissing(t *testing.T) {
 		"при частичной ошибке stock валидной детали должен остаться без изменений")
 
 	// Подчищаем резерв, чтобы не ломать соседние тесты
-	_, err = inventoryClient.ReleaseParts(context.Background(), &inventoryv1.ReleasePartsRequest{
+	_, err = inventoryClient.ReleaseParts(authCtx(context.Background()), &inventoryv1.ReleasePartsRequest{
 		Uuids: []string{validUUID},
 	})
 	require.NoError(t, err)
@@ -2083,7 +2254,7 @@ func TestInventory_CommitParts_PartialCommit_RollbackOnMissing(t *testing.T) {
 func TestOrder_Cancel_ReleasesReservedParts(t *testing.T) {
 	// После Cancel зарезервированные детали должны освободиться
 	// Проверяем: до Cancel reserved был +1, после Cancel он должен вернуться к исходному
-	partBefore, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partBefore, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: HullTitaniumUUID,
 	})
 	require.NoError(t, err)
@@ -2104,7 +2275,7 @@ func TestOrder_Cancel_ReleasesReservedParts(t *testing.T) {
 
 	// После Cancel stock не должен был измениться (Reserve не трогает stock,
 	// а Release возвращает reserved к исходному)
-	partAfter, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+	partAfter, err := inventoryClient.GetPart(authCtx(context.Background()), &inventoryv1.GetPartRequest{
 		Uuid: HullTitaniumUUID,
 	})
 	require.NoError(t, err)
@@ -2189,7 +2360,7 @@ func TestInventory_ReserveParts_Concurrent_LastPart(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(authCtx(context.Background()), 10*time.Second)
 			defer cancel()
 			_, errs[idx] = inventoryClient.ReserveParts(ctx, &inventoryv1.ReservePartsRequest{
 				Uuids: []string{testPartUUID},
@@ -2210,4 +2381,102 @@ func TestInventory_ReserveParts_Concurrent_LastPart(t *testing.T) {
 
 	assert.Equal(t, 1, successCount, "ровно один Reserve должен пройти успешно")
 	assert.Equal(t, 1, failedCount, "ровно один Reserve должен упасть (нет деталей в наличии)")
+}
+
+// Тесты HTTP middleware OrderService (auth)
+//
+// Все эндпоинты Order требуют валидной Bearer-сессии: middleware вызывает
+// AuthService.Whoami и при любой ошибке отдаёт 401 с текстовым телом
+
+func TestAuthMiddleware_NoAuthorizationHeader(t *testing.T) {
+	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
+	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
+	require.NoError(t, err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	// Нет заголовка Authorization
+
+	resp, err := httpClient.Do(httpReq)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestAuthMiddleware_BadAuthorizationFormat(t *testing.T) {
+	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
+	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
+	require.NoError(t, err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Token abc") // неверный префикс
+
+	resp, err := httpClient.Do(httpReq)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestAuthMiddleware_InvalidSession(t *testing.T) {
+	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
+	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
+	require.NoError(t, err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+uuid.New().String())
+
+	resp, err := httpClient.Do(httpReq)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestAuthMiddleware_ExpiredSession(t *testing.T) {
+	// Регистрируем + логинимся, потом logout — имитация истёкшей сессии
+	sessionUUID, _ := registerAndLogin(t, "expired-"+uuid.New().String()[:8], "password123")
+	_, err := authSvcClient.Logout(context.Background(), &authv1.LogoutRequest{SessionUuid: sessionUUID})
+	require.NoError(t, err)
+
+	body := `{"hull_uuid": "` + HullAluminumUUID + `", "engine_uuid": "` + EngineIonCUUID + `"}`
+	httpReq, err := http.NewRequest(http.MethodPost, orderBaseURL()+"/api/v1/orders", bytes.NewReader([]byte(body)))
+	require.NoError(t, err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+sessionUUID)
+
+	resp, err := httpClient.Do(httpReq)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+// Тесты gRPC interceptor InventoryService (auth)
+//
+// Все методы Inventory требуют session-uuid в incoming metadata;
+// при отсутствии или невалидной сессии — codes.Unauthenticated
+
+func TestInterceptor_NoMetadata(t *testing.T) {
+	// Прямой вызов без metadata — Unauthenticated
+	_, err := inventoryClient.GetPart(context.Background(), &inventoryv1.GetPartRequest{
+		Uuid: HullAluminumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.Unauthenticated)
+}
+
+func TestInterceptor_EmptySession(t *testing.T) {
+	ctx := authCtxWith(context.Background(), "")
+	_, err := inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+		Uuid: HullAluminumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.Unauthenticated)
+}
+
+func TestInterceptor_InvalidSession(t *testing.T) {
+	ctx := authCtxWith(context.Background(), uuid.New().String())
+	_, err := inventoryClient.GetPart(ctx, &inventoryv1.GetPartRequest{
+		Uuid: HullAluminumUUID,
+	})
+	require.Error(t, err)
+	testutil.AssertGRPCStatus(t, err, codes.Unauthenticated)
 }

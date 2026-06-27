@@ -18,7 +18,7 @@ func (s *service) OrderPaidHandler(ctx context.Context, msg kafka.Message) error
 	}
 
 	slog.InfoContext(
-		ctx, "обработка сообщения",
+		ctx, "обработка сообщения OrderPaid",
 		"topic", msg.Topic,
 		"partition", msg.Partition,
 		"offset", msg.Offset,

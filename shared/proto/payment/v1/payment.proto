@@ -27,6 +27,7 @@ message PayOrderRequest {
   // Выбранный способ оплаты (обязательный)
   PaymentMethod payment_method = 2;
 }
+
 // Ответ на оплату заказа
 message PayOrderResponse {
   // UUID транзакции

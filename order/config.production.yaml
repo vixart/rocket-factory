@@ -5,7 +5,7 @@ http:
 pg:
   host: "postgres-production"
   port: "55432"
-  database: "ufo"
+  database: "postgres"
   user: "MUST_BE_SET_VIA_ENV"
   password: "MUST_BE_SET_VIA_ENV"
   sslmode: "require"
@@ -13,6 +13,7 @@ pg:
 client:
   inventory_address: "0.0.0.0:50051"
   payment_address: "0.0.0.0:50052"
+  iam_address: "0.0.0.0:50053"
 
 kafka:
   brokers: [ "localhost:9092" ]

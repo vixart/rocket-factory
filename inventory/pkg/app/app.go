@@ -9,10 +9,12 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	inventoryApiV1 "github.com/vixart/rocket-factory/inventory/internal/api/inventory/v1"
+	iamClient "github.com/vixart/rocket-factory/inventory/internal/client/grpc/iam/v1"
 	"github.com/vixart/rocket-factory/inventory/internal/interceptor"
 	partRepository "github.com/vixart/rocket-factory/inventory/internal/repository/part"
 	"github.com/vixart/rocket-factory/inventory/internal/service/application/part"
 	"github.com/vixart/rocket-factory/inventory/internal/service/domain"
+	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
@@ -26,7 +28,9 @@ const (
 	grpcMinPingInterval       = 5 * time.Minute  // Минимальный интервал ping'ов от клиента (защита от DoS)
 )
 
-func Interceptors() []grpc.ServerOption {
+func Interceptors(authClient authv1.AuthServiceClient) []grpc.ServerOption {
+	client := iamClient.NewClient(authClient)
+	authInterceptor := interceptor.NewAuthInterceptor(client)
 	return []grpc.ServerOption{
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle:     grpcMaxConnectionIdle,
@@ -39,7 +43,10 @@ func Interceptors() []grpc.ServerOption {
 			MinTime:             grpcMinPingInterval,
 			PermitWithoutStream: true, // Разрешить "тёплые" соединения без активных RPC
 		}),
-		grpc.UnaryInterceptor(interceptor.ErrorInterceptor),
+		grpc.ChainUnaryInterceptor(
+			interceptor.ErrorInterceptor,
+			authInterceptor.AuthInterceptor,
+		),
 	}
 }
 

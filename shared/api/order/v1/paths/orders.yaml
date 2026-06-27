@@ -23,6 +23,12 @@ post:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
+    '401':
+      description: Не авторизован
+      content:
+        application/json:
+          schema:
+            $ref: '../components/errors/error.yaml'
     '404':
       description: Компонент не найден
       content:

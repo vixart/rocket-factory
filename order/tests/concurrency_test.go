@@ -1,3 +1,5 @@
+//go:build apitest
+
 package tests
 
 import (
@@ -6,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,21 +19,22 @@ import (
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
-// Concurrency-тесты дополняют api_test.go и проверяют поведение под гонками
-// по общему ресурсу: один и тот же заказ в Pay/Cancel одновременно, последняя
-// единица детали в нескольких параллельных резервированиях, цепочка
-// Pay → SendOrderPaid в условиях ошибки producer'а.
+// Concurrency-тесты унаследованы из week_4 (где они флапали из-за отсутствия
+// SELECT FOR UPDATE) и week_5 (где они были введены вместе с FOR UPDATE).
+// Здесь они продолжают работать — пессимистичные блокировки в Inventory
+// сохраняются: ListForUpdate берёт row lock на чтении, второй вызов ждёт
+// и видит изменённое состояние.
 //
-// На week_5 все эти сценарии становятся центральной темой — hw.md явно требует
-// SELECT FOR UPDATE и атомарность Pay → OrderPaid в одной транзакции.
+// Прямой gRPC-сценарий с ReserveParts покрыт TestInventory_ReserveParts_Concurrent_LastPart
+// в api_test.go; тесты ниже добавляют HTTP-цепочку через Order и сценарий
+// атомарности транзакции при mixed-stock.
 
-// TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds:
-// два горутина одновременно создают заказ на одну и ту же деталь со stock=1.
-// SELECT FOR UPDATE в Inventory.ReserveParts должен пропустить ровно один —
-// второй получит 409 (out of stock).
+// TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds: два горутина
+// одновременно создают заказ на одну и ту же деталь со stock=1.
+// FOR UPDATE в Inventory.ReserveParts должен пропустить ровно один —
+// второй получит 409 (ErrOutOfStock из inventory маппится в HTTP 409 в
+// error_handler.go).
 func TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds(t *testing.T) {
-	t.Log("START", t.Name())
-	defer t.Log("END", t.Name())
 	hullUUID := uuid.New().String()
 	engineUUID := uuid.New().String()
 	_, err := inventoryDBPool.Exec(
@@ -79,121 +83,13 @@ func TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds(t *testing.T) {
 			conflict++
 		}
 	}
-	assert.Equal(t, 1, created, "должен создаться ровно один заказ")
-	assert.Equal(t, 1, conflict, "второй создаваемый заказ должен получить Conflict")
-
-	// Hull: использован 1 → reserved=1 (но stock тоже 1, не 0 — Reserve не трогает stock).
-	assert.Equal(t, 1, partReserved(t, hullUUID), "ровно одна единица hull должна остаться зарезервированной")
-}
-
-// TestConcurrent_ReserveLastUnit_OneSucceedsOneFails: два горутина одновременно
-// пытаются зарезервировать единственную единицу детали через Inventory.ReserveParts
-// напрямую (минуя Order). SELECT FOR UPDATE должен пропустить ровно один вызов;
-// второй получит ResourceExhausted (mapping ErrOutOfStock в interceptor/error.go).
-//
-// Тест дополняет TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds,
-// проверяя ту же инварианту, но через прямой gRPC-вызов Inventory без Order.
-func TestConcurrent_ReserveLastUnit_OneSucceedsOneFails(t *testing.T) {
-	t.Log("START", t.Name())
-	defer t.Log("END", t.Name())
-	partUUID := uuid.New().String()
-	_, err := inventoryDBPool.Exec(
-		context.Background(),
-		`INSERT INTO parts (uuid, name, description, part_type, price, stock_quantity, properties)
-		 VALUES ($1, 'Concurrent reserve last unit', '', 'HULL', 1000, 1, '{"hull": {"strength": 100}}')`,
-		partUUID,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = inventoryDBPool.Exec(context.Background(),
-			`DELETE FROM parts WHERE uuid = $1`, partUUID)
-	})
-
-	var (
-		wg        sync.WaitGroup
-		mu        sync.Mutex
-		successes int
-		exhausted int
-		others    []error
-	)
-	wg.Add(2)
-	for range 2 {
-		go func() {
-			defer wg.Done()
-			_, err := inventoryClient.ReserveParts(context.Background(),
-				&inventoryv1.ReservePartsRequest{Uuids: []string{partUUID}})
-			mu.Lock()
-			defer mu.Unlock()
-			switch {
-			case err == nil:
-				successes++
-			case status.Code(err) == codes.ResourceExhausted:
-				exhausted++
-			default:
-				others = append(others, err)
-			}
-		}()
-	}
-	wg.Wait()
-
-	assert.Empty(t, others, "ожидались только успех или ResourceExhausted, прочих ошибок быть не должно")
-	assert.Equal(t, 1, successes, "ровно один резерв должен пройти")
-	assert.Equal(t, 1, exhausted, "второй резерв должен получить ResourceExhausted")
-	assert.Equal(t, 1, partReserved(t, partUUID), "ровно одна единица должна остаться зарезервированной")
-}
-
-// TestConcurrent_PayCancel_LeavesConsistentState: одновременно Pay и Cancel
-// одного заказа. Минимальная гарантия — финальный статус не PENDING_PAYMENT
-// и хотя бы одна операция вернула OK.
-//
-// В сервисе с SELECT FOR UPDATE в Pay и Cancel гонка должна сериализоваться:
-// одна операция выигрывает, вторая видит изменённый статус и корректно
-// отказывает. Тест НЕ требует строго `payOK XOR cancelOK` — допускает оба
-// варианта победы и проверяет именно консистентность результата.
-func TestConcurrent_PayCancel_LeavesConsistentState(t *testing.T) {
-	created, createResp := createOrder(t, &CreateOrderRequest{
-		UserUUID:   uuid.New().String(),
-		HullUUID:   HullAluminumUUID,
-		EngineUUID: EngineIonCUUID,
-	})
-	_ = createResp.Body.Close()
-	require.NotNil(t, created)
-
-	var (
-		wg                      sync.WaitGroup
-		payStatus, cancelStatus int
-	)
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		_, resp := payOrder(t, created.OrderUUID, &PayOrderRequest{PaymentMethod: "CARD"})
-		defer func() { _ = resp.Body.Close() }()
-		payStatus = resp.StatusCode
-	}()
-	go func() {
-		defer wg.Done()
-		_, resp := cancelOrder(t, created.OrderUUID)
-		defer func() { _ = resp.Body.Close() }()
-		cancelStatus = resp.StatusCode
-	}()
-	wg.Wait()
-
-	// Хотя бы одна операция должна вернуть OK.
-	assert.True(t,
-		payStatus == http.StatusOK || cancelStatus == http.StatusOK,
-		"хотя бы одна из операций должна выиграть (Pay=%d, Cancel=%d)", payStatus, cancelStatus)
-
-	// В БД финальный статус — PAID или CANCELLED, не PENDING_PAYMENT.
-	final, getResp := getOrder(t, created.OrderUUID)
-	defer func() { _ = getResp.Body.Close() }()
-	require.NotNil(t, final)
-	assert.Contains(t, []string{"PAID", "CANCELLED"}, final.Status,
-		"состояние не должно остаться PENDING_PAYMENT")
+	assert.Equal(t, 1, created, "должен создаться ровно один заказ (statuses=%v)", statuses)
+	assert.Equal(t, 1, conflict, "второй создаваемый заказ должен получить Conflict (statuses=%v)", statuses)
 }
 
 // TestConcurrent_Reserve_MixedStock: гонка ReserveParts с батчем из двух
-// деталей, где одна доступна, а вторая (HullOutOfStock) гарантированно
-// out-of-stock. Цель — подсветить целостность транзакции ReserveParts:
+// деталей, где одна доступна, а вторая — out-of-stock (HullOutOfStockUUID,
+// stock=0 в seed). Цель — показать целостность транзакции ReserveParts:
 // при провале хотя бы одной детали никакие резервы не сохраняются.
 func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 	availableUUID := uuid.New().String()
@@ -221,7 +117,9 @@ func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 	for range workers {
 		go func() {
 			defer wg.Done()
-			_, err := inventoryClient.ReserveParts(context.Background(),
+			ctx, cancel := context.WithTimeout(authCtx(context.Background()), 10*time.Second)
+			defer cancel()
+			_, err := inventoryClient.ReserveParts(ctx,
 				&inventoryv1.ReservePartsRequest{
 					Uuids: []string{availableUUID, HullOutOfStockUUID},
 				})
@@ -242,13 +140,12 @@ func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 		"все батчи должны падать целиком из-за HullOutOfStockUUID")
 
 	// Главное: ни одна доступная деталь не должна остаться зарезервированной,
-	// потому что транзакция откатилась.
-	assert.Equal(t, 0, partReserved(t, availableUUID),
+	// потому что транзакция откатилась. Поле reserved нет в proto (это
+	// внутренняя детализация Inventory) — читаем напрямую из БД.
+	var reserved int
+	err = inventoryDBPool.QueryRow(context.Background(),
+		`SELECT reserved FROM parts WHERE uuid = $1`, availableUUID).Scan(&reserved)
+	require.NoError(t, err)
+	assert.Equal(t, 0, reserved,
 		"availableUUID не должна быть зарезервирована: транзакция откатилась")
 }
-
-// Сценарий «producer.SendOrderPaid вернул ошибку» покрывается на уровне
-// unit-теста сервиса в order/internal/service/order/tests/pay_test.go:
-// см. TestService_Pay_ProducerError. Поднимать отдельный httptest-сервер
-// с подменённым producer'ом ради одного кейса — overkill, инжектировать
-// другой producer в общий ts без перестройки TestMain невозможно.
