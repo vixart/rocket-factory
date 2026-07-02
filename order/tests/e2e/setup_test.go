@@ -362,7 +362,7 @@ func startBufconnGRPCIAM(ctx context.Context, cleanups *cleanupStack, pool *pgxp
 func startBufconnGRPCInventory(ctx context.Context, cleanups *cleanupStack, pool *pgxpool.Pool, authClient authv1.AuthServiceClient) *grpc.ClientConn {
 	lis := bufconn.Listen(bufSize)
 	server := grpc.NewServer(invApp.Interceptors(authClient)...)
-	txManager, err := manager.New(trmpgx.NewDefaultFactory(pool))
+	txManager := mustNew(manager.New(trmpgx.NewDefaultFactory(pool)))
 	invApp.RegisterServices(txManager, server, pool)
 
 	go func() {
@@ -406,7 +406,6 @@ func startBufconnGRPCPayment(ctx context.Context, cleanups *cleanupStack) *grpc.
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
 	)
 	if err != nil {
 		panic(fmt.Errorf("payment grpc client: %w", err))
@@ -448,8 +447,8 @@ func startOrderShipAssembledConsumer(
 	// что использует прод-DI (order/internal/app/di.go)
 	svc := assemblyconsumer.NewService(
 		wrappedConsumer,
-		orderRepoPkg.NewRepository(pool, txManager),
-		inventoryClientPkg.NewClient(invClient),
+		orderRepoPkg.New(pool, txManager),
+		inventoryClientPkg.New(invClient),
 		txManager,
 	)
 

@@ -20,7 +20,7 @@ func SessionForwarder() grpc.UnaryClientInterceptor {
 	) error {
 		token, ok := auth.SessionUUIDFromContext(ctx)
 		if ok {
-			ctx = metadata.AppendToOutgoingContext(ctx, auth.SessionTokenKey, token)
+			ctx = metadata.AppendToOutgoingContext(ctx, auth.SessionTokenKey, token.String())
 		}
 
 		return invoker(ctx, method, req, reply, cc, opts...)

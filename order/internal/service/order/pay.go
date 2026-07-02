@@ -16,10 +16,12 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 	}
 
 	var transactionUUID uuid.UUID
+	var order model.Order
 
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
+		var err error
 		// 1. Читаем заказ в транзакции
-		order, err := s.orderRepository.GetForUpdate(ctx, orderUUID)
+		order, err = s.orderRepository.GetForUpdate(ctx, orderUUID)
 		if err != nil {
 			return fmt.Errorf("получить заказ: %w", err)
 		}
@@ -61,6 +63,9 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 	if err != nil {
 		return uuid.Nil, err
 	}
+
+	ordersPaidTotal.Add(ctx, 1)
+	ordersRevenueTotal.Add(ctx, order.TotalPrice())
 
 	return transactionUUID, nil
 }

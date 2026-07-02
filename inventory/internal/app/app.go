@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -19,6 +20,7 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	"github.com/vixart/rocket-factory/platform/pkg/grpc/health"
 	"github.com/vixart/rocket-factory/platform/pkg/logger"
+	"github.com/vixart/rocket-factory/platform/pkg/tracing"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
@@ -92,6 +94,7 @@ func (a *App) initDeps(ctx context.Context) {
 	inits := []func(context.Context){
 		a.initDI,
 		a.initLogger,
+		a.initTracer,
 		a.initListener,
 		a.initGRPCServer,
 	}
@@ -108,7 +111,34 @@ func (a *App) initDI(_ context.Context) {
 
 // initLogger настраивает глобальный slog с уровнем из конфига.
 func (a *App) initLogger(_ context.Context) {
-	logger.Init(config.AppConfig().Logger.Level)
+	cfg := logger.Config{
+		Level:             config.AppConfig().Logger.Level,
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		EnableOTLP:        config.AppConfig().Otel.EnableOTLP,
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+	}
+	logger.Init(cfg)
+	closer.Add("Logger", func(_ context.Context) error {
+		return logger.Close()
+	})
+}
+
+func (a *App) initTracer(ctx context.Context) {
+	cfg := tracing.Config{
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		ServiceVersion:    config.AppConfig().Env.ServiceVersion,
+	}
+	shutdown, err := tracing.InitTracer(ctx, cfg)
+	if err != nil {
+		slog.Error("не удалось создать инициализировать tracer", "error", err)
+		os.Exit(1)
+	}
+	closer.Add("Tracer", func(_ context.Context) error {
+		return shutdown(ctx)
+	})
 }
 
 // initListener создаёт TCP-листенер для gRPC-сервера.
@@ -124,7 +154,6 @@ func (a *App) initListener(_ context.Context) {
 
 // initGRPCServer создаёт и настраивает gRPC-сервер, регистрирует обработчики.
 func (a *App) initGRPCServer(ctx context.Context) {
-	authInterceptor := interceptor.NewAuthInterceptor(a.diContainer.IAMClient())
 	a.grpcServer = grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -138,9 +167,11 @@ func (a *App) initGRPCServer(ctx context.Context) {
 			MinTime:             grpcMinPingInterval,
 			PermitWithoutStream: false,
 		}),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptor.ErrorInterceptor,
-			authInterceptor.AuthInterceptor,
+			tracing.TraceIDUnaryServerInterceptor(),
+			interceptor.Auth(a.diContainer.IAMClient()),
 		),
 	)
 

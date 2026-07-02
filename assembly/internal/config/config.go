@@ -11,10 +11,12 @@ import (
 var appConfig *config
 
 type config struct {
+	Env                   env                         `yaml:"env"`
 	Kafka                 kafkaConfig                 `yaml:"kafka"`
 	Logger                loggerConfig                `yaml:"logger"`
 	OrderPaidConsumer     orderPaidConsumerConfig     `yaml:"order_paid_consumer"`
 	ShipAssembledProducer shipAssembledProducerConfig `yaml:"ship_assembled_producer"`
+	Otel                  otelConfig                  `yaml:"otel"`
 }
 
 func MustLoad() {

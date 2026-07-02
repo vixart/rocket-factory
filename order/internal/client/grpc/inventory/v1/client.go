@@ -22,7 +22,7 @@ type client struct {
 	grpcClient inventoryv1.InventoryServiceClient
 }
 
-func NewClient(grpcClient inventoryv1.InventoryServiceClient) *client {
+func New(grpcClient inventoryv1.InventoryServiceClient) *client {
 	return &client{
 		grpcClient: grpcClient,
 	}

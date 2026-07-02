@@ -29,10 +29,10 @@ func NewHTTPHandler(
 	paymentServiceClient paymentv1.PaymentServiceClient,
 	authServiceClient authv1.AuthServiceClient,
 ) (http.Handler, error) {
-	inventoryClient := inventoryClientV1.NewClient(inventoryServiceClient)
+	inventoryClient := inventoryClientV1.New(inventoryServiceClient)
 	paymentClient := paymentClientV1.NewClient(paymentServiceClient)
 	iamClient := iamClientV1.NewClient(authServiceClient)
-	orderRepo := orderRepository.NewRepository(pool, txManager)
+	orderRepo := orderRepository.New(pool, txManager)
 	service := orderService.NewService(orderRepo, NewOrderPaidProducerServiceStub(), inventoryClient, paymentClient, txManager)
 	api := OrderApiV1.NewApi(service)
 
@@ -52,10 +52,10 @@ func NewHTTPHandlerWithProducer(
 	authServiceClient authv1.AuthServiceClient,
 	orderProducer orderService.OrderPaidProducer,
 ) (http.Handler, error) {
-	inventoryClient := inventoryClientV1.NewClient(inventoryServiceClient)
+	inventoryClient := inventoryClientV1.New(inventoryServiceClient)
 	paymentClient := paymentClientV1.NewClient(paymentServiceClient)
 	iamClient := iamClientV1.NewClient(authServiceClient)
-	orderRepo := orderRepository.NewRepository(pool, txManager)
+	orderRepo := orderRepository.New(pool, txManager)
 	service := orderService.NewService(orderRepo, orderProducer, inventoryClient, paymentClient, txManager)
 	api := OrderApiV1.NewApi(service)
 

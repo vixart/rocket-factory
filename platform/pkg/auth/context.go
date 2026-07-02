@@ -27,12 +27,12 @@ func UserUUIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 // WithSessionUUID кладёт UUID сессии в контекст.
 // Хранится как строка — это чистый passthrough из заголовка/metadata в исходящие
 // gRPC metadata через SessionForwarder; парсинг здесь не нужен
-func WithSessionUUID(ctx context.Context, sessionUUID string) context.Context {
+func WithSessionUUID(ctx context.Context, sessionUUID uuid.UUID) context.Context {
 	return context.WithValue(ctx, sessionUUIDCtxKey{}, sessionUUID)
 }
 
 // SessionUUIDFromContext извлекает UUID сессии из контекста
-func SessionUUIDFromContext(ctx context.Context) (string, bool) {
-	sessionUUID, ok := ctx.Value(sessionUUIDCtxKey{}).(string)
+func SessionUUIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	sessionUUID, ok := ctx.Value(sessionUUIDCtxKey{}).(uuid.UUID)
 	return sessionUUID, ok
 }

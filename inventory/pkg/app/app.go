@@ -29,8 +29,7 @@ const (
 )
 
 func Interceptors(authClient authv1.AuthServiceClient) []grpc.ServerOption {
-	client := iamClient.NewClient(authClient)
-	authInterceptor := interceptor.NewAuthInterceptor(client)
+	client := iamClient.New(authClient)
 	return []grpc.ServerOption{
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle:     grpcMaxConnectionIdle,
@@ -45,7 +44,7 @@ func Interceptors(authClient authv1.AuthServiceClient) []grpc.ServerOption {
 		}),
 		grpc.ChainUnaryInterceptor(
 			interceptor.ErrorInterceptor,
-			authInterceptor.AuthInterceptor,
+			interceptor.Auth(client),
 		),
 	}
 }

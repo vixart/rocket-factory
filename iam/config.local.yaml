@@ -1,9 +1,14 @@
+env:
+  app_env: "development"
+  service_name: "iam-service"
+  service_version: "1.0.0"
+
 grpc:
   host: "localhost"
   port: "50053"
 
 logger:
-  level: "debug"
+  level: "info"
 
 pg:
   host: "localhost"
@@ -23,3 +28,7 @@ redis:
 
 session:
   ttl: "24h"
+
+otel:
+  endpoint: "localhost:4317"
+  enable_otlp: true

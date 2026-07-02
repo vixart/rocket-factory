@@ -120,7 +120,7 @@ func TestInterceptor_EmptySession(t *testing.T) {
 	})
 	invClient := startInventory(t, authClient)
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), interceptor.SessionMetadataKey, "")
+	ctx := metadata.AppendToOutgoingContext(context.Background(), auth.SessionTokenKey, "")
 
 	_, err := invClient.GetPart(ctx, &inventoryv1.GetPartRequest{Uuid: "x"})
 	requireGRPCCode(t, err, codes.Unauthenticated)
@@ -134,17 +134,15 @@ func TestInterceptor_InvalidSession(t *testing.T) {
 	})
 	invClient := startInventory(t, authClient)
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), interceptor.SessionMetadataKey, "expired")
+	ctx := metadata.AppendToOutgoingContext(context.Background(), auth.SessionTokenKey, "expired")
 
 	_, err := invClient.GetPart(ctx, &inventoryv1.GetPartRequest{Uuid: "x"})
 	requireGRPCCode(t, err, codes.Unauthenticated)
 }
 
 func TestInterceptor_ValidSession(t *testing.T) {
-	const (
-		userUUID    = "11111111-1111-1111-1111-111111111111"
-		sessionUUID = "22222222-2222-2222-2222-222222222222"
-	)
+	const userUUID = "11111111-1111-1111-1111-111111111111"
+	const sessionUUID = "22222222-2222-2222-2222-222222222222"
 	authClient := startStubAuth(t, &stubAuthServer{
 		whoami: func(s string) (*authv1.WhoamiResponse, error) {
 			require.Equal(t, sessionUUID, s)
@@ -156,7 +154,7 @@ func TestInterceptor_ValidSession(t *testing.T) {
 	})
 	invClient := startInventory(t, authClient)
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), interceptor.SessionMetadataKey, sessionUUID)
+	ctx := metadata.AppendToOutgoingContext(context.Background(), auth.SessionTokenKey, sessionUUID)
 
 	resp, err := invClient.GetPart(ctx, &inventoryv1.GetPartRequest{Uuid: "x"})
 	require.NoError(t, err)

@@ -5,16 +5,20 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/go-faster/errors"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/vixart/rocket-factory/order/internal/config"
 	"github.com/vixart/rocket-factory/order/internal/middleware"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	"github.com/vixart/rocket-factory/platform/pkg/logger"
+	"github.com/vixart/rocket-factory/platform/pkg/metrics"
+	"github.com/vixart/rocket-factory/platform/pkg/tracing"
 )
 
 const (
@@ -106,6 +110,8 @@ func (a *App) initDeps(ctx context.Context) {
 	inits := []func(context.Context){
 		a.initDI,
 		a.initLogger,
+		a.initMetrics,
+		a.initTracer,
 		a.initHTTPServer,
 	}
 
@@ -121,15 +127,57 @@ func (a *App) initDI(_ context.Context) {
 
 // initLogger настраивает глобальный slog с уровнем из конфига.
 func (a *App) initLogger(_ context.Context) {
-	logger.Init(config.AppConfig().Logger.Level)
+	cfg := logger.Config{
+		Level:             config.AppConfig().Logger.Level,
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		EnableOTLP:        config.AppConfig().Otel.EnableOTLP,
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+	}
+	logger.Init(cfg)
+	closer.Add("Logger", func(_ context.Context) error {
+		return logger.Close()
+	})
+}
+
+func (a *App) initTracer(ctx context.Context) {
+	cfg := tracing.Config{
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		ServiceVersion:    config.AppConfig().Env.ServiceVersion,
+	}
+	shutdown, err := tracing.InitTracer(ctx, cfg)
+	if err != nil {
+		slog.Error("не удалось инициализировать tracer", "error", err)
+		os.Exit(1)
+	}
+	closer.Add("Tracer", func(_ context.Context) error {
+		return shutdown(ctx)
+	})
+}
+
+func (a *App) initMetrics(_ context.Context) {
+	metrics.Init(
+		config.AppConfig().Env.ServiceName,
+	)
+	closer.Add("Metrics", func(_ context.Context) error {
+		return metrics.Close()
+	})
 }
 
 func (a *App) initHTTPServer(ctx context.Context) {
 	authMiddleware := middleware.NewAuthMiddleware(a.diContainer.IAMClient())
-	serverHandler := a.diContainer.OrderV1Server(ctx)
+	router := a.diContainer.OrderV1Server(ctx)
+	serverHandler := otelhttp.NewHandler(
+		tracing.TraceIDMiddleware(
+			authMiddleware.AuthMiddleware(router),
+		),
+		config.AppConfig().Env.ServiceName,
+	)
 	a.httpServer = &http.Server{
 		Addr:              config.AppConfig().HTTP.Address(),
-		Handler:           authMiddleware.AuthMiddleware(serverHandler),
+		Handler:           serverHandler,
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,

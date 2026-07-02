@@ -14,17 +14,17 @@ import (
 	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
 )
 
-type client struct {
+type Client struct {
 	grpcClient authv1.AuthServiceClient
 }
 
-func NewClient(grpcClient authv1.AuthServiceClient) *client {
-	return &client{
+func New(grpcClient authv1.AuthServiceClient) *Client {
+	return &Client{
 		grpcClient: grpcClient,
 	}
 }
 
-func (c *client) Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, uuid.UUID, error) {
+func (c *Client) Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, uuid.UUID, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

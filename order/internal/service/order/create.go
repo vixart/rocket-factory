@@ -81,6 +81,8 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 		return nil, err
 	}
 
+	ordersCreatedTotal.Add(ctx, 1)
+
 	return &order, nil
 }
 
