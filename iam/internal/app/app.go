@@ -129,7 +129,7 @@ func (a *App) initTracer(ctx context.Context) {
 		slog.Error("не удалось инициализировать tracer", "error", err)
 		os.Exit(1)
 	}
-	closer.Add("Tracer", func(_ context.Context) error {
+	closer.Add("Tracer", func(ctx context.Context) error {
 		return shutdown(ctx)
 	})
 }

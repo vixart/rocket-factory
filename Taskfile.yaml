@@ -190,7 +190,7 @@ tasks:
   test:
     desc: "Запускает unit-тесты с race-детектором"
     cmds:
-      - for: ['iam', 'assembly', 'order', 'inventory', 'payment']
+      - for: [ 'assembly', 'iam', 'inventory', 'order', 'payment' ]
         cmd: |
           echo "=== {{.ITEM}} ==="
           cd {{.ITEM}} && go test -v -race -count=1 ./...

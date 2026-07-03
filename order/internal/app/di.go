@@ -26,6 +26,7 @@ import (
 	orderPaidProducerService "github.com/vixart/rocket-factory/order/internal/producer/order_producer"
 	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order"
+	"github.com/vixart/rocket-factory/order/internal/service/order/tracing"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	wrappedKafkaConsumer "github.com/vixart/rocket-factory/platform/pkg/kafka/consumer"
 	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
@@ -188,12 +189,14 @@ func (d *diContainer) IAMClient() order.IAMClient {
 
 func (d *diContainer) OrderService(ctx context.Context) orderApiV1.OrderService {
 	if d.orderSvc == nil {
-		d.orderSvc = order.NewService(
-			d.OrderRepo(ctx),
-			d.OrderPaidProducerSvc(),
-			d.InventoryClient(),
-			d.PaymentClient(),
-			d.TxManager(ctx),
+		d.orderSvc = tracing.NewTracingOrderService(
+			order.NewService(
+				d.OrderRepo(ctx),
+				d.OrderPaidProducerSvc(),
+				d.InventoryClient(),
+				d.PaymentClient(),
+				d.TxManager(ctx),
+			),
 		)
 	}
 
