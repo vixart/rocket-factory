@@ -11,6 +11,7 @@ import (
 	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -25,6 +26,7 @@ import (
 	orderPaidProducerService "github.com/vixart/rocket-factory/order/internal/producer/order_producer"
 	orderRepository "github.com/vixart/rocket-factory/order/internal/repository/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order"
+	"github.com/vixart/rocket-factory/order/internal/service/order/tracing"
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	wrappedKafkaConsumer "github.com/vixart/rocket-factory/platform/pkg/kafka/consumer"
 	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
@@ -107,7 +109,7 @@ func (d *diContainer) TxManager(ctx context.Context) orderRepository.TxManager {
 
 func (d *diContainer) OrderRepo(ctx context.Context) order.Repository {
 	if d.orderRepo == nil {
-		d.orderRepo = orderRepository.NewRepository(d.PGPool(ctx), d.TxManager(ctx))
+		d.orderRepo = orderRepository.New(d.PGPool(ctx), d.TxManager(ctx))
 	}
 
 	return d.orderRepo
@@ -119,6 +121,8 @@ func (d *diContainer) InventoryClient() order.InventoryClient {
 			config.AppConfig().Client.InventoryAddress,
 			"InventoryService",
 			grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
 			slog.Error("не удалось создать клиент InventoryService", "error", err)
@@ -130,7 +134,7 @@ func (d *diContainer) InventoryClient() order.InventoryClient {
 		})
 
 		inventoryServiceClient := inventoryv1.NewInventoryServiceClient(inventoryConn)
-		d.inventory = inventoryClientV1.NewClient(inventoryServiceClient)
+		d.inventory = inventoryClientV1.New(inventoryServiceClient)
 	}
 
 	return d.inventory
@@ -142,6 +146,8 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 			config.AppConfig().Client.PaymentAddress,
 			"PaymentService",
 			grpc.WithUnaryInterceptor(interceptor.SessionForwarder()),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
 			slog.Error("не удалось создать клиент PaymentService", "error", err)
@@ -160,7 +166,12 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 
 func (d *diContainer) IAMClient() order.IAMClient {
 	if d.iam == nil {
-		iamConn, err := newGRPCConnection(config.AppConfig().Client.IAMAddress, "IAMService")
+		iamConn, err := newGRPCConnection(
+			config.AppConfig().Client.IAMAddress,
+			"IAMService",
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		)
 		if err != nil {
 			slog.Error("не удалось создать клиент IAMService", "error", err)
 			os.Exit(1)
@@ -178,12 +189,14 @@ func (d *diContainer) IAMClient() order.IAMClient {
 
 func (d *diContainer) OrderService(ctx context.Context) orderApiV1.OrderService {
 	if d.orderSvc == nil {
-		d.orderSvc = order.NewService(
-			d.OrderRepo(ctx),
-			d.OrderPaidProducerSvc(),
-			d.InventoryClient(),
-			d.PaymentClient(),
-			d.TxManager(ctx),
+		d.orderSvc = tracing.NewTracingOrderService(
+			order.NewService(
+				d.OrderRepo(ctx),
+				d.OrderPaidProducerSvc(),
+				d.InventoryClient(),
+				d.PaymentClient(),
+				d.TxManager(ctx),
+			),
 		)
 	}
 
@@ -311,7 +324,6 @@ func newGRPCConnection(address, serviceName string, opts ...grpc.DialOption) (*g
 			},
 		),
 	}
-
 	conn, err := grpc.NewClient(
 		address,
 		append(defaultOpts, opts...)...,

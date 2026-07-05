@@ -11,6 +11,7 @@ import (
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
@@ -113,7 +114,12 @@ func (d *diContainer) PartService(ctx context.Context) inventoryApiV1.InventoryS
 
 func (d *diContainer) IAMClient() IAMClient {
 	if d.iam == nil {
-		iamConn, err := newGRPCConnection(config.AppConfig().Client.IAMAddress, "IAMService")
+		iamConn, err := newGRPCConnection(
+			config.AppConfig().Client.IAMAddress,
+			"IAMService",
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		)
 		if err != nil {
 			slog.Error("не удалось создать клиент IAMService", "error", err)
 			os.Exit(1)
@@ -123,7 +129,7 @@ func (d *diContainer) IAMClient() IAMClient {
 		})
 
 		iamServiceClient := authv1.NewAuthServiceClient(iamConn)
-		d.iam = iamClientV1.NewClient(iamServiceClient)
+		d.iam = iamClientV1.New(iamServiceClient)
 	}
 
 	return d.iam

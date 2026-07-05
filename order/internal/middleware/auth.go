@@ -57,7 +57,7 @@ func (m *authMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx := auth.WithUserUUID(r.Context(), userUUID)
-		ctx = auth.WithSessionUUID(ctx, sessionUUID.String())
+		ctx = auth.WithSessionUUID(ctx, sessionUUID)
 
 		slog.Debug(
 			"Сессия установлена",

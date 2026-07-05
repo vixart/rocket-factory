@@ -16,42 +16,36 @@ type IAMService interface {
 	Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, uuid.UUID, error)
 }
 
-type AuthInterceptor struct {
-	iamService IAMService
-}
+func Auth(iamService IAMService) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req any,
+		_ *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (any, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Error(codes.Unauthenticated, "отсутствует metadata")
+		}
 
-func NewAuthInterceptor(iamService IAMService) *AuthInterceptor {
-	return &AuthInterceptor{iamService: iamService}
-}
+		values := md.Get(auth.SessionTokenKey)
+		if len(values) == 0 {
+			return nil, status.Error(codes.Unauthenticated, "отсутствует session-uuid")
+		}
 
-func (i *AuthInterceptor) AuthInterceptor(
-	ctx context.Context,
-	req any,
-	_ *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler,
-) (any, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "отсутствует metadata")
+		sessionUUID, err := uuid.Parse(values[0])
+		if err != nil {
+			return nil, status.Error(codes.Unauthenticated, "неверный формат session-uuid")
+		}
+
+		userUUID, sessionUUID, err := iamService.Whoami(ctx, sessionUUID)
+		if err != nil {
+			return nil, status.Error(codes.Unauthenticated, "сессия не действительна")
+		}
+
+		ctx = auth.WithUserUUID(ctx, userUUID)
+		ctx = auth.WithSessionUUID(ctx, sessionUUID)
+
+		return handler(ctx, req)
 	}
-
-	values := md.Get(auth.SessionTokenKey)
-	if len(values) == 0 {
-		return nil, status.Error(codes.Unauthenticated, "отсутствует session-uuid")
-	}
-
-	sessionUUID, err := uuid.Parse(values[0])
-	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "неверный формат session-uuid")
-	}
-
-	userUUID, sessionUUID, err := i.iamService.Whoami(ctx, sessionUUID)
-	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "сессия не действительна")
-	}
-
-	ctx = auth.WithUserUUID(ctx, userUUID)
-	ctx = auth.WithSessionUUID(ctx, sessionUUID.String())
-
-	return handler(ctx, req)
 }

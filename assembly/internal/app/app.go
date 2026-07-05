@@ -45,7 +45,17 @@ func (a *App) initDI(_ context.Context) {
 }
 
 func (a *App) initLogger(_ context.Context) {
-	logger.Init(config.AppConfig().Logger.Level)
+	cfg := logger.Config{
+		Level:             config.AppConfig().Logger.Level,
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		EnableOTLP:        config.AppConfig().Otel.EnableOTLP,
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+	}
+	logger.Init(cfg)
+	closer.Add("Logger", func(_ context.Context) error {
+		return logger.Close()
+	})
 }
 
 func (a *App) Run() error {

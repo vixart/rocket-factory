@@ -1,8 +1,13 @@
+env:
+  app_env: "production"
+  service_name: "assembly-service"
+  service_version: "1.0.0"
+
 kafka:
   brokers: ["localhost:9092"]
 
 logger:
-  level: "debug"
+  level: "info"
 
 order_paid_consumer:
   topic_name: "order.paid"
@@ -10,3 +15,7 @@ order_paid_consumer:
 
 ship_assembled_producer:
   topic_name: "assembly.ship-assembled"
+
+otel:
+  endpoint: "localhost:4317"
+  enable_otlp: true

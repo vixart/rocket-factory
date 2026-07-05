@@ -2,7 +2,8 @@ package kafka
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/google/uuid"
 
 	"github.com/vixart/rocket-factory/platform/pkg/auth"
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
@@ -29,11 +30,11 @@ const SessionHeaderKey = "session-uuid"
 //	})
 func ProducerSessionHeaders(ctx context.Context) []kafka.Header {
 	sessionUUID, ok := auth.SessionUUIDFromContext(ctx)
-	if !ok || sessionUUID == "" {
+	if !ok || sessionUUID == uuid.Nil {
 		return nil
 	}
 	return []kafka.Header{
-		{Key: SessionHeaderKey, Value: []byte(sessionUUID)},
+		{Key: SessionHeaderKey, Value: []byte(sessionUUID.String())},
 	}
 }
 
@@ -46,21 +47,18 @@ func ProducerSessionHeaders(ctx context.Context) []kafka.Header {
 // sarama.ConsumerGroupSession без session-uuid, и любой защищённый gRPC-вызов
 // (например, InventoryService.CommitParts) вернёт codes.Unauthenticated.
 //
-// Если заголовка нет — context не модифицируется. Это сознательное решение:
-// middleware не должно решать за бизнес-обработчик, что делать с отсутствием
-// сессии (отбросить, отдать на DLQ, выполнить под service-identity) — это
-// зона ответственности конкретного сервиса.
+// Если заголовка нет или его значение не парсится в uuid.UUID — context не
+// модифицируется. Это сознательное решение: middleware не должно решать за
+// бизнес-обработчик, что делать с отсутствием сессии (отбросить, отдать на DLQ,
+// выполнить под service-identity) — это зона ответственности конкретного сервиса.
 func ConsumerSession() kafka.Middleware {
 	return func(next kafka.MessageHandler) kafka.MessageHandler {
 		return func(ctx context.Context, msg kafka.Message) error {
-			slog.Info(
-				"извлекаем сессию из сообщения",
-				"topic", msg.Topic,
-				"headers", msg.Headers,
-			)
 			for _, h := range msg.Headers {
 				if h.Key == SessionHeaderKey && len(h.Value) > 0 {
-					ctx = auth.WithSessionUUID(ctx, string(h.Value))
+					if sessionUUID, err := uuid.Parse(string(h.Value)); err == nil {
+						ctx = auth.WithSessionUUID(ctx, sessionUUID)
+					}
 					break
 				}
 			}

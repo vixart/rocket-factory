@@ -2,6 +2,7 @@ package interceptor
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/go-faster/errors"
 	"google.golang.org/grpc"
@@ -21,6 +22,8 @@ func ErrorInterceptor(
 	if err == nil {
 		return resp, nil
 	}
+
+	slog.Info("перехвачена ошибка", "error", err)
 
 	switch {
 	case errors.Is(err, errs.ErrUserNotFound):

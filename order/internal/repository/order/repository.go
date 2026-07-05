@@ -17,7 +17,7 @@ type repository struct {
 	txManager TxManager
 }
 
-func NewRepository(pool *pgxpool.Pool, txManager TxManager) *repository { // это репо
+func New(pool *pgxpool.Pool, txManager TxManager) *repository { // это репо
 	return &repository{
 		pool:      pool,
 		getter:    trmpgx.DefaultCtxGetter,

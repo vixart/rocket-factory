@@ -1,3 +1,15 @@
+env:
+  app_env: "development"
+  service_name: "payment-service"
+  service_version: "1.0.0"
+
 grpc:
   host: "localhost"
   port: "50052"
+
+logger:
+  level: "info"
+
+otel:
+  endpoint: "localhost:4317"
+  enable_otlp: true

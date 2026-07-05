@@ -11,6 +11,7 @@ import (
 var appConfig *config
 
 type config struct {
+	Env                   env                         `yaml:"env"`
 	HTTP                  httpConfig                  `yaml:"http"`
 	Client                clientConfig                `yaml:"client"`
 	Logger                loggerConfig                `yaml:"logger"`
@@ -18,6 +19,7 @@ type config struct {
 	Kafka                 kafkaConfig                 `yaml:"kafka"`
 	ShipAssembledConsumer shipAssembledConsumerConfig `yaml:"ship_assembled_consumer"`
 	OrderPaidProducer     orderPaidProducerConfig     `yaml:"order_paid_producer"`
+	Otel                  otelConfig                  `yaml:"otel"`
 }
 
 func MustLoad() {

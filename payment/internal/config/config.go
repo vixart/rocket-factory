@@ -11,8 +11,10 @@ import (
 var appConfig *config
 
 type config struct {
+	Env    env          `yaml:"env"`
 	GRPC   grpcConfig   `yaml:"grpc"`
 	Logger loggerConfig `yaml:"logger"`
+	Otel   otelConfig   `yaml:"otel"`
 }
 
 func MustLoad() {
