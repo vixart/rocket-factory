@@ -32,6 +32,9 @@ vars:
   KIBANA_URL: 'http://localhost:5601'
   ELASTICSEARCH_URL: 'http://localhost:9200'
 
+  VEGETA_VERSION: 'v12.13.0'
+  VEGETA: '{{.BIN_DIR}}/vegeta'
+
   MODULES: iam assembly order inventory payment
 
 tasks:
@@ -268,6 +271,7 @@ tasks:
 
   up-core:
     desc: "Создать общую сеть и поднять core контейнеры (Kafka + Observability)"
+    dotenv: [ 'core.env' ]
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
@@ -292,7 +296,7 @@ tasks:
     dir: deploy/compose/order
     cmds:
       - echo "[task] 📦 Поднимаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env up --build --detach
+      - docker compose --env-file ../../../order/order.env up --build --detach --wait
 
   down-order:
     desc: "Остановить и удалить Order сервис и все его зависимости"
@@ -306,7 +310,7 @@ tasks:
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env up --build --detach
+      - docker compose --env-file ../../../inventory/inventory.env up --build --detach --wait
 
   down-inventory:
     desc: "Остановить и удалить Inventory сервис и все его зависимости"
@@ -316,20 +320,30 @@ tasks:
       - docker compose --env-file ../../../inventory/inventory.env down --volumes
 
   up-all:
-    desc: "Поднять все сервисы по очереди вместе с зависимостями"
+    desc: "Поднять инфраструктуру + сервисы (3 инстанса OrderService)"
     cmds:
-      - task up-core
-      - task up-inventory
-      - task up-order
-      - task up-iam
+      - task: up-core
+      - task: up-inventory
+      - task: up-order
+      - task: up-iam
+      - >-
+        docker compose
+        --env-file core.env
+        -f deploy/compose/services/docker-compose.yml
+        up -d --build --scale order-service=3
 
   down-all:
-    desc: "Остановить и удалить все сервисы по очереди вместе с зависимостями"
+    desc: "Остановить всё"
     cmds:
-      - task down-iam
-      - task down-order
-      - task down-inventory
-      - task down-core
+      - >-
+        docker compose
+        --env-file core.env
+        -f deploy/compose/services/docker-compose.yml
+        down
+      - task: down-iam
+      - task: down-order
+      - task: down-inventory
+      - task: down-core
 
   migrate:all:up:
     desc: "Применяет все миграции всех сервисов"
@@ -411,7 +425,7 @@ tasks:
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
-      - docker compose --env-file ../../../iam/iam.env up --build --detach
+      - docker compose --env-file ../../../iam/iam.env up --build --detach  --wait
 
   down-iam:
     desc: "Остановить и удалить IAM сервис и все его зависимости"
@@ -467,8 +481,6 @@ tasks:
     cmds:
       - echo '🚀 e2e order (Postgres + Redpanda через testcontainers)...'
       - go test -tags=e2e -count=1 -timeout=300s -v ./tests/e2e/...
-
-
 
   es:wait:
     desc: "Ожидает готовности Elasticsearch"
@@ -538,3 +550,34 @@ tasks:
     cmds: 
       - task: kibana:wait
       - task: kibana:create-view
+
+  vegeta:install:
+    desc: "Устанавливает vegeta (HTTP нагрузочное тестирование)"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/tsenart/vegeta/v12@{{.VEGETA_VERSION}}
+    status:
+      - test -x {{.VEGETA}}
+
+  # Нагрузочный тест HTTP: ступенчатый рост 50 → 500 RPS за 2.5 минуты.
+  # Запуск: task up-all (в одном терминале), task load:http (в другом).
+  # Результаты смотреть в Grafana (localhost:3000).
+  load:http:
+    desc: "Нагрузочный тест HTTP: POST с нарастающей нагрузкой (50 → 500 RPS за 2.5 мин)"
+    deps: [ vegeta:install ]
+    cmds:
+      - |
+        VEGETA="{{.VEGETA}}"
+        RESULTS_DIR=$(mktemp -d)
+        BODY_FILE="$RESULTS_DIR/body.json"
+        echo '{"hull_uuid":"test-hull","engine_uuid":"test-engine"}' > "$BODY_FILE"
+        trap 'rm -rf "$RESULTS_DIR"' EXIT
+
+        for rate in 50 100 150 200 250 300 350 400 450 500; do
+          echo "⏱️  ступень: ${rate} RPS (15 сек)"
+          echo "POST http://localhost:8080/api/v1/orders" | \
+            $VEGETA attack -rate="${rate}/s" -duration=15s \
+              -body="$BODY_FILE" -header="Content-Type: application/json" | \
+            $VEGETA encode --to json >> "$RESULTS_DIR/results.json"
+        done
+
+        $VEGETA report -type=json < "$RESULTS_DIR/results.json"

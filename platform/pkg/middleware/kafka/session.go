@@ -47,10 +47,10 @@ func ProducerSessionHeaders(ctx context.Context) []kafka.Header {
 // sarama.ConsumerGroupSession без session-uuid, и любой защищённый gRPC-вызов
 // (например, InventoryService.CommitParts) вернёт codes.Unauthenticated.
 //
-// Если заголовка нет или его значение не парсится в uuid.UUID — context не
-// модифицируется. Это сознательное решение: middleware не должно решать за
-// бизнес-обработчик, что делать с отсутствием сессии (отбросить, отдать на DLQ,
-// выполнить под service-identity) — это зона ответственности конкретного сервиса.
+// Если заголовка нет или он невалидный — context не модифицируется. Это
+// сознательное решение: middleware не должно решать за бизнес-обработчик, что
+// делать с отсутствием сессии (отбросить, отдать на DLQ, выполнить под
+// service-identity) — это зона ответственности конкретного сервиса.
 func ConsumerSession() kafka.Middleware {
 	return func(next kafka.MessageHandler) kafka.MessageHandler {
 		return func(ctx context.Context, msg kafka.Message) error {

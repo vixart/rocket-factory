@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -46,7 +45,7 @@ var (
 //
 // После вызова Init все Meter'ы, созданные через otel.Meter(), используют этот провайдер —
 // включая платформенные библиотеки (например, platform/redis)
-func Init(serviceName string, opts ...Option) {
+func Init(cfg Config, opts ...Option) {
 	initOnce.Do(func() {
 		ctx := context.Background()
 
@@ -68,6 +67,7 @@ func Init(serviceName string, opts ...Option) {
 		// доступен по http://localhost:4317 без сертификатов
 		exporter, err := otlpmetricgrpc.New(
 			ctx,
+			otlpmetricgrpc.WithEndpoint(cfg.CollectorEndpoint),
 			otlpmetricgrpc.WithInsecure(),
 		)
 		if err != nil {
@@ -79,8 +79,9 @@ func Init(serviceName string, opts ...Option) {
 		res, err := resource.New(
 			ctx,
 			resource.WithAttributes(
-				semconv.ServiceName(serviceName),
-				attribute.String("deployment.environment", "dev"),
+				semconv.ServiceName(cfg.ServiceName),
+				semconv.DeploymentEnvironmentName(cfg.Environment),
+				semconv.ServiceInstanceID(cfg.InstanceID),
 			),
 		)
 		if err != nil {

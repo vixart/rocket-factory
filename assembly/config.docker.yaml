@@ -1,22 +1,23 @@
 env:
-  app_env: "production"
+  app_env: "docker"
   service_name: "assembly-service"
   service_version: "1.0.0"
 
 kafka:
-  brokers: ["localhost:9092"]
+  brokers:
+    - "kafka:29092"
 
 logger:
   level: "info"
 
 order_paid_consumer:
   topic_name: "order.paid"
-  group: "assembly-service-order-paid-consumer"
+  group_id: "assembly-service"
 
 ship_assembled_producer:
   topic_name: "assembly.ship-assembled"
 
 otel:
-  endpoint: "localhost:4317"
+  endpoint: "otel-collector:4317"
   enable_otlp: true
   sampling_ratio: 1.0

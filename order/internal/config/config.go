@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"golang.org/x/exp/slog"
 )
 
 var appConfig *config
@@ -19,11 +20,14 @@ type config struct {
 	Kafka                 kafkaConfig                 `yaml:"kafka"`
 	ShipAssembledConsumer shipAssembledConsumerConfig `yaml:"ship_assembled_consumer"`
 	OrderPaidProducer     orderPaidProducerConfig     `yaml:"order_paid_producer"`
+	RateLimit             rateLimit                   `yaml:"rate_limit"`
 	Otel                  otelConfig                  `yaml:"otel"`
 }
 
 func MustLoad() {
 	configPath := ResolveConfigPath()
+
+	slog.Info("используем конфигурацию из файла", "configPath", configPath)
 
 	cfg, err := Load(configPath)
 	if err != nil {

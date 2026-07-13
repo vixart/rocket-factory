@@ -1,25 +1,25 @@
 env:
-  app_env: "production"
+  app_env: "docker"
   service_name: "iam-service"
   service_version: "1.0.0"
 
 grpc:
-  host: "localhost"
+  host: "0.0.0.0"
   port: "50053"
 
 logger:
   level: "info"
 
 pg:
-  host: "localhost"
-  port: "55434"
+  host: "postgres-iam"
+  port: "5432"
   database: "iam-service"
   user: "iam-service-user"
   password: "iam-service-password"
   sslmode: "disable"
 
 redis:
-  host: "localhost"
+  host: "redis-iam"
   port: "6379"
   connection_timeout: "10s"
   max_idle: 10
@@ -30,6 +30,6 @@ session:
   ttl: "24h"
 
 otel:
-  endpoint: "localhost:4317"
+  endpoint: "otel-collector:4317"
   enable_otlp: true
   sampling_ratio: 1.0
