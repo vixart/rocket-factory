@@ -194,11 +194,11 @@ func (a *App) initHTTPServer(ctx context.Context) {
 
 	// Порядок — от ядра к внешнему слою.
 	// Запрос проходит цепочку в обратном порядке:
-	// rate limit -> otel -> trace ID -> auth -> router.
+	// otel -> rate limit -> trace ID -> auth -> router.
 	var handler http.Handler = router
 	handler = authMiddleware.AuthMiddleware(handler)
-	handler = rateLimiterMiddleware(handler)
 	handler = tracing.TraceIDMiddleware(handler)
+	handler = rateLimiterMiddleware(handler)
 	handler = otelhttp.NewHandler(handler, cfg.Env.ServiceName)
 
 	a.httpServer = &http.Server{
