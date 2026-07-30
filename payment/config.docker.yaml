@@ -1,5 +1,5 @@
 env:
-  app_env: "staging"
+  app_env: "docker"
   service_name: "payment-service"
   service_version: "1.0.0"
 
@@ -11,6 +11,6 @@ logger:
   level: "info"
 
 otel:
-  endpoint: "localhost:4317"
+  endpoint: "otel-collector:4317"
   enable_otlp: true
   sampling_ratio: 1.0

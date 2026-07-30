@@ -18,6 +18,7 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/closer"
 	"github.com/vixart/rocket-factory/platform/pkg/logger"
 	"github.com/vixart/rocket-factory/platform/pkg/metrics"
+	"github.com/vixart/rocket-factory/platform/pkg/ratelimit"
 	"github.com/vixart/rocket-factory/platform/pkg/tracing"
 )
 
@@ -158,26 +159,51 @@ func (a *App) initTracer(ctx context.Context) {
 }
 
 func (a *App) initMetrics(_ context.Context) {
-	metrics.Init(
-		config.AppConfig().Env.ServiceName,
-	)
+	// instanceID уникален для каждого контейнера — Docker присваивает
+	// контейнеру hostname = его container ID, если hostname не задан явно
+	instanceID, err := os.Hostname()
+	if err != nil {
+		slog.Error("не удалось инициализировать metrics", "error", err)
+		os.Exit(1)
+	}
+
+	cfg := metrics.Config{
+		ServiceName:       config.AppConfig().Env.ServiceName,
+		Environment:       config.AppConfig().Env.AppEnv,
+		InstanceID:        instanceID,
+		CollectorEndpoint: config.AppConfig().Otel.Endpoint,
+	}
+
+	metrics.Init(cfg)
 	closer.Add("Metrics", func(_ context.Context) error {
 		return metrics.Close()
 	})
 }
 
 func (a *App) initHTTPServer(ctx context.Context) {
+	cfg := config.AppConfig()
+
 	authMiddleware := middleware.NewAuthMiddleware(a.diContainer.IAMClient())
-	router := a.diContainer.OrderV1Server(ctx)
-	serverHandler := otelhttp.NewHandler(
-		tracing.TraceIDMiddleware(
-			authMiddleware.AuthMiddleware(router),
-		),
-		config.AppConfig().Env.ServiceName,
+	rateLimiterMiddleware := ratelimit.Middleware(
+		a.diContainer.RateLimiter(ctx),
+		cfg.RateLimit.Rate,
+		cfg.RateLimit.Burst,
 	)
+
+	router := a.diContainer.OrderV1Server(ctx)
+
+	// Порядок — от ядра к внешнему слою.
+	// Запрос проходит цепочку в обратном порядке:
+	// otel -> rate limit -> trace ID -> auth -> router.
+	var handler http.Handler = router
+	handler = authMiddleware.AuthMiddleware(handler)
+	handler = tracing.TraceIDMiddleware(handler)
+	handler = rateLimiterMiddleware(handler)
+	handler = otelhttp.NewHandler(handler, cfg.Env.ServiceName)
+
 	a.httpServer = &http.Server{
-		Addr:              config.AppConfig().HTTP.Address(),
-		Handler:           serverHandler,
+		Addr:              cfg.HTTP.Address(),
+		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,

@@ -10,7 +10,9 @@ import (
 	"github.com/IBM/sarama"
 	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
+	"github.com/go-redis/redis_rate/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,6 +33,7 @@ import (
 	wrappedKafkaConsumer "github.com/vixart/rocket-factory/platform/pkg/kafka/consumer"
 	wrappedKafkaProducer "github.com/vixart/rocket-factory/platform/pkg/kafka/producer"
 	kafkaMiddleware "github.com/vixart/rocket-factory/platform/pkg/middleware/kafka"
+	redisPlatform "github.com/vixart/rocket-factory/platform/pkg/redis"
 	orderv1 "github.com/vixart/rocket-factory/shared/pkg/openapi/order/v1"
 	authv1 "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1"
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
@@ -48,6 +51,7 @@ type diContainer struct {
 	txManager     orderRepository.TxManager
 	syncProducer  sarama.SyncProducer
 	consumerGroup sarama.ConsumerGroup
+	rateLimiter   *redis_rate.Limiter
 
 	orderPaidProducer     *wrappedKafkaProducer.Producer
 	shipAssembledConsumer *wrappedKafkaConsumer.Consumer
@@ -105,6 +109,26 @@ func (d *diContainer) TxManager(ctx context.Context) orderRepository.TxManager {
 	}
 
 	return d.txManager
+}
+
+func (d *diContainer) RateLimiter(_ context.Context) *redis_rate.Limiter {
+	if d.rateLimiter == nil {
+		rdb, err := redisPlatform.NewClient(&redis.Options{
+			Addr: config.AppConfig().RateLimit.RedisAddress,
+		}, slog.Default())
+		if err != nil {
+			slog.Error("не удалось создать Redis клиент", "error", err)
+			os.Exit(1)
+		}
+
+		closer.Add("Redis", func(_ context.Context) error {
+			return rdb.Close()
+		})
+
+		d.rateLimiter = redis_rate.NewLimiter(rdb)
+	}
+
+	return d.rateLimiter
 }
 
 func (d *diContainer) OrderRepo(ctx context.Context) order.Repository {

@@ -13,3 +13,4 @@ logger:
 otel:
   endpoint: "localhost:4317"
   enable_otlp: true
+  sampling_ratio: 1.0

@@ -36,3 +36,9 @@ order_paid_producer:
 otel:
   endpoint: "localhost:4317"
   enable_otlp: true
+  sampling_ratio: 1.0
+
+rate_limit:
+  redis_address: "localhost:6379"
+  rate: 100
+  burst: 200

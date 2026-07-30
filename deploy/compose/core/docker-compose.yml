@@ -123,6 +123,24 @@ services: # Раздел, в котором описываются все кон
       - microservices-net
       # Подключаем контейнер к общей сети, в которой живут все сервисы микросервисной архитектуры
 
+  # --- Redis для distributed rate limiter (неделя 8) ---
+
+  redis-ratelimit:
+    image: ${REDIS_RATELIMIT_IMAGE}
+    container_name: redis-ratelimit
+    ports:
+      - "${REDIS_RATELIMIT_PORT}:6379"
+      # Пробрасываем порт Redis наружу — нужно, чтобы локальные сервисы (config.local.yaml)
+      # могли подключаться к rate limiter по localhost:${REDIS_RATELIMIT_PORT}.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - microservices-net
+
 volumes: # Раздел с определением томов
   kafka_data: # Именованный том для хранения данных Kafka
   # Docker сам управляет этим хранилищем, данные сохраняются между перезапусками контейнеров.
