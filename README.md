@@ -231,7 +231,7 @@ task load:http        # нагрузочный тест vegeta: 50 → 500 RPS, 
 ```bash
 task migrate:all:up                      # накатить все миграции всех сервисов
 task migrate:order:up                    # / :down / :status
-task migrate:order:create NAME=<имя>     # новый файл миграции
+task migrate:order:create -- <имя>       # новый файл миграции
 ```
 
 Аналогично для `inventory` и `iam`.
@@ -253,10 +253,14 @@ task up-all / down-all              # всё сразу + контейнериз
 Конфигурация читается из YAML-файла (`config.local.yaml`, путь задаётся `CONFIG_PATH`)
 и переменных окружения из `*.env`:
 
-- `core.env` — порты и версии образов общей инфраструктуры (Kafka, observability, Nginx, Redis),
-  а также build args `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION`. Подключён в `Taskfile.yaml`
-  через `dotenv`, поэтому версии живут в одном месте — и для Docker-сборок, и для хост-инсталла goose;
-- `<service>.env` — параметры БД, порты сервиса, адреса зависимостей, версии образов.
+- `core.env` (в корне) — порты и версии образов общей инфраструктуры (Kafka, observability,
+  Nginx, Redis), а также build args `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION`. Подключён
+  в `Taskfile.yaml` через `dotenv`, поэтому версии живут в одном месте — и для Docker-сборок,
+  и для хост-инсталла goose;
+- `<service>/<service>.env` — параметры БД, порты сервиса, адреса зависимостей, версии образов.
+  Лежит рядом с сервисом и является единственным источником: его читает сам сервис при запуске
+  из IDE (`godotenv`), `docker compose` при подъёме зависимостей и задачи `migrate:*`
+  (DSN для goose собирается из `POSTGRES_*`).
 
 Профили окружений: `config.local.yaml` (запуск с хоста), `config.docker.yaml` (запуск в контейнере),
 `config.staging.yaml`, `config.production.yaml`.

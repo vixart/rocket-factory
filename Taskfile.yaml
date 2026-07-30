@@ -387,74 +387,82 @@ tasks:
       - task migrate:inventory:up
       - task migrate:iam:up
 
+  # Внутренняя обёртка над goose: подключает env-файл сервиса (<svc>/<svc>.env —
+  # тот же, что читают docker compose и сам сервис при запуске из IDE) и собирает
+  # DSN из POSTGRES_*. Отдельные <svc>.env в корне репозитория для этого не нужны.
+  goose:exec:
+    internal: true
+    deps: [goose:install]
+    dotenv: ['{{.SVC}}/{{.SVC}}.env']
+    requires:
+      vars: [SVC, GOOSE_CMD]
+    cmds:
+      # POSTGRES_PORT — хостовый порт из compose-маппинга, поэтому goose ходит на localhost.
+      - '{{.GOOSE}} -dir migrations/{{.SVC}} postgres "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable" {{.GOOSE_CMD}}'
+
+  # Создание файла миграции к БД не обращается — нужен только каталог migrations/<svc>.
+  goose:create:
+    internal: true
+    deps: [goose:install]
+    requires:
+      vars: [SVC]
+    cmds:
+      - |
+        name="{{.CLI_ARGS}}"
+        if [ -z "$name" ]; then
+          printf "Введите имя миграции: "; read name;
+        fi
+        mkdir -p "migrations/{{.SVC}}"
+        {{.GOOSE}} -dir "migrations/{{.SVC}}" create "$name" sql
+
   migrate:order:up:
     desc: "Применяет все миграции Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: up }
 
   migrate:order:down:
     desc: "Откатывает последнюю миграцию Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: down }
 
   migrate:order:status:
     desc: "Показывает статус миграций Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: status }
 
   migrate:order:create:
-    desc: "Создаёт новый файл миграции Order-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'order.env' ]
+    desc: "Создаёт новый файл миграции Order-сервиса (task migrate:order:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
+      - task: goose:create
+        vars: { SVC: order }
 
   migrate:inventory:up:
     desc: "Применяет все миграции Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: up }
 
   migrate:inventory:down:
     desc: "Откатывает последнюю миграцию Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: down }
 
   migrate:inventory:status:
     desc: "Показывает статус миграций Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: status }
 
   migrate:inventory:create:
-    desc: "Создаёт новый файл миграции Inventory-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'inventory.env' ]
+    desc: "Создаёт новый файл миграции Inventory-сервиса (task migrate:inventory:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
-        
+      - task: goose:create
+        vars: { SVC: inventory }
+
   up-iam:
     desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis + накатка миграций)"
     dir: deploy/compose/iam
@@ -473,38 +481,28 @@ tasks:
       - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env down --volumes
 
   migrate:iam:up:
-    desc: "Применяет все миграции IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Применяет все миграции IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: up }
 
   migrate:iam:down:
-    desc: "Откатывает последнюю миграцию IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Откатывает последнюю миграцию IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: down }
 
   migrate:iam:status:
-    desc: "Показывает статус миграций IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Показывает статус миграций IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: status }
 
   migrate:iam:create:
-    desc: "Создаёт новый файл миграции IAM-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Создаёт новый файл миграции IAM-сервиса (task migrate:iam:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
+      - task: goose:create
+        vars: { SVC: iam }
 
   test:api:
     desc: "Запускает API-тесты"
