@@ -1,5 +1,10 @@
 version: '3'
 
+# Подключаем core.env как источник версий для сборки контейнеров.
+# Переменные GO_IMAGE / ALPINE_IMAGE / GOOSE_VERSION оттуда автоматически
+# доступны как {{.GO_IMAGE}} и т.д. в задачах ниже.
+dotenv: ['core.env']
+
 vars:
   GO_VERSION: '1.26.0'
   GOLANGCI_LINT_VERSION: 'v2.12.2'
@@ -22,7 +27,8 @@ vars:
   MOCKERY_VERSION: 'v3.7.0'
   MOCKERY: '{{.BIN_DIR}}/mockery'
 
-  GOOSE_VERSION: 'v3.27.1'
+  # GOOSE_VERSION приходит из core.env через dotenv — один источник истины
+  # для версии goose: и хост-инсталл здесь, и docker-сборка migrator.Dockerfile
   GOOSE: '{{.BIN_DIR}}/goose'
 
   COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
@@ -106,6 +112,18 @@ tasks:
     cmds:
       - go run ./cmd
 
+  run:iam:
+    desc: "Запускает IAMService (gRPC сервер аутентификации на :50053)"
+    dir: iam
+    cmds:
+      - go run ./cmd
+
+  run:assembly:
+    desc: "Запускает AssemblyService (Kafka consumer/producer)"
+    dir: assembly
+    cmds:
+      - go run ./cmd
+
   format:
     desc: "Форматирует код (gofumpt + gci)"
     deps: [formatters:install]
@@ -118,13 +136,13 @@ tasks:
   build:
     desc: "Собирает все Go-модули (go build)"
     cmds:
-      - go build ./iam/... ./assembly/... ./order/... ./inventory/... ./payment/...
+      - go build ./iam/... ./assembly/... ./order/... ./inventory/... ./payment/... ./platform/...
 
   lint:
     desc: "Запускает golangci-lint"
     deps: [golangci-lint:install]
     cmds:
-      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./iam/... ./assembly/... order/... inventory/... payment/... --config=.golangci.yml'
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./iam/... ./assembly/... order/... inventory/... payment/... platform/... --config=.golangci.yml'
 
   proto:format:
     desc: "Форматирует .proto-файлы (buf format)"
@@ -172,6 +190,8 @@ tasks:
       - echo '🔄 Обновляем зависимости в сервисах...'
       - for: { var: MODULES }
         cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+      - echo '🔄 Обновляем зависимости в platform...'
+      - cd platform && go mod tidy -compat={{.GO_VERSION}}
       - echo '🔄 Обновляем зависимости в shared (proto/openapi)...'
       - cd shared && go mod tidy -compat={{.GO_VERSION}}
 
@@ -271,15 +291,17 @@ tasks:
 
   up-core:
     desc: "Создать общую сеть и поднять core контейнеры (Kafka + Observability)"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
       - docker network create microservices-net 2>/dev/null || true
-      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka)'
+      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka + Redis для rate limiter)'
       - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
       - echo '[task] 📊 Поднимаем observability (OTEL Collector, ES, Kibana, Prometheus, Grafana, Jaeger)'
       - docker compose -f deploy/compose/observability/docker-compose.yml --env-file core.env up --build --detach
+      # Готовим Elasticsearch к приёму логов: без index template otel-logs
+      # экспортер коллектора получает index_not_found_exception и логи теряются.
+      - task: es:init
 
   down-core:
     desc: "Остановить core контейнеры (Kafka + Observability) и удалить сеть"
@@ -292,40 +314,52 @@ tasks:
       - docker network rm microservices-net 2>/dev/null || true
 
   up-order:
-    desc: "Поднять Order сервис и все его зависимости"
+    desc: "Поднять Order сервис и все его зависимости (включая накатку миграций)"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 📦 Поднимаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env up --build --detach --wait
+      # core.env — источник GO_IMAGE/ALPINE_IMAGE/GOOSE_VERSION для build args migrator'а.
+      # order/order.env — переопределяет POSTGRES_USER/PASSWORD/DB поверх него.
+      # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код. `up --wait` на весь compose
+      # не годится: он считает завершившийся migrator упавшим, даже при exit 0.
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env up --detach --wait postgres-order
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env run --rm --build migrator-order
 
   down-order:
     desc: "Остановить и удалить Order сервис и все его зависимости"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 🛑 Останавливаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env down --volumes
 
   up-inventory:
-    desc: "Поднять Inventory сервис и все его зависимости"
+    desc: "Поднять Inventory сервис и все его зависимости (включая накатку миграций)"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env up --build --detach --wait
+      # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env up --detach --wait postgres-inventory
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env run --rm --build migrator-inventory
 
   down-inventory:
     desc: "Остановить и удалить Inventory сервис и все его зависимости"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env down --volumes
 
   up-all:
-    desc: "Поднять инфраструктуру + сервисы (3 инстанса OrderService)"
+    desc: "Поднять полную систему: core + БД с миграциями + сервисы за Nginx (--scale order-service=3)"
     cmds:
       - task: up-core
+      # Каждая up-* задача поднимает БД до healthy и прогоняет migrator-контейнер,
+      # так что отдельный прогон migrate:all:up не нужен.
       - task: up-inventory
       - task: up-order
       - task: up-iam
+      - echo "[task] ⚙️  Запускаем контейнеризованные сервисы (--scale order-service=3)"
       - >-
         docker compose
         --env-file core.env
@@ -333,8 +367,9 @@ tasks:
         up -d --build --scale order-service=3
 
   down-all:
-    desc: "Остановить всё"
+    desc: "Остановить всю систему: контейнеризованные сервисы + БД + core"
     cmds:
+      - echo "[task] 🛑 Останавливаем контейнеризованные сервисы"
       - >-
         docker compose
         --env-file core.env
@@ -346,7 +381,7 @@ tasks:
       - task: down-core
 
   migrate:all:up:
-    desc: "Применяет все миграции всех сервисов"
+    desc: "Применяет все миграции всех сервисов (goose с хоста; в up-* это делает migrator-контейнер)"
     cmds:
       - task migrate:order:up
       - task migrate:inventory:up
@@ -421,18 +456,21 @@ tasks:
         {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
         
   up-iam:
-    desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis)"
+    desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis + накатка миграций)"
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
-      - docker compose --env-file ../../../iam/iam.env up --build --detach  --wait
+      # Сначала --wait поднимает postgres/redis до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env up --detach --wait postgres-iam redis-iam
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env run --rm --build migrator-iam
 
   down-iam:
     desc: "Остановить и удалить IAM сервис и все его зависимости"
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🛑 Останавливаем IAM с зависимостями"
-      - docker compose --env-file ../../../iam/iam.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env down --volumes
 
   migrate:iam:up:
     desc: "Применяет все миграции IAM сервиса"
@@ -484,7 +522,6 @@ tasks:
 
   es:wait:
     desc: "Ожидает готовности Elasticsearch"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo "⏳ Ожидаем готовности Elasticsearch..."
       - |
@@ -495,13 +532,16 @@ tasks:
 
   es:create-template:
     desc: "Создает index template для data stream otel-logs (нужен в ECS-режиме экспортера)"
-    dotenv: [ 'core.env' ]
     cmds:
+      # OTel Collector шлёт логи с require_data_stream=true. Elasticsearch НЕ создаёт
+      # data stream автоматически без index template и отвечает index_not_found_exception,
+      # из-за чего все логи теряются. Шаблон делает otel-logs* auto-create как data stream.
+      # number_of_replicas=0 — кластер из одной ноды, иначе индекс висит в статусе yellow.
       - echo "📝 Создаем index template otel-logs-template (data stream)..."
       - |
         curl -sS -X PUT {{.ELASTICSEARCH_URL}}/_index_template/otel-logs-template \
           -H "Content-Type: application/json" \
-          --data '{"index_patterns":["otel-logs*"],"data_stream":{},"priority":500}'
+          --data '{"index_patterns":["otel-logs*"],"data_stream":{},"priority":500,"template":{"settings":{"number_of_replicas":0}}}'
         echo ""
         echo "✅ Index template otel-logs-template создан"
 
@@ -513,7 +553,6 @@ tasks:
 
   kibana:wait:
     desc: "Ожидает готовности Kibana"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '⏳ Ожидаем готовности Kibana...'
       - |
@@ -524,7 +563,6 @@ tasks:
 
   kibana:create-view:
     desc: "Создает Data View в Kibana и устанавливает его как default"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '📝 Создаем Data View otel-logs*...'
       - |

@@ -20,7 +20,8 @@ pg:
 
 redis:
   host: "localhost"
-  port: "6379"
+  # Совпадает с хостовым портом redis-iam из iam.env (6380, не 6379 из-за redis-ratelimit).
+  port: "6380"
   connection_timeout: "10s"
   max_idle: 10
   idle_timeout: "10s"
