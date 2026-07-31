@@ -148,9 +148,10 @@ flowchart LR
 ### Вариант 1 — всё в контейнерах
 
 ```bash
-task setup     # инструменты разработки (buf, ogen, golangci-lint, gofumpt, gci)
-task up-all    # core + observability + БД с миграциями + сервисы за Nginx (order ×3)
-task kibana:init   # Data View для просмотра логов (один раз)
+task setup           # инструменты разработки (buf, ogen, golangci-lint, gofumpt, gci)
+task hooks:install   # pre-commit hook: формат + линтер (один раз на клон)
+task up-all          # core + observability + БД с миграциями + сервисы за Nginx (order ×3)
+task kibana:init     # Data View для просмотра логов (один раз)
 ```
 
 `up-all` поднимает БД до healthy и прогоняет одноразовые `migrator-*` контейнеры (goose),
@@ -210,7 +211,15 @@ task mocks:gen        # моки интерфейсов (mockery)
 task format           # gofumpt + gci
 task lint             # golangci-lint
 task build            # go build всех модулей
+task hooks:install    # pre-commit hook: формат + линтер перед коммитом
 ```
+
+`task hooks:install` копирует `scripts/pre-commit` в `.git/hooks/` и делает файл исполняемым
+(без бита исполнения git молча пропускает хук). Каталог `.git/hooks` не версионируется,
+поэтому команду выполняет каждый разработчик у себя.
+
+Хук форматирует только те Go-файлы, что попали в индекс, возвращает их в индекс через `git add`
+и прогоняет `task lint` — при замечаниях линтера коммит отменяется.
 
 ### Тесты
 

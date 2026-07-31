@@ -43,6 +43,9 @@ vars:
 
   MODULES: iam assembly order inventory payment
 
+  # Префикс модулей репозитория — по нему gci выделяет «свои» импорты в отдельную группу.
+  MODULE_PREFIX: 'github.com/vixart/rocket-factory'
+
 tasks:
   formatters:install:
     desc: "Устанавливает gofumpt и gci"
@@ -131,7 +134,16 @@ tasks:
       - echo '🧹 Форматируем код через gofumpt...'
       - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GOFUMPT}} -extra -w {} +
       - echo '📦 Сортируем импорты через gci...'
-      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/student)" {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix({{.MODULE_PREFIX}})" {} +
+
+  hooks:install:
+    desc: "Устанавливает git-хуки из scripts/ в .git/hooks (с битом исполнения)"
+    cmds:
+      - echo '🪝 Устанавливаем pre-commit hook...'
+      # Без cp хук остаётся невыполняемым файлом, а git молча пропускает такие хуки.
+      - cp scripts/pre-commit .git/hooks/pre-commit
+      - chmod +x .git/hooks/pre-commit
+      - echo '✅ Хук установлен — .git/hooks/pre-commit'
 
   build:
     desc: "Собирает все Go-модули (go build)"

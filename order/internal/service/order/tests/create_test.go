@@ -10,13 +10,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vixart/rocket-factory/platform/pkg/auth"
-
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
 	"github.com/vixart/rocket-factory/order/internal/service/input"
 	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
+	"github.com/vixart/rocket-factory/platform/pkg/auth"
 )
 
 func ctxWithUser(userUUID uuid.UUID) context.Context {

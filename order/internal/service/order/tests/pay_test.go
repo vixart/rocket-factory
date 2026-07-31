@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
 	"github.com/vixart/rocket-factory/order/internal/model"
+	orderService "github.com/vixart/rocket-factory/order/internal/service/order"
 	"github.com/vixart/rocket-factory/order/internal/service/order/mocks"
 )
 

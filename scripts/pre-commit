@@ -1,14 +1,50 @@
 #!/bin/bash
 
-# Git pre-commit hook
-# Копировать в .git/hooks/pre-commit
+# Git pre-commit hook: форматирует staged Go-файлы и прогоняет линтер.
+#
+# Установка: task hooks:install
+# (простое копирование без chmod +x не сработает — git молча пропускает
+# неисполняемые хуки)
 
 export PATH="$HOME/.local/bin:$PATH"
 
-set -e
+set -euo pipefail
 
-echo "🧼 Форматирование кода..."
-task format
+# Хук запускается из корня репозитория, но подстрахуемся — cd делает вызов
+# из любого места (IDE, GUI-клиенты) предсказуемым.
+cd "$(git rev-parse --show-toplevel)"
+
+BIN_DIR="$(pwd)/bin"
+GOFUMPT="$BIN_DIR/gofumpt"
+GCI="$BIN_DIR/gci"
+MODULE_PREFIX="github.com/vixart/rocket-factory"
+
+# Форматируем только то, что попадёт в коммит: прогон по всему репозиторию
+# затянул бы в коммит чужие файлы.
+mapfile -t STAGED < <(
+  git diff --cached --name-only --diff-filter=ACM -- '*.go' |
+    grep -vE '(/mocks/|/pkg/proto/|/pkg/openapi/|^some_info/)' || true
+)
+
+if [ ${#STAGED[@]} -eq 0 ]; then
+  echo "🧼 Go-файлов в индексе нет — форматирование пропускаем"
+else
+  if [ ! -x "$GOFUMPT" ] || [ ! -x "$GCI" ]; then
+    echo "📦 Форматтеры не найдены, ставим..."
+    task formatters:install
+  fi
+
+  echo "🧼 Форматируем staged-файлы (${#STAGED[@]} шт.)..."
+  "$GOFUMPT" -extra -w "${STAGED[@]}"
+  "$GCI" write -s standard -s default -s "prefix($MODULE_PREFIX)" "${STAGED[@]}"
+
+  # Возвращаем отформатированное в индекс — иначе закоммитится версия
+  # до форматирования, а правки останутся болтаться в рабочем дереве.
+  #
+  # Осторожно: если файл добавлен в индекс частично (git add -p), сюда попадут
+  # и нестейджованные изменения этого файла.
+  git add -- "${STAGED[@]}"
+fi
 
 echo "🔍 Проверка линтером..."
 task lint
