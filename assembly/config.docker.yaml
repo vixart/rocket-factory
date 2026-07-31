@@ -12,7 +12,7 @@ logger:
 
 order_paid_consumer:
   topic_name: "order.paid"
-  group_id: "assembly-service"
+  group: "assembly-service-order-paid-consumer"
 
 ship_assembled_producer:
   topic_name: "assembly.ship-assembled"

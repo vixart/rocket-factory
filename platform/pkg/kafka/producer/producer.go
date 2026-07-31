@@ -13,14 +13,14 @@ import (
 //
 // ВАЖНО: sarama.SyncProducer требует sarama.Config с Producer.Return.Successes = true,
 // иначе SendMessage зависнет навсегда. Убедитесь, что эта настройка выставлена
-// при создании sarama.Config (обычно в конфигурационном слое сервиса)
+// при создании sarama.Config (обычно в конфигурационном слое сервиса).
 type Producer struct {
 	syncProducer sarama.SyncProducer
 	topic        string
 }
 
 // NewProducer создаёт Producer, привязанный к конкретному топику
-// syncProducer должен быть создан с Producer.Return.Successes = true
+// syncProducer должен быть создан с Producer.Return.Successes = true.
 func NewProducer(syncProducer sarama.SyncProducer, topic string) *Producer {
 	return &Producer{
 		syncProducer: syncProducer,
@@ -29,7 +29,7 @@ func NewProducer(syncProducer sarama.SyncProducer, topic string) *Producer {
 }
 
 // Send синхронно отправляет сообщение в Kafka и блокируется до получения ACK от брокера
-// Возвращает ошибку, если брокер не подтвердил запись
+// Возвращает ошибку, если брокер не подтвердил запись.
 func (p *Producer) Send(ctx context.Context, msg *kafka.Message) error {
 	saramaMsg := &sarama.ProducerMessage{
 		Topic:   p.topic,

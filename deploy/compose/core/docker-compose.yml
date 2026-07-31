@@ -108,7 +108,9 @@ services: # Раздел, в котором описываются все кон
       # Гарантируем, что Kafka UI стартует только после того, как Kafka станет healthy.
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      # wget, а не curl: в образе kafbat/kafka-ui есть busybox-wget, но нет curl —
+      # с curl проверка падает с "executable file not found" и контейнер вечно unhealthy.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 10

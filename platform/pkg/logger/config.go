@@ -3,14 +3,14 @@ package logger
 import "time"
 
 const (
-	// defaultOTLPEndpoint — gRPC-адрес OTLP коллектора по умолчанию
+	// defaultOTLPEndpoint — gRPC-адрес OTLP коллектора по умолчанию.
 	defaultOTLPEndpoint = "localhost:4317"
 
-	// defaultShutdownTimeout — таймаут на финальную отправку логов при завершении приложения
+	// defaultShutdownTimeout — таймаут на финальную отправку логов при завершении приложения.
 	defaultShutdownTimeout = 2 * time.Second
 )
 
-// Config — конфигурация для инициализации логгера
+// Config — конфигурация для инициализации логгера.
 type Config struct {
 	// Level — уровень логирования: "debug", "info", "warn", "error".
 	// При невалидном значении используется "info".

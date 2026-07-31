@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// closeFn описывает одну функцию закрытия с именем ресурса
+// closeFn описывает одну функцию закрытия с именем ресурса.
 type closeFn struct {
 	name string
 	fn   func(context.Context) error
@@ -15,7 +15,7 @@ type closeFn struct {
 
 // closer управляет процессом graceful shutdown приложения
 // Функции закрытия вызываются в обратном порядке (LIFO) — последний добавленный
-// ресурс закрывается первым, что гарантирует корректный порядок зависимостей
+// ресурс закрывается первым, что гарантирует корректный порядок зависимостей.
 type closer struct {
 	mu    sync.Mutex
 	once  sync.Once
@@ -24,25 +24,25 @@ type closer struct {
 
 // globalCloser — глобальный экземпляр, инициализируется при загрузке пакета
 // Благодаря этому closer готов к использованию сразу — его не нужно создавать
-// вручную, достаточно вызывать пакетные функции Add и CloseAll
+// вручную, достаточно вызывать пакетные функции Add и CloseAll.
 var globalCloser = newCloser()
 
-// newCloser создаёт новый экземпляр closer
+// newCloser создаёт новый экземпляр closer.
 func newCloser() *closer {
 	return &closer{}
 }
 
-// Add добавляет функцию закрытия в глобальный closer
+// Add добавляет функцию закрытия в глобальный closer.
 func Add(name string, f func(context.Context) error) {
 	globalCloser.Add(name, f)
 }
 
-// CloseAll вызывает все функции закрытия глобального closer-а
+// CloseAll вызывает все функции закрытия глобального closer-а.
 func CloseAll(ctx context.Context) error {
 	return globalCloser.CloseAll(ctx)
 }
 
-// Add добавляет функцию закрытия с именем ресурса
+// Add добавляет функцию закрытия с именем ресурса.
 func (c *closer) Add(name string, f func(context.Context) error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -51,7 +51,7 @@ func (c *closer) Add(name string, f func(context.Context) error) {
 }
 
 // CloseAll вызывает все зарегистрированные функции закрытия в обратном порядке (LIFO)
-// Безопасен для повторного вызова — выполнится только один раз
+// Безопасен для повторного вызова — выполнится только один раз.
 func (c *closer) CloseAll(ctx context.Context) error {
 	var result error
 

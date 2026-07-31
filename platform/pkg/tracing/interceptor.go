@@ -14,7 +14,7 @@ import (
 // Graceful degradation: если TracerProvider не инициализирован (InitTracer ещё
 // не вызван или отключён в конфиге — например, в API-тестах с bufconn),
 // TraceIDFromContext вернёт пустую строку, и header не будет установлен
-// Это штатное поведение — сам вызов handler'а продолжится без ошибок
+// Это штатное поведение — сам вызов handler'а продолжится без ошибок.
 func TraceIDUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		traceID := TraceIDFromContext(ctx)

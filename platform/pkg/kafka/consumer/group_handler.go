@@ -24,7 +24,7 @@ type groupHandler struct {
 //
 // Middleware применяются в обратном порядке (последний — ближайший к handler),
 // чтобы порядок вызова совпадал с порядком передачи:
-// WithMiddlewares(logging, metrics) → logging → metrics → handler
+// WithMiddlewares(logging, metrics) → logging → metrics → handler.
 func NewGroupHandler(handler kafka.MessageHandler, middlewares ...kafka.Middleware) *groupHandler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		handler = middlewares[i](handler)
@@ -47,7 +47,7 @@ func (g *groupHandler) Cleanup(sarama.ConsumerGroupSession) error {
 //
 // At-least-once семантика: MarkMessage вызывается только после успешной обработки
 // При ошибке обработчика сообщение логируется и пропускается — при перезапуске
-// consumer group оно будет доставлено повторно (если оффсет не был закоммичен)
+// consumer group оно будет доставлено повторно (если оффсет не был закоммичен).
 func (g *groupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for {
 		select {

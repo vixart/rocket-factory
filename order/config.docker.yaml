@@ -29,7 +29,7 @@ kafka:
 
 ship_assembled_consumer:
   topic_name: "assembly.ship-assembled"
-  group_id: "order-service"
+  group: "order-service-ship-assembled-consumer"
 
 order_paid_producer:
   topic_name: "order.paid"

@@ -8,7 +8,7 @@ import (
 
 // TraceIDFromContext извлекает trace ID из текущего спана в контексте.
 // Возвращает пустую строку, если активного трейса нет (например, TracerProvider
-// не был инициализирован через InitTracer — типовой случай для API-тестов)
+// не был инициализирован через InitTracer — типовой случай для API-тестов).
 func TraceIDFromContext(ctx context.Context) string {
 	sc := trace.SpanFromContext(ctx).SpanContext()
 	if !sc.IsValid() {

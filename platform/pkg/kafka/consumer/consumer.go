@@ -10,11 +10,11 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 )
 
-// Option — функциональная опция для конфигурации Consumer
+// Option — функциональная опция для конфигурации Consumer.
 type Option func(*Consumer)
 
 // WithMiddlewares добавляет middleware-цепочку к Consumer
-// Middleware применяются в порядке передачи: первый оборачивает всю цепочку
+// Middleware применяются в порядке передачи: первый оборачивает всю цепочку.
 func WithMiddlewares(mws ...kafka.Middleware) Option {
 	return func(c *Consumer) {
 		c.middlewares = append(c.middlewares, mws...)
@@ -25,7 +25,7 @@ func WithMiddlewares(mws ...kafka.Middleware) Option {
 //
 // Запускает бесконечный цикл потребления сообщений из указанных топиков
 // При ребалансировке consumer group sarama вызывает Consume повторно —
-// цикл в методе Consume обрабатывает это автоматически
+// цикл в методе Consume обрабатывает это автоматически.
 type Consumer struct {
 	group       sarama.ConsumerGroup
 	topics      []string
@@ -56,7 +56,7 @@ func NewConsumer(group sarama.ConsumerGroup, topics []string, opts ...Option) *C
 // помечается как обработанное (at-least-once семантика). При ошибке — сообщение
 // логируется и пропускается (оффсет НЕ коммитится, но обработка продолжается)
 //
-// Метод блокирует горутину до отмены ctx или критической ошибки
+// Метод блокирует горутину до отмены ctx или критической ошибки.
 func (c *Consumer) Consume(ctx context.Context, handler kafka.MessageHandler) error {
 	newGroupHandler := NewGroupHandler(handler, c.middlewares...)
 

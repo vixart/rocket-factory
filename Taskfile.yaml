@@ -599,20 +599,42 @@ tasks:
   # Результаты смотреть в Grafana (localhost:3000).
   load:http:
     desc: "Нагрузочный тест HTTP: POST с нарастающей нагрузкой (50 → 500 RPS за 2.5 мин)"
-    deps: [ vegeta:install ]
+    deps: [vegeta:install, buf:install]
     cmds:
       - |
         VEGETA="{{.VEGETA}}"
         RESULTS_DIR=$(mktemp -d)
         BODY_FILE="$RESULTS_DIR/body.json"
-        echo '{"hull_uuid":"test-hull","engine_uuid":"test-engine"}' > "$BODY_FILE"
         trap 'rm -rf "$RESULTS_DIR"' EXIT
 
+        # Заводим отдельного пользователя и логинимся: /api/v1/orders закрыт
+        # auth-middleware, без заголовка Authorization тест меряет только 401.
+        LOGIN="load-test-$(date +%s)"
+        {{.BUF}} curl --schema shared/proto --protocol grpc --http2-prior-knowledge \
+          -d "{\"info\":{\"info\":{\"login\":\"$LOGIN\"},\"password\":\"LoadTest123!\"}}" \
+          http://localhost:50053/user.v1.UserService/Register >/dev/null
+        SESSION=$({{.BUF}} curl --schema shared/proto --protocol grpc --http2-prior-knowledge \
+          -d "{\"login\":\"$LOGIN\",\"password\":\"LoadTest123!\"}" \
+          http://localhost:50053/auth.v1.AuthService/Login | jq -r '.sessionUuid')
+        if [ -z "$SESSION" ] || [ "$SESSION" = "null" ]; then
+          echo '❌ Не удалось получить сессию в IAM (сервисы подняты? task up-all)'
+          exit 1
+        fi
+        echo "🔑 Сессия получена для $LOGIN"
+
+        # UUID из сидов inventory (migrations/inventory) — с выдуманными UUID
+        # заказ не создаётся и нагрузка не доходит до бизнес-логики.
+        echo '{"hull_uuid":"550e8400-e29b-41d4-a716-446655440001","engine_uuid":"550e8400-e29b-41d4-a716-446655440003"}' > "$BODY_FILE"
+
+        # Ожидаемая картина: часть запросов — 201, часть — 429 от rate limiter
+        # (rate_limit в config.docker.yaml), а после исчерпания складских остатков — 409.
         for rate in 50 100 150 200 250 300 350 400 450 500; do
           echo "⏱️  ступень: ${rate} RPS (15 сек)"
           echo "POST http://localhost:8080/api/v1/orders" | \
             $VEGETA attack -rate="${rate}/s" -duration=15s \
-              -body="$BODY_FILE" -header="Content-Type: application/json" | \
+              -body="$BODY_FILE" \
+              -header="Content-Type: application/json" \
+              -header="Authorization: Bearer $SESSION" | \
             $VEGETA encode --to json >> "$RESULTS_DIR/results.json"
         done
 
