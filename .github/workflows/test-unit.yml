@@ -39,3 +39,27 @@ jobs:
             go tool cover -func=coverage/coverage.out
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Бейдж в README читает JSON из gist через shields.io endpoint.
+      # Обновляем только на main: в PR (тем более из форков) секрет недоступен.
+      # always() — чтобы падение порога покрытия обновляло бейдж, а не замораживало его.
+      - name: Update coverage badge gist
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: 67f50bd37b7dc5e95c8feae5fb8f7228
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::Секрет GIST_TOKEN не задан — бейдж покрытия не обновлён"
+            exit 0
+          fi
+          if [ ! -f coverage/coverage.out ]; then
+            echo "::warning::coverage/coverage.out отсутствует — бейдж покрытия не обновлён"
+            exit 0
+          fi
+
+          task coverage:badge
+          jq -n --arg content "$(cat coverage/badge.json)" \
+            '{files: {"coverage.json": {content: $content}}}' |
+            gh api -X PATCH "gists/$GIST_ID" --input - > /dev/null
+          echo "✅ Бейдж обновлён: $(cat coverage/badge.json)"

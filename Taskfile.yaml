@@ -277,6 +277,26 @@ tasks:
       - cmd: test $(echo "{{.COVERAGE}} >= {{.COVERAGE_THRESHOLD}}" | bc) -eq 1
       - echo "✅ Покрытие соответствует порогу"
 
+  coverage:badge:
+    desc: "Формирует coverage/badge.json для shields.io endpoint-бейджа в README"
+    vars:
+      COVERAGE:
+        sh: go tool cover -func={{.COVERAGE_FILE}} | tail -n1 | awk '{print $NF}' | tr -d '%'
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "Файл покрытия не найден. Запустите task test:coverage"
+    cmds:
+      # Формат строго задан shields.io (endpoint badge): без schemaVersion/label/message
+      # бейдж рендерится как "invalid response data".
+      - |
+        pct='{{.COVERAGE}}'
+        color=$(awk -v p="$pct" -v t={{.COVERAGE_THRESHOLD}} 'BEGIN{
+          print p>=90 ? "brightgreen" : p>=75 ? "green" : p>=60 ? "yellowgreen" : p>=t ? "yellow" : "red"
+        }')
+        printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+          "$pct" "$color" > {{.COVERAGE_DIR}}/badge.json
+        echo "🏷  $(cat {{.COVERAGE_DIR}}/badge.json)"
+
   coverage:html:
     desc: "Генерирует HTML-отчёт покрытия"
     deps: [test:coverage]

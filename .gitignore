@@ -16,6 +16,8 @@
 coverage.*
 *.coverprofile
 profile.cov
+# Каталог целиком генерируется task test:coverage (включая badge.json для shields.io)
+coverage/
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

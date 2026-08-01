@@ -279,7 +279,13 @@ task up-all / down-all              # всё сразу + контейнериз
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) на каждый PR запускает: `build`, `lint`,
-unit-тесты с покрытием, API-тесты и e2e-тесты. Покрытие публикуется бейджем в шапке README.
+unit-тесты с покрытием, API-тесты и e2e-тесты.
+
+Бейдж покрытия в шапке README работает так: после unit-тестов задача `task coverage:badge`
+формирует `coverage/badge.json` в формате [shields.io endpoint](https://shields.io/badges/endpoint-badge),
+а workflow при push в `main` записывает его в gist (нужен секрет `GIST_TOKEN` — PAT со scope `gist`).
+Сам бейдж читает этот gist через shields.io. Локально проверить значение и цвет:
+`task test:coverage && task coverage:badge`.
 
 ---
 
