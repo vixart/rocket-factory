@@ -19,7 +19,7 @@ pg:
   sslmode: "disable"
 
 client:
-  address: "iam-service:50053"
+  iam_address: "iam-service:50053"
 
 otel:
   endpoint: "otel-collector:4317"

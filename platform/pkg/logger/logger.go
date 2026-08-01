@@ -6,7 +6,7 @@
 //  2. OTLP gRPC → OTel Collector → Elasticsearch → Kibana — централизованное хранилище
 //
 // Компонент следует тому же паттерну, что tracing и metrics:
-// Init + Close, конфигурация через Config, graceful degradation при недоступности коллектора
+// Init + Close, конфигурация через Config, graceful degradation при недоступности коллектора.
 package logger
 
 import (
@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	// otelProvider хранится для корректного завершения (Close)
+	// otelProvider хранится для корректного завершения (Close).
 	otelProvider *otelLogSdk.LoggerProvider
 
-	// initOnce гарантирует, что Init вызовется только один раз (потокобезопасность)
+	// initOnce гарантирует, что Init вызовется только один раз (потокобезопасность).
 	initOnce sync.Once
 )
 
@@ -68,7 +68,10 @@ func Init(cfg Config) {
 			otelHandler := newOTLPExportHandler(cfg)
 			// Graceful degradation: если OTLP недоступен, otelHandler == nil — остаёмся на stdout
 			if otelHandler != nil {
-				handler = slogmulti.Fanout(stdoutHandler, otelHandler)
+				// otelslog.Handler пропускает записи всех уровней, поэтому фильтр по cfg.Level
+				// вешаем сами: иначе при level=info в Kibana всё равно улетают DEBUG-логи,
+				// которых нет в stdout.
+				handler = slogmulti.Fanout(stdoutHandler, withMinLevel(otelHandler, level))
 			}
 		}
 
@@ -77,7 +80,7 @@ func Init(cfg Config) {
 }
 
 // Close завершает работу OTLP provider, отправляя оставшиеся логи
-// Вызывайте при остановке приложения (обычно через defer)
+// Вызывайте при остановке приложения (обычно через defer).
 func Close() error {
 	if otelProvider == nil {
 		return nil
@@ -90,7 +93,7 @@ func Close() error {
 }
 
 // newOTLPExportHandler создаёт OTLP handler с gRPC экспортером
-// При ошибке возвращает nil (graceful degradation — логи продолжат идти в stdout)
+// При ошибке возвращает nil (graceful degradation — логи продолжат идти в stdout).
 func newOTLPExportHandler(cfg Config) slog.Handler {
 	ctx := context.Background()
 
@@ -144,8 +147,34 @@ func newOTLPExportHandler(cfg Config) slog.Handler {
 	)
 }
 
+// minLevelHandler — обёртка, отсекающая записи ниже заданного уровня.
+// Нужна для handler'ов, у которых нет собственной настройки уровня (otelslog).
+type minLevelHandler struct {
+	slog.Handler
+	level slog.Level
+}
+
+// withMinLevel оборачивает handler фильтром по минимальному уровню.
+func withMinLevel(h slog.Handler, level slog.Level) slog.Handler {
+	return minLevelHandler{Handler: h, level: level}
+}
+
+func (h minLevelHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level && h.Handler.Enabled(ctx, level)
+}
+
+// WithAttrs и WithGroup обязаны возвращать обёртку, иначе slog потеряет фильтр
+// на дочерних логгерах (slog.With(...)).
+func (h minLevelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return minLevelHandler{Handler: h.Handler.WithAttrs(attrs), level: h.level}
+}
+
+func (h minLevelHandler) WithGroup(name string) slog.Handler {
+	return minLevelHandler{Handler: h.Handler.WithGroup(name), level: h.level}
+}
+
 // parseLevel парсит строковый уровень ("debug", "info", "warn", "error") в slog.Level
-// При невалидном значении возвращает INFO как безопасный дефолт
+// При невалидном значении возвращает INFO как безопасный дефолт.
 func parseLevel(s string) slog.Level {
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(s)); err != nil {

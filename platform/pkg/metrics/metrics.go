@@ -11,7 +11,7 @@
 //	        └── Instrument — конкретная метрика (Counter, UpDownCounter, Histogram и др.)
 //
 // Аналогия: MeterProvider — это электростанция, Meter — щиток в квартире,
-// Instrument — конкретный счётчик (воды, света, газа)
+// Instrument — конкретный счётчик (воды, света, газа).
 package metrics
 
 import (
@@ -44,7 +44,7 @@ var (
 // Функциональные опции позволяют настроить поведение (интервал, бакеты, views)
 //
 // После вызова Init все Meter'ы, созданные через otel.Meter(), используют этот провайдер —
-// включая платформенные библиотеки (например, platform/redis)
+// включая платформенные библиотеки (например, platform/redis).
 func Init(cfg Config, opts ...Option) {
 	initOnce.Do(func() {
 		ctx := context.Background()
@@ -111,7 +111,7 @@ func Init(cfg Config, opts ...Option) {
 	})
 }
 
-// Flush принудительно отправляет накопленные метрики (полезно в тестах перед проверкой)
+// Flush принудительно отправляет накопленные метрики (полезно в тестах перед проверкой).
 func Flush() error {
 	if provider == nil {
 		return nil
@@ -123,7 +123,7 @@ func Flush() error {
 	return provider.ForceFlush(ctx)
 }
 
-// Close завершает MeterProvider, отправляя накопленные метрики
+// Close завершает MeterProvider, отправляя накопленные метрики.
 func Close() error {
 	if provider == nil {
 		return nil

@@ -38,6 +38,37 @@ services: # Раздел, описывающий контейнеры, кото�
       - microservices-net
       # Подключаемся к общей сети, чтобы другие микросервисы могли найти этот контейнер по имени "postgres-order"
 
+  migrator-order: # Одноразовый контейнер goose — накатывает SQL-миграции и завершается (exit 0)
+    build:
+      context: ../../..
+      dockerfile: deploy/dockerfiles/migrator.Dockerfile
+      args:
+        # Версии образов и goose — из core.env (единый источник истины)
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+        GOOSE_VERSION: ${GOOSE_VERSION}
+
+    depends_on:
+      postgres-order:
+        condition: service_healthy
+        # Не стартуем миграции, пока PostgreSQL не пройдёт healthcheck
+
+    volumes:
+      - ../../../migrations/order:/migrations:ro
+      # Монтируем SQL-миграции внутрь контейнера в /migrations
+
+    command:
+      # Внутри docker-сети база доступна по имени контейнера postgres-order:5432,
+      # а не по хостовому порту. Креды берём из POSTGRES_* (интерполяция из order.env).
+      - -dir
+      - /migrations
+      - postgres
+      - postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-order:5432/${POSTGRES_DB}?sslmode=disable
+      - up
+
+    networks:
+      - microservices-net
+
 volumes: # Раздел с томами — определяем, какие дисковые ресурсы создаёт и использует Docker
   postgres_order_data:
   # Именованный том для хранения данных Order-сервиса в PostgreSQL

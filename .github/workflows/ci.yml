@@ -29,6 +29,9 @@ jobs:
     name: "Test Unit"
     needs: build
     uses: ./.github/workflows/test-unit.yml
+    # Без inherit секрет GIST_TOKEN не доедет до вызываемого workflow
+    # и бейдж покрытия обновляться не будет.
+    secrets: inherit
 
   test-e2e:
     name: "Test E2E"

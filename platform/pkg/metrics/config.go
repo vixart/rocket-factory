@@ -1,6 +1,6 @@
 package metrics
 
-// Config — конфигурация для инициализации логгера
+// Config — конфигурация для инициализации логгера.
 type Config struct {
 	// ServiceName — имя сервиса, прикрепляется к каждому логу через resource (service.name)
 	ServiceName string

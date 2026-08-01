@@ -25,7 +25,7 @@ const (
 // Логгер — *slog.Logger из стандартной библиотеки (log/slog)
 // slog — это стандартный фасад логирования в Go (с 1.21+), аналог io.Writer для I/O
 // При смене бэкенда (zap, logrus и т.д.) достаточно подменить slog.Handler при инициализации,
-// сигнатуры потребителей не меняются
+// сигнатуры потребителей не меняются.
 func NewClient(opts *redis.Options, logger *slog.Logger) (*redis.Client, error) {
 	applyDefaults(opts)
 
@@ -44,7 +44,7 @@ func NewClient(opts *redis.Options, logger *slog.Logger) (*redis.Client, error) 
 }
 
 // applyDefaults выставляет принудительные платформенные настройки
-// и дефолтные таймауты, если они не были заданы вызывающим кодом
+// и дефолтные таймауты, если они не были заданы вызывающим кодом.
 func applyDefaults(opts *redis.Options) {
 	// Принудительно: go-redis уважает context deadline при выполнении команд
 	opts.ContextTimeoutEnabled = true

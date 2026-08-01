@@ -1,5 +1,10 @@
 version: '3'
 
+# Подключаем core.env как источник версий для сборки контейнеров.
+# Переменные GO_IMAGE / ALPINE_IMAGE / GOOSE_VERSION оттуда автоматически
+# доступны как {{.GO_IMAGE}} и т.д. в задачах ниже.
+dotenv: ['core.env']
+
 vars:
   GO_VERSION: '1.26.0'
   GOLANGCI_LINT_VERSION: 'v2.12.2'
@@ -22,7 +27,8 @@ vars:
   MOCKERY_VERSION: 'v3.7.0'
   MOCKERY: '{{.BIN_DIR}}/mockery'
 
-  GOOSE_VERSION: 'v3.27.1'
+  # GOOSE_VERSION приходит из core.env через dotenv — один источник истины
+  # для версии goose: и хост-инсталл здесь, и docker-сборка migrator.Dockerfile
   GOOSE: '{{.BIN_DIR}}/goose'
 
   COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
@@ -36,6 +42,9 @@ vars:
   VEGETA: '{{.BIN_DIR}}/vegeta'
 
   MODULES: iam assembly order inventory payment
+
+  # Префикс модулей репозитория — по нему gci выделяет «свои» импорты в отдельную группу.
+  MODULE_PREFIX: 'github.com/vixart/rocket-factory'
 
 tasks:
   formatters:install:
@@ -106,6 +115,18 @@ tasks:
     cmds:
       - go run ./cmd
 
+  run:iam:
+    desc: "Запускает IAMService (gRPC сервер аутентификации на :50053)"
+    dir: iam
+    cmds:
+      - go run ./cmd
+
+  run:assembly:
+    desc: "Запускает AssemblyService (Kafka consumer/producer)"
+    dir: assembly
+    cmds:
+      - go run ./cmd
+
   format:
     desc: "Форматирует код (gofumpt + gci)"
     deps: [formatters:install]
@@ -113,18 +134,27 @@ tasks:
       - echo '🧹 Форматируем код через gofumpt...'
       - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GOFUMPT}} -extra -w {} +
       - echo '📦 Сортируем импорты через gci...'
-      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/student)" {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix({{.MODULE_PREFIX}})" {} +
+
+  hooks:install:
+    desc: "Устанавливает git-хуки из scripts/ в .git/hooks (с битом исполнения)"
+    cmds:
+      - echo '🪝 Устанавливаем pre-commit hook...'
+      # Без cp хук остаётся невыполняемым файлом, а git молча пропускает такие хуки.
+      - cp scripts/pre-commit .git/hooks/pre-commit
+      - chmod +x .git/hooks/pre-commit
+      - echo '✅ Хук установлен — .git/hooks/pre-commit'
 
   build:
     desc: "Собирает все Go-модули (go build)"
     cmds:
-      - go build ./iam/... ./assembly/... ./order/... ./inventory/... ./payment/...
+      - go build ./iam/... ./assembly/... ./order/... ./inventory/... ./payment/... ./platform/...
 
   lint:
     desc: "Запускает golangci-lint"
     deps: [golangci-lint:install]
     cmds:
-      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./iam/... ./assembly/... order/... inventory/... payment/... --config=.golangci.yml'
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./iam/... ./assembly/... order/... inventory/... payment/... platform/... --config=.golangci.yml'
 
   proto:format:
     desc: "Форматирует .proto-файлы (buf format)"
@@ -172,6 +202,8 @@ tasks:
       - echo '🔄 Обновляем зависимости в сервисах...'
       - for: { var: MODULES }
         cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+      - echo '🔄 Обновляем зависимости в platform...'
+      - cd platform && go mod tidy -compat={{.GO_VERSION}}
       - echo '🔄 Обновляем зависимости в shared (proto/openapi)...'
       - cd shared && go mod tidy -compat={{.GO_VERSION}}
 
@@ -245,6 +277,26 @@ tasks:
       - cmd: test $(echo "{{.COVERAGE}} >= {{.COVERAGE_THRESHOLD}}" | bc) -eq 1
       - echo "✅ Покрытие соответствует порогу"
 
+  coverage:badge:
+    desc: "Формирует coverage/badge.json для shields.io endpoint-бейджа в README"
+    vars:
+      COVERAGE:
+        sh: go tool cover -func={{.COVERAGE_FILE}} | tail -n1 | awk '{print $NF}' | tr -d '%'
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "Файл покрытия не найден. Запустите task test:coverage"
+    cmds:
+      # Формат строго задан shields.io (endpoint badge): без schemaVersion/label/message
+      # бейдж рендерится как "invalid response data".
+      - |
+        pct='{{.COVERAGE}}'
+        color=$(awk -v p="$pct" -v t={{.COVERAGE_THRESHOLD}} 'BEGIN{
+          print p>=90 ? "brightgreen" : p>=75 ? "green" : p>=60 ? "yellowgreen" : p>=t ? "yellow" : "red"
+        }')
+        printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+          "$pct" "$color" > {{.COVERAGE_DIR}}/badge.json
+        echo "🏷  $(cat {{.COVERAGE_DIR}}/badge.json)"
+
   coverage:html:
     desc: "Генерирует HTML-отчёт покрытия"
     deps: [test:coverage]
@@ -271,15 +323,17 @@ tasks:
 
   up-core:
     desc: "Создать общую сеть и поднять core контейнеры (Kafka + Observability)"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
       - docker network rm microservices-net 2>/dev/null || true
       - docker network create microservices-net 2>/dev/null || true
-      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka)'
+      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka + Redis для rate limiter)'
       - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
       - echo '[task] 📊 Поднимаем observability (OTEL Collector, ES, Kibana, Prometheus, Grafana, Jaeger)'
       - docker compose -f deploy/compose/observability/docker-compose.yml --env-file core.env up --build --detach
+      # Готовим Elasticsearch к приёму логов: без index template otel-logs
+      # экспортер коллектора получает index_not_found_exception и логи теряются.
+      - task: es:init
 
   down-core:
     desc: "Остановить core контейнеры (Kafka + Observability) и удалить сеть"
@@ -292,40 +346,52 @@ tasks:
       - docker network rm microservices-net 2>/dev/null || true
 
   up-order:
-    desc: "Поднять Order сервис и все его зависимости"
+    desc: "Поднять Order сервис и все его зависимости (включая накатку миграций)"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 📦 Поднимаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env up --build --detach --wait
+      # core.env — источник GO_IMAGE/ALPINE_IMAGE/GOOSE_VERSION для build args migrator'а.
+      # order/order.env — переопределяет POSTGRES_USER/PASSWORD/DB поверх него.
+      # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код. `up --wait` на весь compose
+      # не годится: он считает завершившийся migrator упавшим, даже при exit 0.
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env up --detach --wait postgres-order
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env run --rm --build migrator-order
 
   down-order:
     desc: "Остановить и удалить Order сервис и все его зависимости"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 🛑 Останавливаем Order с зависимостями"
-      - docker compose --env-file ../../../order/order.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env down --volumes
 
   up-inventory:
-    desc: "Поднять Inventory сервис и все его зависимости"
+    desc: "Поднять Inventory сервис и все его зависимости (включая накатку миграций)"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env up --build --detach --wait
+      # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env up --detach --wait postgres-inventory
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env run --rm --build migrator-inventory
 
   down-inventory:
     desc: "Остановить и удалить Inventory сервис и все его зависимости"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
-      - docker compose --env-file ../../../inventory/inventory.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env down --volumes
 
   up-all:
-    desc: "Поднять инфраструктуру + сервисы (3 инстанса OrderService)"
+    desc: "Поднять полную систему: core + БД с миграциями + сервисы за Nginx (--scale order-service=3)"
     cmds:
       - task: up-core
+      # Каждая up-* задача поднимает БД до healthy и прогоняет migrator-контейнер,
+      # так что отдельный прогон migrate:all:up не нужен.
       - task: up-inventory
       - task: up-order
       - task: up-iam
+      - echo "[task] ⚙️  Запускаем контейнеризованные сервисы (--scale order-service=3)"
       - >-
         docker compose
         --env-file core.env
@@ -333,8 +399,9 @@ tasks:
         up -d --build --scale order-service=3
 
   down-all:
-    desc: "Остановить всё"
+    desc: "Остановить всю систему: контейнеризованные сервисы + БД + core"
     cmds:
+      - echo "[task] 🛑 Останавливаем контейнеризованные сервисы"
       - >-
         docker compose
         --env-file core.env
@@ -346,127 +413,128 @@ tasks:
       - task: down-core
 
   migrate:all:up:
-    desc: "Применяет все миграции всех сервисов"
+    desc: "Применяет все миграции всех сервисов (goose с хоста; в up-* это делает migrator-контейнер)"
     cmds:
       - task migrate:order:up
       - task migrate:inventory:up
       - task migrate:iam:up
 
+  # Внутренняя обёртка над goose: подключает env-файл сервиса (<svc>/<svc>.env —
+  # тот же, что читают docker compose и сам сервис при запуске из IDE) и собирает
+  # DSN из POSTGRES_*. Отдельные <svc>.env в корне репозитория для этого не нужны.
+  goose:exec:
+    internal: true
+    deps: [goose:install]
+    dotenv: ['{{.SVC}}/{{.SVC}}.env']
+    requires:
+      vars: [SVC, GOOSE_CMD]
+    cmds:
+      # POSTGRES_PORT — хостовый порт из compose-маппинга, поэтому goose ходит на localhost.
+      - '{{.GOOSE}} -dir migrations/{{.SVC}} postgres "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable" {{.GOOSE_CMD}}'
+
+  # Создание файла миграции к БД не обращается — нужен только каталог migrations/<svc>.
+  goose:create:
+    internal: true
+    deps: [goose:install]
+    requires:
+      vars: [SVC]
+    cmds:
+      - |
+        name="{{.CLI_ARGS}}"
+        if [ -z "$name" ]; then
+          printf "Введите имя миграции: "; read name;
+        fi
+        mkdir -p "migrations/{{.SVC}}"
+        {{.GOOSE}} -dir "migrations/{{.SVC}}" create "$name" sql
+
   migrate:order:up:
     desc: "Применяет все миграции Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: up }
 
   migrate:order:down:
     desc: "Откатывает последнюю миграцию Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: down }
 
   migrate:order:status:
     desc: "Показывает статус миграций Order-сервиса"
-    deps: [goose:install]
-    dotenv: ['order.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: order, GOOSE_CMD: status }
 
   migrate:order:create:
-    desc: "Создаёт новый файл миграции Order-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'order.env' ]
+    desc: "Создаёт новый файл миграции Order-сервиса (task migrate:order:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
+      - task: goose:create
+        vars: { SVC: order }
 
   migrate:inventory:up:
     desc: "Применяет все миграции Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: up }
 
   migrate:inventory:down:
     desc: "Откатывает последнюю миграцию Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: down }
 
   migrate:inventory:status:
     desc: "Показывает статус миграций Inventory-сервиса"
-    deps: [goose:install]
-    dotenv: ['inventory.env']
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: inventory, GOOSE_CMD: status }
 
   migrate:inventory:create:
-    desc: "Создаёт новый файл миграции Inventory-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'inventory.env' ]
+    desc: "Создаёт новый файл миграции Inventory-сервиса (task migrate:inventory:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
-        
+      - task: goose:create
+        vars: { SVC: inventory }
+
   up-iam:
-    desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis)"
+    desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis + накатка миграций)"
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
-      - docker compose --env-file ../../../iam/iam.env up --build --detach  --wait
+      # Сначала --wait поднимает postgres/redis до healthy, затем `run --rm` прогоняет
+      # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env up --detach --wait postgres-iam redis-iam
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env run --rm --build migrator-iam
 
   down-iam:
     desc: "Остановить и удалить IAM сервис и все его зависимости"
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🛑 Останавливаем IAM с зависимостями"
-      - docker compose --env-file ../../../iam/iam.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env down --volumes
 
   migrate:iam:up:
-    desc: "Применяет все миграции IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Применяет все миграции IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: up }
 
   migrate:iam:down:
-    desc: "Откатывает последнюю миграцию IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Откатывает последнюю миграцию IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: down }
 
   migrate:iam:status:
-    desc: "Показывает статус миграций IAM сервиса"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Показывает статус миграций IAM-сервиса"
     cmds:
-      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+      - task: goose:exec
+        vars: { SVC: iam, GOOSE_CMD: status }
 
   migrate:iam:create:
-    desc: "Создаёт новый файл миграции IAM-сервиса (NAME=<имя>)"
-    deps: [ goose:install ]
-    dotenv: [ 'iam.env' ]
+    desc: "Создаёт новый файл миграции IAM-сервиса (task migrate:iam:create -- <имя>)"
     cmds:
-      - |
-        name="${CLI_ARGS:-}"
-        if [ -z "$name" ]; then
-          printf "Введите имя миграции: "; read name;
-        fi
-        mkdir -p "$MIGRATIONS_DIR"
-        {{.GOOSE}} -dir "$MIGRATIONS_DIR" create "$name" sql
+      - task: goose:create
+        vars: { SVC: iam }
 
   test:api:
     desc: "Запускает API-тесты"
@@ -484,7 +552,6 @@ tasks:
 
   es:wait:
     desc: "Ожидает готовности Elasticsearch"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo "⏳ Ожидаем готовности Elasticsearch..."
       - |
@@ -495,13 +562,16 @@ tasks:
 
   es:create-template:
     desc: "Создает index template для data stream otel-logs (нужен в ECS-режиме экспортера)"
-    dotenv: [ 'core.env' ]
     cmds:
+      # OTel Collector шлёт логи с require_data_stream=true. Elasticsearch НЕ создаёт
+      # data stream автоматически без index template и отвечает index_not_found_exception,
+      # из-за чего все логи теряются. Шаблон делает otel-logs* auto-create как data stream.
+      # number_of_replicas=0 — кластер из одной ноды, иначе индекс висит в статусе yellow.
       - echo "📝 Создаем index template otel-logs-template (data stream)..."
       - |
         curl -sS -X PUT {{.ELASTICSEARCH_URL}}/_index_template/otel-logs-template \
           -H "Content-Type: application/json" \
-          --data '{"index_patterns":["otel-logs*"],"data_stream":{},"priority":500}'
+          --data '{"index_patterns":["otel-logs*"],"data_stream":{},"priority":500,"template":{"settings":{"number_of_replicas":0}}}'
         echo ""
         echo "✅ Index template otel-logs-template создан"
 
@@ -513,7 +583,6 @@ tasks:
 
   kibana:wait:
     desc: "Ожидает готовности Kibana"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '⏳ Ожидаем готовности Kibana...'
       - |
@@ -524,7 +593,6 @@ tasks:
 
   kibana:create-view:
     desc: "Создает Data View в Kibana и устанавливает его как default"
-    dotenv: [ 'core.env' ]
     cmds:
       - echo '📝 Создаем Data View otel-logs*...'
       - |
@@ -563,20 +631,42 @@ tasks:
   # Результаты смотреть в Grafana (localhost:3000).
   load:http:
     desc: "Нагрузочный тест HTTP: POST с нарастающей нагрузкой (50 → 500 RPS за 2.5 мин)"
-    deps: [ vegeta:install ]
+    deps: [vegeta:install, buf:install]
     cmds:
       - |
         VEGETA="{{.VEGETA}}"
         RESULTS_DIR=$(mktemp -d)
         BODY_FILE="$RESULTS_DIR/body.json"
-        echo '{"hull_uuid":"test-hull","engine_uuid":"test-engine"}' > "$BODY_FILE"
         trap 'rm -rf "$RESULTS_DIR"' EXIT
 
+        # Заводим отдельного пользователя и логинимся: /api/v1/orders закрыт
+        # auth-middleware, без заголовка Authorization тест меряет только 401.
+        LOGIN="load-test-$(date +%s)"
+        {{.BUF}} curl --schema shared/proto --protocol grpc --http2-prior-knowledge \
+          -d "{\"info\":{\"info\":{\"login\":\"$LOGIN\"},\"password\":\"LoadTest123!\"}}" \
+          http://localhost:50053/user.v1.UserService/Register >/dev/null
+        SESSION=$({{.BUF}} curl --schema shared/proto --protocol grpc --http2-prior-knowledge \
+          -d "{\"login\":\"$LOGIN\",\"password\":\"LoadTest123!\"}" \
+          http://localhost:50053/auth.v1.AuthService/Login | jq -r '.sessionUuid')
+        if [ -z "$SESSION" ] || [ "$SESSION" = "null" ]; then
+          echo '❌ Не удалось получить сессию в IAM (сервисы подняты? task up-all)'
+          exit 1
+        fi
+        echo "🔑 Сессия получена для $LOGIN"
+
+        # UUID из сидов inventory (migrations/inventory) — с выдуманными UUID
+        # заказ не создаётся и нагрузка не доходит до бизнес-логики.
+        echo '{"hull_uuid":"550e8400-e29b-41d4-a716-446655440001","engine_uuid":"550e8400-e29b-41d4-a716-446655440003"}' > "$BODY_FILE"
+
+        # Ожидаемая картина: часть запросов — 201, часть — 429 от rate limiter
+        # (rate_limit в config.docker.yaml), а после исчерпания складских остатков — 409.
         for rate in 50 100 150 200 250 300 350 400 450 500; do
           echo "⏱️  ступень: ${rate} RPS (15 сек)"
           echo "POST http://localhost:8080/api/v1/orders" | \
             $VEGETA attack -rate="${rate}/s" -duration=15s \
-              -body="$BODY_FILE" -header="Content-Type: application/json" | \
+              -body="$BODY_FILE" \
+              -header="Content-Type: application/json" \
+              -header="Authorization: Bearer $SESSION" | \
             $VEGETA encode --to json >> "$RESULTS_DIR/results.json"
         done
 

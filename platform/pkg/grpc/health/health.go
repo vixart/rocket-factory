@@ -27,7 +27,7 @@ import (
 //	}
 //
 // Если любая зависимость не отвечает — возвращаем NOT_SERVING, и Kubernetes
-// перезапустит Pod (liveness) или уберёт из балансировки (readiness)
+// перезапустит Pod (liveness) или уберёт из балансировки (readiness).
 type Server struct {
 	grpc_health_v1.UnimplementedHealthServer
 }
@@ -37,7 +37,7 @@ type Server struct {
 // Вызывается Kubernetes (grpc liveness/readiness probe), балансировщиками и клиентами
 // Возвращает один из статусов: SERVING, NOT_SERVING, UNKNOWN
 // Поле req.Service позволяет проверить здоровье конкретного сервиса — пустая строка означает
-// проверку всего сервера целиком
+// проверку всего сервера целиком.
 func (s *Server) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,
@@ -49,7 +49,7 @@ func (s *Server) Check(ctx context.Context, req *grpc_health_v1.HealthCheckReque
 // В отличие от Check (pull-модель), Watch позволяет клиенту получать обновления
 // в реальном времени без периодического опроса. Используется gRPC-балансировщиками
 // для мгновенной реакции на изменение состояния backend'ов
-// В текущей реализации отправляет SERVING один раз и завершает стрим
+// В текущей реализации отправляет SERVING один раз и завершает стрим.
 func (s *Server) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	return stream.Send(&grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,
@@ -57,7 +57,7 @@ func (s *Server) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_healt
 }
 
 // RegisterService регистрирует health-сервис на gRPC-сервере
-// После регистрации сервис доступен по стандартному пути grpc.health.v1.Health
+// После регистрации сервис доступен по стандартному пути grpc.health.v1.Health.
 func RegisterService(s *grpc.Server) {
 	grpc_health_v1.RegisterHealthServer(s, &Server{})
 }

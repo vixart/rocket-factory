@@ -55,6 +55,37 @@ services: # Раздел, в котором описываются все кон
       - microservices-net
       # Redis подключается к той же общей сети, что и PostgreSQL, и остальные сервисы
 
+  migrator-iam: # Одноразовый контейнер goose — накатывает SQL-миграции и завершается (exit 0)
+    build:
+      context: ../../..
+      dockerfile: deploy/dockerfiles/migrator.Dockerfile
+      args:
+        # Версии образов и goose — из core.env (единый источник истины)
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+        GOOSE_VERSION: ${GOOSE_VERSION}
+
+    depends_on:
+      postgres-iam:
+        condition: service_healthy
+        # Не стартуем миграции, пока PostgreSQL не пройдёт healthcheck
+
+    volumes:
+      - ../../../migrations/iam:/migrations:ro
+      # Монтируем SQL-миграции внутрь контейнера в /migrations
+
+    command:
+      # Внутри docker-сети база доступна по имени контейнера postgres-iam:5432,
+      # а не по хостовому порту. Креды берём из POSTGRES_* (интерполяция из iam.env).
+      - -dir
+      - /migrations
+      - postgres
+      - postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-iam:5432/${POSTGRES_DB}?sslmode=disable
+      - up
+
+    networks:
+      - microservices-net
+
 volumes: # Раздел томов — Docker сам создаст и будет управлять этим хранилищем данных
   postgres_iam_data:
   # Том для хранения данных PostgreSQL (таблицы, индексы и т.д.)

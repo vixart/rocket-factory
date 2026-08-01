@@ -26,7 +26,7 @@ const (
 	grpcMaxConnectionAgeGrace = 5 * time.Second  // Время на завершение активных RPC
 	grpcKeepaliveTime         = 5 * time.Minute  // Интервал ping'ов для обнаружения мёртвых соединений
 	grpcKeepaliveTimeout      = 1 * time.Second  // Тайм-аут ожидания pong
-	grpcMinPingInterval       = 5 * time.Minute  // Минимальный интервал ping'ов от клиента (защита от DoS)
+	grpcMinPingInterval       = 5 * time.Second  // Минимальный интервал ping'ов от клиента (должен быть меньше keepalive.Time клиентов — 10s, иначе сервер шлёт GOAWAY too_many_pings)
 )
 
 func NewGRPCServer(
@@ -55,7 +55,7 @@ func NewGRPCServer(
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             grpcMinPingInterval,
-			PermitWithoutStream: false,
+			PermitWithoutStream: true, // Клиенты пингуют без активных RPC (PermitWithoutStream: true), иначе соединение рвётся
 		}),
 		grpc.UnaryInterceptor(interceptor.ErrorInterceptor),
 	)

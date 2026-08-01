@@ -37,6 +37,37 @@ services: # Здесь описываются контейнеры, необхо
       - microservices-net
       # Подключаем контейнер к общей сети всех микросервисов, чтобы они могли взаимодействовать между собой по имени
 
+  migrator-inventory: # Одноразовый контейнер goose — накатывает SQL-миграции и завершается (exit 0)
+    build:
+      context: ../../..
+      dockerfile: deploy/dockerfiles/migrator.Dockerfile
+      args:
+        # Версии образов и goose — из core.env (единый источник истины)
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+        GOOSE_VERSION: ${GOOSE_VERSION}
+
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+        # Не стартуем миграции, пока PostgreSQL не пройдёт healthcheck
+
+    volumes:
+      - ../../../migrations/inventory:/migrations:ro
+      # Монтируем SQL-миграции внутрь контейнера в /migrations
+
+    command:
+      # Внутри docker-сети база доступна по имени контейнера postgres-inventory:5432,
+      # а не по хостовому порту. Креды берём из POSTGRES_* (интерполяция из inventory.env).
+      - -dir
+      - /migrations
+      - postgres
+      - postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-inventory:5432/${POSTGRES_DB}?sslmode=disable
+      - up
+
+    networks:
+      - microservices-net
+
 volumes: # Раздел с томами — определяем хранилище, которое создаст Docker
   postgres_inventory_data:
   # Именованный том, в котором будут храниться данные PostgreSQL для Inventory-сервиса
