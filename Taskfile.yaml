@@ -382,8 +382,8 @@ tasks:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
       - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env down --volumes
 
-  up-all:
-    desc: "Поднять полную систему: core + БД с миграциями + сервисы за Nginx (--scale order-service=3)"
+  up-infra:
+    desc: "Поднять только инфраструктуру (Kafka, observability, БД с миграциями) — сервисы запускаются локально"
     cmds:
       - task: up-core
       # Каждая up-* задача поднимает БД до healthy и прогоняет migrator-контейнер,
@@ -391,6 +391,20 @@ tasks:
       - task: up-inventory
       - task: up-order
       - task: up-iam
+      - echo "[task] ✅ Инфраструктура готова. Сервисы — task run:iam / run:inventory / run:payment / run:order / run:assembly"
+
+  down-infra:
+    desc: "Остановить инфраструктуру, поднятую через up-infra"
+    cmds:
+      - task: down-iam
+      - task: down-order
+      - task: down-inventory
+      - task: down-core
+
+  up-all:
+    desc: "Поднять полную систему: инфраструктура + сервисы в контейнерах за Nginx (--scale order-service=3)"
+    cmds:
+      - task: up-infra
       - echo "[task] ⚙️  Запускаем контейнеризованные сервисы (--scale order-service=3)"
       - >-
         docker compose
@@ -399,7 +413,7 @@ tasks:
         up -d --build --scale order-service=3
 
   down-all:
-    desc: "Остановить всю систему: контейнеризованные сервисы + БД + core"
+    desc: "Остановить всю систему: контейнеризованные сервисы + инфраструктура"
     cmds:
       - echo "[task] 🛑 Останавливаем контейнеризованные сервисы"
       - >-
@@ -407,10 +421,7 @@ tasks:
         --env-file core.env
         -f deploy/compose/services/docker-compose.yml
         down
-      - task: down-iam
-      - task: down-order
-      - task: down-inventory
-      - task: down-core
+      - task: down-infra
 
   migrate:all:up:
     desc: "Применяет все миграции всех сервисов (goose с хоста; в up-* это делает migrator-контейнер)"

@@ -157,26 +157,30 @@ task kibana:init     # Data View для просмотра логов (один 
 `up-all` поднимает БД до healthy и прогоняет одноразовые `migrator-*` контейнеры (goose),
 так что миграции накатываются сами. Index template для логов создаётся автоматически внутри `up-core`.
 
-### Вариант 2 — инфраструктура в контейнерах, сервисы локально
+### Вариант 2 — инфраструктура в контейнерах, сервисы локально (режим разработки)
 
 ```bash
 task setup
-task up-core        # сеть, Kafka + Kafka UI, observability, Redis для rate limiter
-task up-inventory   # PostgreSQL + миграции
-task up-order
-task up-iam         # PostgreSQL + Redis + миграции
+task up-infra        # Kafka + Kafka UI, observability, Redis, PostgreSQL всех сервисов + миграции
+task kibana:init     # Data View для просмотра логов (один раз)
 
-# сервисы (каждый в своём терминале)
+# сервисы — каждый в своём терминале или в run-конфигурации IDE
+task run:iam         # :50053
 task run:inventory   # :50051
 task run:payment     # :50052
-task run:iam         # :50053
 task run:order       # :8080
 task run:assembly    # Kafka worker
-
-task kibana:init
 ```
 
-Остановить всё: `task down-all`.
+`up-infra` поднимает всё, кроме самих сервисов: Nginx и контейнеры сервисов не запускаются,
+порты `8080`, `50051`–`50053` остаются свободными для локальных процессов.
+
+Из IDE сервис запускается как `go run ./cmd` с рабочей директорией в каталоге сервиса —
+это важно, потому что `main()` подхватывает `<service>/<service>.env` относительно неё,
+а конфиг по умолчанию берётся из `config.local.yaml` рядом. Другой профиль конфига —
+через `CONFIG_PATH=config.staging.yaml` или флаг `-config`.
+
+Остановить: `task down-infra` (или `task down-all`, если поднимали и контейнерные сервисы).
 
 ### Точки доступа
 

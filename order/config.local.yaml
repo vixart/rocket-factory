@@ -13,9 +13,9 @@ logger:
 pg:
   host: "localhost"
   port: "55432"
-  database: "demo"
-  user: "demo"
-  password: "demo"
+  database: "order-service"
+  user: "order-service-user"
+  password: "order-service-password"
   sslmode: "disable"
 
 client:
