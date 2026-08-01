@@ -263,20 +263,32 @@ task up-all / down-all              # всё сразу + контейнериз
 
 ## Конфигурация
 
-Конфигурация читается из YAML-файла (`config.local.yaml`, путь задаётся `CONFIG_PATH`)
-и переменных окружения из `*.env`:
+Конфигурация двухслойная: YAML-файл задаёт базу, переменные окружения её переопределяют
+(`cleanenv`, приоритет **env > yaml > env-default**). Путь к YAML выбирается по цепочке
+`-config` → `CONFIG_PATH` → `config.local.yaml`.
 
-- `core.env` (в корне) — порты и версии образов общей инфраструктуры (Kafka, observability,
-  Nginx, Redis), а также build args `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION`. Подключён
-  в `Taskfile.yaml` через `dotenv`, поэтому версии живут в одном месте — и для Docker-сборок,
-  и для хост-инсталла goose;
-- `<service>/<service>.env` — параметры БД, порты сервиса, адреса зависимостей, версии образов.
-  Лежит рядом с сервисом и является единственным источником: его читает сам сервис при запуске
-  из IDE (`godotenv`), `docker compose` при подъёме зависимостей и задачи `migrate:*`
-  (DSN для goose собирается из `POSTGRES_*`).
+**Базовый слой — YAML-профили** рядом с сервисом: `config.local.yaml` (запуск с хоста),
+`config.docker.yaml` (запуск в контейнере), `config.staging.yaml`, `config.production.yaml`.
 
-Профили окружений: `config.local.yaml` (запуск с хоста), `config.docker.yaml` (запуск в контейнере),
-`config.staging.yaml`, `config.production.yaml`.
+**Слой переопределений — env-файлы**, по одному на способ запуска:
+
+| Файл | Кто читает | Что внутри |
+|------|------------|------------|
+| `<service>/<service>.env` | сам сервис при локальном запуске (`godotenv` в `cmd/main.go`) | хостовые адреса: `localhost:50051`, `localhost:9092` |
+| `<service>/<service>.docker.env` | контейнер сервиса (`env_file` в `deploy/compose/services/`) | адреса docker-сети: `inventory-service:50051`, `kafka:29092` |
+| `deploy/compose/<service>/compose.env` | только `docker compose` | параметры контейнеров PostgreSQL/Redis и версии образов |
+| `core.env` (в корне) | `docker compose` и `Taskfile` (через `dotenv`) | порты и образы общей инфраструктуры, build args `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION` |
+
+Разделение по способу запуска обязательно: в `<service>.env` лежат хостовые адреса, и если
+передать этот файл в контейнер, он перебьёт `config.docker.yaml` и сервис пойдёт в `localhost`
+вместо соседнего контейнера. Приложение никогда не читает `compose.env`, а `docker compose`
+никогда не читает `<service>.env` — пересечения между слоями нет.
+
+Из `deploy/compose/<service>/compose.env` берут креды и задачи `migrate:*`: DSN для goose
+собирается из `POSTGRES_*`, поэтому goose и контейнер БД не могут разъехаться.
+
+Помните про приоритет: правка в `config.local.yaml` не применится, если та же переменная
+задана в `<service>/<service>.env` — env старше.
 
 ---
 

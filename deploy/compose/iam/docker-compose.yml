@@ -5,8 +5,8 @@ services: # Раздел, в котором описываются все кон
     container_name: postgres-iam # Устанавливаем читаемое имя контейнера — удобно при отладке и работе в CLI
 
     env_file:
-      - ../../../iam/iam.env
-      # Загружаем переменные окружения из iam.env (POSTGRES_DB/USER/PASSWORD)
+      - compose.env
+      # POSTGRES_DB/USER/PASSWORD для контейнера БД (см. compose.env рядом)
 
     volumes:
       - postgres_iam_data:/var/lib/postgresql

@@ -8,8 +8,8 @@ services: # Здесь описываются контейнеры, необхо
     # Устанавливаем удобное читаемое имя контейнера — пригодится для логов и отладки
 
     env_file:
-      - ../../../inventory/inventory.env
-      # Загружаем переменные окружения из файла inventory.env в корне workspace
+      - compose.env
+      # POSTGRES_DB/USER/PASSWORD для контейнера БД (см. compose.env рядом)
       # Это позволяет переиспользовать одни и те же переменные в docker-compose, Taskfile и тестах
 
     volumes:

@@ -355,15 +355,15 @@ tasks:
       # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код. `up --wait` на весь compose
       # не годится: он считает завершившийся migrator упавшим, даже при exit 0.
-      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env up --detach --wait postgres-order
-      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env run --rm --build migrator-order
+      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-order
+      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-order
 
   down-order:
     desc: "Остановить и удалить Order сервис и все его зависимости"
     dir: deploy/compose/order
     cmds:
       - echo "[task] 🛑 Останавливаем Order с зависимостями"
-      - docker compose --env-file ../../../core.env --env-file ../../../order/order.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file compose.env down --volumes
 
   up-inventory:
     desc: "Поднять Inventory сервис и все его зависимости (включая накатку миграций)"
@@ -372,15 +372,15 @@ tasks:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
       # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
-      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env up --detach --wait postgres-inventory
-      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env run --rm --build migrator-inventory
+      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-inventory
+      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-inventory
 
   down-inventory:
     desc: "Остановить и удалить Inventory сервис и все его зависимости"
     dir: deploy/compose/inventory
     cmds:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
-      - docker compose --env-file ../../../core.env --env-file ../../../inventory/inventory.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file compose.env down --volumes
 
   up-infra:
     desc: "Поднять только инфраструктуру (Kafka, observability, БД с миграциями) — сервисы запускаются локально"
@@ -430,13 +430,13 @@ tasks:
       - task migrate:inventory:up
       - task migrate:iam:up
 
-  # Внутренняя обёртка над goose: подключает env-файл сервиса (<svc>/<svc>.env —
-  # тот же, что читают docker compose и сам сервис при запуске из IDE) и собирает
-  # DSN из POSTGRES_*. Отдельные <svc>.env в корне репозитория для этого не нужны.
+  # Внутренняя обёртка над goose: берёт креды из того же compose.env, которым
+  # поднимается контейнер БД, и собирает из POSTGRES_* строку подключения.
+  # Один источник истины — расхождение goose и docker compose невозможно.
   goose:exec:
     internal: true
     deps: [goose:install]
-    dotenv: ['{{.SVC}}/{{.SVC}}.env']
+    dotenv: ['deploy/compose/{{.SVC}}/compose.env']
     requires:
       vars: [SVC, GOOSE_CMD]
     cmds:
@@ -513,15 +513,15 @@ tasks:
       - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
       # Сначала --wait поднимает postgres/redis до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
-      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env up --detach --wait postgres-iam redis-iam
-      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env run --rm --build migrator-iam
+      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-iam redis-iam
+      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-iam
 
   down-iam:
     desc: "Остановить и удалить IAM сервис и все его зависимости"
     dir: deploy/compose/iam
     cmds:
       - echo "[task] 🛑 Останавливаем IAM с зависимостями"
-      - docker compose --env-file ../../../core.env --env-file ../../../iam/iam.env down --volumes
+      - docker compose --env-file ../../../core.env --env-file compose.env down --volumes
 
   migrate:iam:up:
     desc: "Применяет все миграции IAM-сервиса"
