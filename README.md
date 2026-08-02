@@ -151,18 +151,18 @@ flowchart LR
 task setup           # инструменты разработки (buf, ogen, golangci-lint, gofumpt, gci)
 task hooks:install   # pre-commit hook: формат + линтер (один раз на клон)
 task up-all          # core + observability + БД с миграциями + сервисы за Nginx (order ×3)
-task kibana:init     # Data View для просмотра логов (один раз)
 ```
 
 `up-all` поднимает БД до healthy и прогоняет одноразовые `migrator-*` контейнеры (goose),
-так что миграции накатываются сами. Index template для логов создаётся автоматически внутри `up-core`.
+так что миграции накатываются сами. Observability тоже готовится автоматически внутри `up-core`
+(`observability:init`): index template для логов в Elasticsearch, Data View в Kibana и ожидание Jaeger —
+руками после `up-all` запускать нечего.
 
 ### Вариант 2 — инфраструктура в контейнерах, сервисы локально (режим разработки)
 
 ```bash
 task setup
 task up-infra        # Kafka + Kafka UI, observability, Redis, PostgreSQL всех сервисов + миграции
-task kibana:init     # Data View для просмотра логов (один раз)
 
 # сервисы — каждый в своём терминале или в run-конфигурации IDE
 task run:iam         # :50053
@@ -234,6 +234,7 @@ task coverage:html    # HTML-отчёт покрытия
 task test:api         # API-тесты
 task test:e2e         # e2e order с реальной Kafka (Redpanda) через testcontainers
 task load:http        # нагрузочный тест vegeta: 50 → 500 RPS, результаты — в Grafana
+task load:seed        # завести/пополнить детали под нагрузку (load:http зовёт сам)
 ```
 
 ### Миграции

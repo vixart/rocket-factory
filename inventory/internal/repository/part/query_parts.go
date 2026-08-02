@@ -66,9 +66,18 @@ func (r *repository) buildListQuery(
 	}
 
 	if len(partFilter.UUIDs) > 0 {
-		return builder.Where(sq.Eq{
+		builder = builder.Where(sq.Eq{
 			"uuid": partFilter.UUIDs,
 		})
+
+		// ORDER BY обязателен именно для FOR UPDATE: без него Postgres блокирует
+		// строки в произвольном порядке, и две параллельные транзакции, захватившие
+		// корпус и двигатель в разной последовательности, встают в deadlock
+		// (в логах — "считать строки: ERROR: deadlock detected"). Сортировка по uuid
+		// даёт всем транзакциям единый порядок захвата.
+		// На выдачу это не влияет: mapAndOrder всё равно раскладывает результат
+		// в порядке partFilter.UUIDs.
+		return builder.OrderBy("uuid")
 	}
 
 	if partFilter.PartType != valueobject.PartTypeUnspecified {

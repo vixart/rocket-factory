@@ -37,9 +37,15 @@ vars:
 
   KIBANA_URL: 'http://localhost:5601'
   ELASTICSEARCH_URL: 'http://localhost:9200'
+  JAEGER_URL: 'http://localhost:16686'
 
   VEGETA_VERSION: 'v12.13.0'
   VEGETA: '{{.BIN_DIR}}/vegeta'
+
+  # Сколько пар корпус+двигатель завести под нагрузочный тест. Используется
+  # и в load:seed (что создать), и в load:http (по чему чередовать запросы) —
+  # значения должны совпадать, поэтому живут в одном месте.
+  LOAD_PAIRS: 10
 
   MODULES: iam assembly order inventory payment
 
@@ -329,11 +335,19 @@ tasks:
       - docker network create microservices-net 2>/dev/null || true
       - echo '[task] 🚀 Поднимаем core контейнеры (Kafka + Redis для rate limiter)'
       - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
+      # Создаём топики до старта сервисов: KAFKA_AUTO_CREATE_TOPICS_ENABLE не спасает,
+      # потому что консьюмер обращается к топику раньше, чем брокер успевает его завести,
+      # получает UNKNOWN_TOPIC_OR_PARTITION и роняет весь сервис (см. kafka:create-topics).
+      - task: kafka:init
       - echo '[task] 📊 Поднимаем observability (OTEL Collector, ES, Kibana, Prometheus, Grafana, Jaeger)'
       - docker compose -f deploy/compose/observability/docker-compose.yml --env-file core.env up --build --detach
-      # Готовим Elasticsearch к приёму логов: без index template otel-logs
-      # экспортер коллектора получает index_not_found_exception и логи теряются.
-      - task: es:init
+      # Готовим observability к работе:
+      #   * без index template otel-logs экспортер коллектора получает
+      #     index_not_found_exception и логи теряются;
+      #   * без Data View в Kibana логи есть в Elasticsearch, но Discover пуст —
+      #     том Kibana удаляется в down-core (--volumes), поэтому view нужно
+      #     заводить при каждом подъёме, а не один раз.
+      - task: observability:init
 
   down-core:
     desc: "Остановить core контейнеры (Kafka + Observability) и удалить сеть"
@@ -626,9 +640,80 @@ tasks:
 
   kibana:init:
     desc: "Ожидает Kibana и создает Data View для просмотра логов"
-    cmds: 
+    cmds:
       - task: kibana:wait
       - task: kibana:create-view
+
+  kafka:wait:
+    desc: "Ожидает готовности брокера Kafka"
+    cmds:
+      - echo '⏳ Ожидаем готовности Kafka...'
+      - |
+        for i in $(seq 1 60); do
+          docker exec kafka kafka-topics --bootstrap-server kafka:{{.KAFKA_INTERNAL_PORT}} --list >/dev/null 2>&1 && break
+          sleep 2
+        done
+        if ! docker exec kafka kafka-topics --bootstrap-server kafka:{{.KAFKA_INTERNAL_PORT}} --list >/dev/null 2>&1; then
+          echo '❌ Kafka не поднялась за 120 секунд'
+          exit 1
+        fi
+        echo '✅ Kafka готова'
+
+  kafka:create-topics:
+    desc: "Создаёт топики order.paid и assembly.ship-assembled (идемпотентно)"
+    cmds:
+      # KAFKA_AUTO_CREATE_TOPICS_ENABLE=true не годится как единственный механизм:
+      # автосоздание срабатывает по запросу метаданных и асинхронно, а консьюмер
+      # order-service, получив UNKNOWN_TOPIC_OR_PARTITION, роняет всё приложение
+      # (order/internal/app/app.go:71) — restart-политики у сервисов нет, контейнер
+      # остаётся мёртвым. down-core гасит Kafka с --volumes, поэтому топики нужно
+      # заводить при каждом подъёме.
+      #
+      # 3 партиции — чтобы все три реплики order-service из одной consumer group
+      # разобрали разделы и читали параллельно, а не простаивали.
+      - echo '📝 Создаём топики Kafka...'
+      - |
+        set -e
+        for topic in order.paid assembly.ship-assembled; do
+          docker exec kafka kafka-topics --bootstrap-server kafka:{{.KAFKA_INTERNAL_PORT}} \
+            --create --if-not-exists --topic "$topic" --partitions 3 --replication-factor 1
+        done
+        echo '✅ Топики готовы:'
+        docker exec kafka kafka-topics --bootstrap-server kafka:{{.KAFKA_INTERNAL_PORT}} --list
+
+  kafka:init:
+    desc: "Ожидает Kafka и создаёт топики, нужные сервисам"
+    cmds:
+      - task: kafka:wait
+      - task: kafka:create-topics
+
+  jaeger:wait:
+    desc: "Ожидает готовности Jaeger (приём спанов и UI)"
+    cmds:
+      # Отдельного init у трейсов нет: Jaeger хранит сервисы и операции сам,
+      # заводить ничего не нужно. Но up-* не должен завершаться раньше, чем
+      # Jaeger начнёт отвечать, иначе UI на localhost:16686 встречает пустотой.
+      - echo '⏳ Ожидаем готовности Jaeger...'
+      - |
+        for i in $(seq 1 60); do
+          curl -sSf {{.JAEGER_URL}}/api/services >/dev/null 2>&1 && break
+          sleep 2
+        done
+        if ! curl -sSf {{.JAEGER_URL}}/api/services >/dev/null 2>&1; then
+          echo '❌ Jaeger не поднялся за 120 секунд ({{.JAEGER_URL}})'
+          exit 1
+        fi
+        echo '✅ Jaeger готов'
+
+  # Один шаг инициализации всего observability-стека — вызывается из up-core,
+  # то есть отрабатывает и в up-infra, и в up-all. Руками после up-* запускать
+  # ничего не нужно: логи в Kibana и трейсы в Jaeger доступны сразу.
+  observability:init:
+    desc: "Готовит observability: index template в ES, Data View в Kibana, ожидание Jaeger"
+    cmds:
+      - task: es:init
+      - task: kibana:init
+      - task: jaeger:wait
 
   vegeta:install:
     desc: "Устанавливает vegeta (HTTP нагрузочное тестирование)"
@@ -637,6 +722,68 @@ tasks:
     status:
       - test -x {{.VEGETA}}
 
+  # Готовит детали под нагрузочный тест: заводит их, если нет, и сбрасывает состояние.
+  #
+  # Каждый успешный Create резервирует по одной детали (available = stock_quantity - reserved),
+  # и резерв не освобождается. Без сброса второй прогон стартует с уже подъеденным
+  # остатком, а на N-ном упрётся в потолок: order-service начнёт отдавать 409,
+  # метрика orders_created перестанет расти и в Grafana «Заказы в минуту» ляжет в ноль.
+  #
+  # Живёт здесь, а не в migrations/inventory, потому что это фикстура нагрузочного
+  # теста, а не часть схемы: миграция протащила бы её во все окружения, включая прод,
+  # и правка остатка требовала бы новой миграции. ON CONFLICT делает задачу
+  # идемпотентной — она сама чинит состояние на любой БД, сколько бы прогонов
+  # ни прошло до неё.
+  #
+  # Детали отдельные (10ad7e57-… ≈ "loadtest"), сидовые (550e8400-…) не трогаем:
+  # на их остатках и резерве держатся API- и e2e-тесты.
+  # Корпус strength=200 и двигатель класса C (required_strength=30) — пара заведомо
+  # проходит ValidateCompatibility, ни один заказ не отсеется на несовместимости.
+  #
+  # Пар именно LOAD_PAIRS, а не одна: Reserve берёт SELECT ... FOR UPDATE на строки
+  # деталей, поэтому все заказы на одну и ту же пару выстраиваются в очередь на двух
+  # строках и тест меряет стоимость блокировки, а не сервис. На нескольких парах
+  # (load:http чередует их) очередь распадается на независимые.
+  load:seed:
+    desc: "Заводит и пополняет детали под нагрузочный тест (вызывается из load:http)"
+    cmds:
+      - |
+        set -e
+        # Без set -e ненулевой код psql затрётся финальным echo, и задача
+        # молча отрапортует об успехе на несброшенных остатках.
+
+        if ! docker ps --format '{{`{{.Names}}`}}' | grep -qx 'postgres-inventory'; then
+          echo '❌ Контейнер postgres-inventory не запущен (нужен task up-all)'
+          exit 1
+        fi
+
+        # Креды берём из окружения самого контейнера (env_file: compose.env),
+        # чтобы не дублировать их в Taskfile. SQL передаём через stdin (docker exec -i),
+        # иначе кавычки SQL-литералов пришлось бы экранировать через '"'"'.
+        # UUID пар строятся детерминированно, чтобы load:http собрал ровно те же:
+        #   корпус   10ad7e57-0000-4000-8000-1000000000NN
+        #   двигатель 10ad7e57-0000-4000-8000-2000000000NN
+        docker exec -i postgres-inventory sh -c \
+          'psql -q -v ON_ERROR_STOP=1 -v pairs={{.LOAD_PAIRS}} -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+        INSERT INTO parts (uuid, name, description, part_type, price, stock_quantity, properties)
+        SELECT ('10ad7e57-0000-4000-8000-1000000000' || lpad(i::text, 2, '0'))::uuid,
+               'Нагрузочный корпус #' || i,
+               'Корпус для нагрузочного теста (task load:http)',
+               'HULL', 100000, 1000000, '{"hull": {"strength": 200}}'::jsonb
+          FROM generate_series(1, :pairs) AS i
+        UNION ALL
+        SELECT ('10ad7e57-0000-4000-8000-2000000000' || lpad(i::text, 2, '0'))::uuid,
+               'Нагрузочный двигатель #' || i,
+               'Двигатель для нагрузочного теста (task load:http)',
+               'ENGINE', 100000, 1000000, '{"engine": {"class": "C", "required_strength": 30}}'::jsonb
+          FROM generate_series(1, :pairs) AS i
+        ON CONFLICT (uuid) DO UPDATE
+          SET stock_quantity = EXCLUDED.stock_quantity,
+              properties     = EXCLUDED.properties,
+              reserved       = 0;
+        SQL
+        echo '📦 Нагрузочные детали готовы (1 000 000 шт., резерв сброшен)'
+
   # Нагрузочный тест HTTP: ступенчатый рост 50 → 500 RPS за 2.5 минуты.
   # Запуск: task up-all (в одном терминале), task load:http (в другом).
   # Результаты смотреть в Grafana (localhost:3000).
@@ -644,10 +791,11 @@ tasks:
     desc: "Нагрузочный тест HTTP: POST с нарастающей нагрузкой (50 → 500 RPS за 2.5 мин)"
     deps: [vegeta:install, buf:install]
     cmds:
+      - task: load:seed
       - |
         VEGETA="{{.VEGETA}}"
         RESULTS_DIR=$(mktemp -d)
-        BODY_FILE="$RESULTS_DIR/body.json"
+        TARGETS_FILE="$RESULTS_DIR/targets.txt"
         trap 'rm -rf "$RESULTS_DIR"' EXIT
 
         # Заводим отдельного пользователя и логинимся: /api/v1/orders закрыт
@@ -665,17 +813,29 @@ tasks:
         fi
         echo "🔑 Сессия получена для $LOGIN"
 
-        # UUID из сидов inventory (migrations/inventory) — с выдуманными UUID
-        # заказ не создаётся и нагрузка не доходит до бизнес-логики.
-        echo '{"hull_uuid":"550e8400-e29b-41d4-a716-446655440001","engine_uuid":"550e8400-e29b-41d4-a716-446655440003"}' > "$BODY_FILE"
+        # По цели на каждую пару деталей из load:seed — vegeta идёт по файлу
+        # целей по кругу, поэтому заказы равномерно размазываются по парам.
+        # Одна пара на весь тест означала бы очередь всех заказов на двух строках
+        # в SELECT ... FOR UPDATE (см. Reserve в inventory) — тест мерил бы
+        # стоимость блокировки, а не пропускную способность сервиса.
+        # UUID строятся по той же схеме, что и в load:seed.
+        : > "$TARGETS_FILE"
+        for i in $(seq 1 {{.LOAD_PAIRS}}); do
+          idx=$(printf '%02d' "$i")
+          printf '{"hull_uuid":"10ad7e57-0000-4000-8000-1000000000%s","engine_uuid":"10ad7e57-0000-4000-8000-2000000000%s"}\n' \
+            "$idx" "$idx" > "$RESULTS_DIR/body-$idx.json"
+          printf 'POST http://localhost:8080/api/v1/orders\n@%s\n\n' \
+            "$RESULTS_DIR/body-$idx.json" >> "$TARGETS_FILE"
+        done
+        echo "🎯 Целей в ротации: {{.LOAD_PAIRS}} (по паре деталей на каждую)"
 
         # Ожидаемая картина: часть запросов — 201, часть — 429 от rate limiter
-        # (rate_limit в config.docker.yaml), а после исчерпания складских остатков — 409.
+        # (rate_limit в config.docker.yaml). 409 быть не должно: остаток на
+        # нагрузочных деталях (1 000 000) не выбрать даже если пройдут все
+        # ~41 000 запросов прогона, а резерв от прошлых прогонов снял load:seed.
         for rate in 50 100 150 200 250 300 350 400 450 500; do
           echo "⏱️  ступень: ${rate} RPS (15 сек)"
-          echo "POST http://localhost:8080/api/v1/orders" | \
-            $VEGETA attack -rate="${rate}/s" -duration=15s \
-              -body="$BODY_FILE" \
+          $VEGETA attack -targets="$TARGETS_FILE" -rate="${rate}/s" -duration=15s \
               -header="Content-Type: application/json" \
               -header="Authorization: Bearer $SESSION" | \
             $VEGETA encode --to json >> "$RESULTS_DIR/results.json"
