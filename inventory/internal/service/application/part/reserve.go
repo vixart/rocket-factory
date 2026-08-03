@@ -19,7 +19,6 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
-		slog.Debug("детали получены", slog.Any("parts", parts))
 		if err != nil {
 			return fmt.Errorf("не удалось получить детали: %w", err)
 		}
@@ -27,14 +26,23 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 		for i := range parts {
 			err = parts[i].Reserve()
 			if err != nil {
+				slog.WarnContext(ctx, "резервирование отклонено: деталь недоступна",
+					"part_uuid", parts[i].UUID(),
+					"stock_quantity", parts[i].StockQuantity(),
+					"reserved", parts[i].Reserved(),
+					"error", err,
+				)
 				return fmt.Errorf("не удалось зарезервировать детали детали: %w", err)
 			}
 		}
 
-		err = s.partRepo.UpdateReservedBatch(ctx, parts)
-		slog.Debug("детали обновлены", slog.Any("parts", parts))
-		return err
+		return s.partRepo.UpdateReservedBatch(ctx, parts)
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	slog.InfoContext(ctx, "детали зарезервированы", "part_uuids", uuids, "parts_count", len(uuids))
+
+	return nil
 }

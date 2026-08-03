@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -12,6 +13,7 @@ import (
 
 func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod model.PaymentMethod) (uuid.UUID, error) {
 	if paymentMethod == model.PaymentMethodUnspecified {
+		slog.WarnContext(ctx, "оплата отклонена: способ оплаты не указан", "order_uuid", orderUUID)
 		return uuid.Nil, errs.ErrInvalidPaymentMethod
 	}
 
@@ -28,6 +30,8 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 
 		// 2. Проверяем статус
 		if order.Status != model.OrderStatusPendingPayment {
+			slog.WarnContext(ctx, "оплата отклонена: неподходящий статус заказа",
+				"order_uuid", orderUUID, "status", order.Status)
 			return errs.ErrInvalidOrderStatus
 		}
 
@@ -66,6 +70,14 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 
 	ordersPaidTotal.Add(ctx, 1)
 	ordersRevenueTotal.Add(ctx, order.TotalPrice())
+
+	slog.InfoContext(ctx, "заказ оплачен",
+		"order_uuid", orderUUID,
+		"user_uuid", order.UserUUID,
+		"transaction_uuid", transactionUUID,
+		"payment_method", paymentMethod,
+		"amount", order.TotalPrice(),
+	)
 
 	return transactionUUID, nil
 }

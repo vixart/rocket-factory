@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	errs "github.com/vixart/rocket-factory/order/internal/errors"
@@ -36,6 +37,8 @@ func (r *repository) Update(ctx context.Context, order model.Order) error {
 	if result.RowsAffected() == 0 {
 		return errs.ErrOrderNotFound
 	}
+
+	slog.DebugContext(ctx, "заказ обновлён в БД", "order_uuid", order.UUID, "status", order.Status)
 
 	return nil
 }

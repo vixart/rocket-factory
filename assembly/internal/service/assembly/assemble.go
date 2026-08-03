@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"time"
 
@@ -22,9 +23,14 @@ func (s *service) Assemble(
 		return err
 	}
 
+	slog.InfoContext(ctx, "сборка корабля начата",
+		"order_uuid", orderUUID, "user_uuid", userUUID, "build_time_sec", sleepDuration.Seconds())
+
 	select {
 	case <-time.After(sleepDuration):
 	case <-ctx.Done():
+		slog.WarnContext(ctx, "сборка прервана до завершения",
+			"order_uuid", orderUUID, "user_uuid", userUUID, "error", ctx.Err())
 		return ctx.Err()
 	}
 
@@ -40,6 +46,12 @@ func (s *service) Assemble(
 	if err != nil {
 		return fmt.Errorf("не удалось отправить событие ShipAssembled: %w", err)
 	}
+
+	slog.InfoContext(ctx, "корабль собран",
+		"order_uuid", orderUUID,
+		"user_uuid", userUUID,
+		"build_time_sec", event.BuildTimeSec,
+	)
 
 	return nil
 }

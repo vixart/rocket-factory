@@ -33,26 +33,29 @@ func (c *client) Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, 
 		&authv1.WhoamiRequest{SessionUuid: sessionUUID.String()},
 	)
 	if err != nil {
-		return uuid.Nil, uuid.Nil, mapErrors(err)
+		return uuid.Nil, uuid.Nil, mapErrors(ctx, err)
 	}
 
 	return uuid.MustParse(resp.GetUser().GetUuid()), uuid.MustParse(resp.GetSession().GetUuid()), nil
 }
 
-func mapErrors(err error) error {
-	slog.Error("ошибка при обращении к iam сервису", "error", err)
-
+func mapErrors(ctx context.Context, err error) error {
 	if st, ok := status.FromError(err); ok {
 		var errType error
 		switch st.Code() {
 		case codes.Unauthenticated, codes.InvalidArgument:
 			errType = errs.ErrUnauthorized
+			slog.WarnContext(ctx, "iam отклонил запрос", "code", st.Code().String(), "error", err)
 		default:
 			errType = errs.ErrInternalError
+			slog.ErrorContext(ctx, "ошибка при обращении к iam сервису",
+				"code", st.Code().String(), "error", err)
 		}
 
 		return fmt.Errorf("обращение к сервису iam вернуло ошибку %q: %w", st.Message(), errType)
 	}
+
+	slog.ErrorContext(ctx, "ошибка при обращении к iam сервису", "error", err)
 
 	return fmt.Errorf("ошибка при обращении к iam сервису: %w", errs.ErrInternalError)
 }

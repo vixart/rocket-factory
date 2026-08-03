@@ -3,6 +3,7 @@ package part
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -31,6 +32,11 @@ func (s *service) Release(ctx context.Context, uuids []uuid.UUID) error {
 
 		return s.partRepo.UpdateReservedBatch(ctx, parts)
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	slog.InfoContext(ctx, "детали освобождены", "part_uuids", uuids, "parts_count", len(uuids))
+
+	return nil
 }

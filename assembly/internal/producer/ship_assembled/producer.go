@@ -38,9 +38,17 @@ func (p *service) ProduceShipAssembled(ctx context.Context, event model.ShipAsse
 		return err
 	}
 
-	return p.shipAssembledProducer.Send(ctx, &kafka.Message{
+	err = p.shipAssembledProducer.Send(ctx, &kafka.Message{
 		Key:     []byte(event.OrderUUID),
 		Value:   payload,
 		Headers: kafkamw.ProducerSessionHeaders(ctx),
 	})
+	if err != nil {
+		return err
+	}
+
+	slog.DebugContext(ctx, "событие ShipAssembled отправлено",
+		"event_uuid", event.UUID, "order_uuid", event.OrderUUID)
+
+	return nil
 }

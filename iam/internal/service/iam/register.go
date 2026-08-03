@@ -2,6 +2,7 @@ package iam
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,8 @@ import (
 
 func (s *service) Register(ctx context.Context, input input.UserRegisterInput) (model.User, error) {
 	if err := validateData(input.Login, input.Password); err != nil {
+		slog.WarnContext(ctx, "регистрация отклонена: некорректные данные",
+			"login", input.Login, "error", err)
 		return model.User{}, err
 	}
 
@@ -34,6 +37,8 @@ func (s *service) Register(ctx context.Context, input input.UserRegisterInput) (
 	if err != nil {
 		return model.User{}, err
 	}
+
+	slog.InfoContext(ctx, "пользователь зарегистрирован", "user_uuid", user.UUID, "login", user.Login)
 
 	return user, nil
 }

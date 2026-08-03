@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"log/slog"
 
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 	"github.com/vixart/rocket-factory/inventory/internal/model/entity"
@@ -36,6 +37,9 @@ func (r *repository) UpdateReservedBatch(
 	if result.RowsAffected() == 0 {
 		return errs.ErrNoPartWereUpdated
 	}
+
+	slog.DebugContext(ctx, "резерв деталей обновлён в БД",
+		"parts_count", len(parts), "rows_affected", result.RowsAffected())
 
 	return nil
 }

@@ -35,9 +35,17 @@ func (p *service) ProduceOrderPaid(ctx context.Context, event model.OrderPaidEve
 		return err
 	}
 
-	return p.orderPaidProducer.Send(ctx, &kafka.Message{
+	err = p.orderPaidProducer.Send(ctx, &kafka.Message{
 		Key:     []byte(event.UUID),
 		Value:   payload,
 		Headers: kafkamw.ProducerSessionHeaders(ctx),
 	})
+	if err != nil {
+		return err
+	}
+
+	slog.DebugContext(ctx, "событие OrderPaid отправлено",
+		"event_uuid", event.UUID, "order_uuid", event.OrderUUID)
+
+	return nil
 }

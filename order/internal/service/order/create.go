@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,8 +32,13 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 
 	err := validateUniqueUUIDs(partsUuids)
 	if err != nil {
+		slog.WarnContext(ctx, "заказ отклонён: детали повторяются",
+			"user_uuid", userUUID, "parts_count", len(partsUuids), "error", err)
 		return nil, err
 	}
+
+	slog.DebugContext(ctx, "создание заказа: запрошены детали",
+		"user_uuid", userUUID, "part_uuids", partsUuids)
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -42,12 +48,16 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	}
 
 	if len(parts) != len(partsUuids) {
+		slog.WarnContext(ctx, "заказ отклонён: деталь не найдена",
+			"user_uuid", userUUID, "requested", len(partsUuids), "found", len(parts))
 		return nil, errs.ErrPartNotFound
 	}
 
 	orderItems := make([]model.OrderItem, 0, len(parts))
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
+			slog.WarnContext(ctx, "заказ отклонён: детали нет на складе",
+				"user_uuid", userUUID, "part_uuid", p.UUID, "part_type", p.PartType)
 			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrOutOfStock)
 		}
 		orderItems = append(orderItems, model.OrderItem{
@@ -59,6 +69,8 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 
 	err = s.inventoryClient.ValidateCompatibility(ctx, orderParts)
 	if err != nil {
+		slog.WarnContext(ctx, "заказ отклонён: детали несовместимы",
+			"user_uuid", userUUID, "part_uuids", partsUuids, "error", err)
 		return nil, err
 	}
 
@@ -66,6 +78,8 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	if err != nil {
 		return nil, err
 	}
+
+	slog.DebugContext(ctx, "детали зарезервированы", "user_uuid", userUUID, "part_uuids", partsUuids)
 
 	orderUUID := uuid.New()
 	order := model.Order{
@@ -82,6 +96,13 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	}
 
 	ordersCreatedTotal.Add(ctx, 1)
+
+	slog.InfoContext(ctx, "заказ создан",
+		"order_uuid", orderUUID,
+		"user_uuid", userUUID,
+		"items_count", len(orderItems),
+		"total_price", order.TotalPrice(),
+	)
 
 	return &order, nil
 }

@@ -17,19 +17,20 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 		return nil
 	}
 
-	slog.InfoContext(
-		ctx, "обработка сообщения",
+	slog.DebugContext(
+		ctx, "получено сообщение ShipAssembled",
 		"topic", msg.Topic,
 		"partition", msg.Partition,
 		"offset", msg.Offset,
-		"sighting_uuid", event.UUID,
+		"event_uuid", event.UUID,
 		"order_uuid", event.OrderUUID,
 		"user_uuid", event.UserUUID,
 	)
 
 	orderUUID, err := uuid.Parse(event.OrderUUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось распознать OrderUUID: %w", "error", err)
+		slog.ErrorContext(ctx, "не удалось распознать OrderUUID",
+			"order_uuid", event.OrderUUID, "error", err)
 		return nil
 	}
 
@@ -40,7 +41,8 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 		}
 
 		if order.Status == model.OrderStatusAssembled {
-			slog.Info("заказ с UUID: %q уже в статусе ASSEMBLED, игнорируем сообщение", "error", order.UUID)
+			slog.InfoContext(ctx, "сообщение пропущено: заказ уже собран",
+				"order_uuid", order.UUID, "status", order.Status)
 			return nil
 		}
 
@@ -51,6 +53,16 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 
 		order.Status = model.OrderStatusAssembled
 
-		return s.orderRepository.Update(ctx, order)
+		if err = s.orderRepository.Update(ctx, order); err != nil {
+			return err
+		}
+
+		slog.InfoContext(ctx, "заказ переведён в статус ASSEMBLED",
+			"order_uuid", order.UUID,
+			"user_uuid", order.UserUUID,
+			"committed_parts", len(order.Items),
+		)
+
+		return nil
 	})
 }

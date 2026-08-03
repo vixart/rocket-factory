@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
 
@@ -11,12 +12,20 @@ import (
 )
 
 func (r *repository) Create(ctx context.Context, order model.Order) error {
-	return r.txManager.Do(ctx, func(ctx context.Context) error {
+	err := r.txManager.Do(ctx, func(ctx context.Context) error {
 		if err := r.createOrder(ctx, order); err != nil {
 			return err
 		}
 		return r.createOrderItems(ctx, order)
 	})
+	if err != nil {
+		return err
+	}
+
+	slog.DebugContext(ctx, "заказ записан в БД",
+		"order_uuid", order.UUID, "items_count", len(order.Items))
+
+	return nil
 }
 
 // createOrder вставляет запись в таблицу orders.

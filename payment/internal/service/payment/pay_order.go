@@ -2,6 +2,7 @@ package payment
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -9,10 +10,19 @@ import (
 	"github.com/vixart/rocket-factory/payment/internal/model"
 )
 
-func (s *service) PayOrder(_ context.Context, _ uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error) {
+func (s *service) PayOrder(ctx context.Context, orderUUID uuid.UUID, paymentMethod model.PaymentMethod) (*uuid.UUID, error) {
 	if paymentMethod == model.PaymentMethodUnspecified {
+		slog.WarnContext(ctx, "платёж отклонён: способ оплаты не указан", "order_uuid", orderUUID)
 		return nil, errs.ErrPaymentMethodNotSpecified
 	}
 
-	return new(uuid.New()), nil
+	transactionUUID := uuid.New()
+
+	slog.InfoContext(ctx, "платёж проведён",
+		"order_uuid", orderUUID,
+		"transaction_uuid", transactionUUID,
+		"payment_method", paymentMethod,
+	)
+
+	return &transactionUUID, nil
 }

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -122,8 +123,6 @@ func (c *client) ValidateCompatibility(ctx context.Context, orderParts input.Ord
 }
 
 func mapErrors(ctx context.Context, err error) error {
-	slog.ErrorContext(ctx, "ошибка при обращении к inventory сервису", "error", err)
-
 	if st, ok := status.FromError(err); ok {
 		var errType error
 		switch st.Code() {
@@ -139,8 +138,18 @@ func mapErrors(ctx context.Context, err error) error {
 			errType = errs.ErrInternalError
 		}
 
+		if errors.Is(errType, errs.ErrInternalError) {
+			slog.ErrorContext(ctx, "ошибка при обращении к inventory сервису",
+				"code", st.Code().String(), "error", err)
+		} else {
+			slog.WarnContext(ctx, "inventory отклонил запрос",
+				"code", st.Code().String(), "error", err)
+		}
+
 		return fmt.Errorf("обращение к сервису inventory вернуло ошибку %q: %w", st.Message(), errType)
 	}
+
+	slog.ErrorContext(ctx, "ошибка при обращении к inventory сервису", "error", err)
 
 	return fmt.Errorf("ошибка при обращении к inventory сервису: %w", errs.ErrInternalError)
 }

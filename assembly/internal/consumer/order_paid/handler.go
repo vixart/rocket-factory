@@ -17,25 +17,27 @@ func (s *service) OrderPaidHandler(ctx context.Context, msg kafka.Message) error
 		return nil
 	}
 
-	slog.InfoContext(
-		ctx, "обработка сообщения OrderPaid",
+	slog.DebugContext(
+		ctx, "получено сообщение OrderPaid",
 		"topic", msg.Topic,
 		"partition", msg.Partition,
 		"offset", msg.Offset,
-		"sighting_uuid", event.UUID,
+		"event_uuid", event.UUID,
 		"order_uuid", event.OrderUUID,
 		"user_uuid", event.UserUUID,
 	)
 
 	orderUUID, err := uuid.Parse(event.OrderUUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось распознать OrderUUID: %w", "error", err)
+		slog.ErrorContext(ctx, "не удалось распознать OrderUUID",
+			"order_uuid", event.OrderUUID, "error", err)
 		return nil
 	}
 
 	userUUID, err := uuid.Parse(event.UserUUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось распознать UserUUID: %w", "error", err)
+		slog.ErrorContext(ctx, "не удалось распознать UserUUID",
+			"user_uuid", event.UserUUID, "error", err)
 		return nil
 	}
 
