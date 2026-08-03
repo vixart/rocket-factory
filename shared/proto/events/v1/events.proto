@@ -4,7 +4,7 @@ package events.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/student/shared/pkg/proto/events/v1;eventsv1";
+option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1;eventsv1";
 
 // OrderPaid — событие оплаты заказа
 // Producer: OrderService

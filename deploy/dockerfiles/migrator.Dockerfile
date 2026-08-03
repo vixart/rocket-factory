@@ -11,7 +11,11 @@ ARG GOOSE_VERSION=v3.27.1
 FROM ${GO_IMAGE} AS builder
 
 ARG GOOSE_VERSION
-RUN go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+# Cache mount'ы — чтобы goose не качался и не компилировался заново
+# при каждой пересборке (кеш общий с остальными сборками).
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 
 # --- Runtime ---
 FROM ${ALPINE_IMAGE}

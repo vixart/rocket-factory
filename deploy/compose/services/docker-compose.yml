@@ -18,6 +18,9 @@ services:
       - ../../../order/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
+    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    env_file:
+      - ../../../order/order.docker.env
     networks:
       - microservices-net
 
@@ -54,6 +57,9 @@ services:
       - ../../../inventory/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
+    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    env_file:
+      - ../../../inventory/inventory.docker.env
     networks:
       - microservices-net
 
@@ -70,6 +76,9 @@ services:
       - ../../../payment/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
+    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    env_file:
+      - ../../../payment/payment.docker.env
     networks:
       - microservices-net
 
@@ -86,6 +95,9 @@ services:
       - ../../../iam/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
+    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    env_file:
+      - ../../../iam/iam.docker.env
     networks:
       - microservices-net
 
@@ -102,6 +114,9 @@ services:
       - ../../../assembly/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
+    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    env_file:
+      - ../../../assembly/assembly.docker.env
     networks:
       - microservices-net
 

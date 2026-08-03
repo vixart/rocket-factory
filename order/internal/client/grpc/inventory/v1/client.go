@@ -29,7 +29,7 @@ func New(grpcClient inventoryv1.InventoryServiceClient) *client {
 }
 
 func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part, error) {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	resp, err := c.grpcClient.ListParts(
@@ -57,7 +57,7 @@ func (c *client) ListParts(ctx context.Context, uuids []uuid.UUID) ([]model.Part
 }
 
 func (c *client) ReserveParts(ctx context.Context, uuids []uuid.UUID) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	_, err := c.grpcClient.ReserveParts(
@@ -72,7 +72,7 @@ func (c *client) ReserveParts(ctx context.Context, uuids []uuid.UUID) error {
 }
 
 func (c *client) ReleaseParts(ctx context.Context, uuids []uuid.UUID) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	_, err := c.grpcClient.ReleaseParts(
@@ -87,7 +87,7 @@ func (c *client) ReleaseParts(ctx context.Context, uuids []uuid.UUID) error {
 }
 
 func (c *client) CommitParts(ctx context.Context, uuids []uuid.UUID) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	_, err := c.grpcClient.CommitParts(
@@ -102,7 +102,7 @@ func (c *client) CommitParts(ctx context.Context, uuids []uuid.UUID) error {
 }
 
 func (c *client) ValidateCompatibility(ctx context.Context, orderParts input.OrderParts) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	_, err := c.grpcClient.ValidateCompatibility(

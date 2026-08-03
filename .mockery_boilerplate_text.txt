@@ -1,2 +1,2 @@
-// Code generated for student service
+// Code generated for rocket-factory service
 // © Alex Mosh 2026.

@@ -190,7 +190,7 @@ const file_events_v1_events_proto_rawDesc = "" +
 	"order_uuid\x18\x02 \x01(\tR\torderUuid\x12\x1b\n" +
 	"\tuser_uuid\x18\x03 \x01(\tR\buserUuid\x12$\n" +
 	"\x0ebuild_time_sec\x18\x04 \x01(\x03R\fbuildTimeSec\x12=\n" +
-	"\fassembled_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vassembledAtB8Z6github.com/student/shared/pkg/proto/events/v1;eventsv1b\x06proto3"
+	"\fassembled_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vassembledAtBFZDgithub.com/vixart/rocket-factory/shared/pkg/proto/events/v1;eventsv1b\x06proto3"
 
 var (
 	file_events_v1_events_proto_rawDescOnce sync.Once

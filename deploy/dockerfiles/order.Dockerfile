@@ -22,14 +22,22 @@ COPY payment/go.mod payment/go.sum ./payment/
 COPY iam/go.mod iam/go.sum ./iam/
 COPY assembly/go.mod assembly/go.sum ./assembly/
 
-RUN go work sync
+# Кеш модулей — cache mount, а не слой образа: он переживает пересборку
+# и общий для всех сервисов, поэтому зависимости качаются один раз на всех.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go work sync
 
 # Копируем исходный код.
 COPY . .
 
 # Собираем бинарник. CGO_ENABLED=0 — статическая линковка,
 # не нужны libc и другие системные библиотеки в runtime-образе.
-RUN CGO_ENABLED=0 go build -o /bin/service ./order/cmd/main.go
+# Кеш компиляции Go (/root/.cache/go-build) тоже вынесен в cache mount.
+# Без него каждая сборка компилирует stdlib и все зависимости заново — это
+# и есть основная стоимость пересборки после правки одной строки кода.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -o /bin/service ./order/cmd/main.go
 
 # --- Runtime ---
 # alpine — минимальный образ (~5 MB), достаточный для запуска Go-бинарника.
