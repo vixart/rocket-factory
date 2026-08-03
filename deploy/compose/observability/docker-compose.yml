@@ -92,6 +92,13 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - cluster.name=observability
+      # Фиксированный небольшой heap: без него ES берёт размер от объёма памяти
+      # хоста и дольше стартует. Для локального стека с логами одного прогона
+      # хватает с запасом.
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      # Machine learning здесь не используется, а его инициализация — заметная
+      # часть времени старта.
+      - xpack.ml.enabled=false
     volumes:
       - es_data:/usr/share/elasticsearch/data
     ports:

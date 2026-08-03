@@ -327,26 +327,46 @@ tasks:
     status:
       - test -x {{.GOOSE}}
 
+  net:create:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
+    desc: "Создаёт общую docker-сеть microservices-net (идемпотентно)"
+    cmds:
+      # Только create: раньше здесь был ещё `network rm`, но он несовместим
+      # с параллельным подъёмом стеков (up-infra:parallel) — удаление сети
+      # из-под уже стартующих контейнеров ломает их подключение. Сеть удаляет
+      # down-core, этого достаточно.
+      - docker network create microservices-net 2>/dev/null || true
+
   up-core:
     desc: "Создать общую сеть и поднять core контейнеры (Kafka + Observability)"
     cmds:
       - echo '[task] 🌐 Создаём общую сеть microservices-net'
-      - docker network rm microservices-net 2>/dev/null || true
-      - docker network create microservices-net 2>/dev/null || true
+      - task: net:create
       - echo '[task] 🚀 Поднимаем core контейнеры (Kafka + Redis для rate limiter)'
-      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
+      # --progress plain: up-core идёт параллельно с подъёмом БД, а tty-прогресс
+      # compose перехватывает терминал и ломает вывод соседних задач.
+      - docker compose --progress plain -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
+      - echo '[task] 📊 Поднимаем observability (OTEL Collector, ES, Kibana, Prometheus, Grafana, Jaeger)'
+      # По контейнеру за раз и с --no-deps — намеренно. Обычный `up --detach`
+      # не возвращает управление, пока не выполнятся depends_on: condition:
+      # service_healthy, то есть держит запуск Kibana до готовности Elasticsearch,
+      # и это ~55 секунд ожидания в foreground. Kibana и коллектор умеют
+      # переподключаться сами, поэтому дешевле запустить всё сразу, а готовности
+      # дождаться ниже (es:init) и в самом конце up-* (kibana:init) — к тому
+      # моменту Kibana уже прогрелась параллельно с остальной инфраструктурой.
+      - |
+        for svc in elasticsearch kibana jaeger prometheus grafana otel-collector; do
+          docker compose --progress plain -f deploy/compose/observability/docker-compose.yml --env-file core.env \
+            up --build --detach --no-deps "$svc"
+        done
       # Создаём топики до старта сервисов: KAFKA_AUTO_CREATE_TOPICS_ENABLE не спасает,
       # потому что консьюмер обращается к топику раньше, чем брокер успевает его завести,
       # получает UNKNOWN_TOPIC_OR_PARTITION и роняет весь сервис (см. kafka:create-topics).
+      # Стоит после запуска observability, чтобы ES и Kibana грелись, пока ждём брокер.
       - task: kafka:init
-      - echo '[task] 📊 Поднимаем observability (OTEL Collector, ES, Kibana, Prometheus, Grafana, Jaeger)'
-      - docker compose -f deploy/compose/observability/docker-compose.yml --env-file core.env up --build --detach
-      # Готовим observability к работе:
-      #   * без index template otel-logs экспортер коллектора получает
-      #     index_not_found_exception и логи теряются;
-      #   * без Data View в Kibana логи есть в Elasticsearch, но Discover пуст —
-      #     том Kibana удаляется в down-core (--volumes), поэтому view нужно
-      #     заводить при каждом подъёме, а не один раз.
+      # Без index template otel-logs экспортер коллектора получает
+      # index_not_found_exception и логи теряются, поэтому ES дожидаемся здесь.
+      # Data View в Kibana заводится последним шагом up-infra / up-all.
       - task: observability:init
 
   down-core:
@@ -369,8 +389,12 @@ tasks:
       # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код. `up --wait` на весь compose
       # не годится: он считает завершившийся migrator упавшим, даже при exit 0.
-      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-order
-      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-order
+      #
+      # --progress plain и -T нужны, потому что up-* идут параллельно (up-infra:parallel):
+      # tty-прогресс compose и TTY, который `run` выделяет контейнеру, переводят терминал
+      # в raw, и вывод соседних задач печатается без возврата каретки — строки уезжают лесенкой.
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-order
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env run --rm -T --build migrator-order
 
   down-order:
     desc: "Остановить и удалить Order сервис и все его зависимости"
@@ -386,8 +410,9 @@ tasks:
       - echo "[task] 📦 Поднимаем Inventory с зависимостями"
       # Сначала --wait поднимает postgres до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
-      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-inventory
-      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-inventory
+      # --progress plain и -T — оттуда же: не даём compose перехватывать терминал.
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-inventory
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env run --rm -T --build migrator-inventory
 
   down-inventory:
     desc: "Остановить и удалить Inventory сервис и все его зависимости"
@@ -396,15 +421,27 @@ tasks:
       - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
       - docker compose --env-file ../../../core.env --env-file compose.env down --volumes
 
+  # Четыре стека — core (Kafka + observability) и три БД сервисов — друг от друга
+  # не зависят: им нужна только общая сеть, которую создаёт net:create до них.
+  # deps в Task выполняются параллельно, поэтому холодный старт Elasticsearch
+  # и Kibana (десятки секунд, на нём ждёт observability:init) перекрывается
+  # подъёмом баз и накаткой миграций, а не складывается с ними.
+  up-infra:parallel:
+    internal: true
+    deps: [up-core, up-inventory, up-order, up-iam]
+
   up-infra:
     desc: "Поднять только инфраструктуру (Kafka, observability, БД с миграциями) — сервисы запускаются локально"
     cmds:
-      - task: up-core
+      # Сеть создаём до параллельного этапа: без неё стеки не поднимутся,
+      # а создавать её одновременно из четырёх задач — гонка.
+      - task: net:create
       # Каждая up-* задача поднимает БД до healthy и прогоняет migrator-контейнер,
       # так что отдельный прогон migrate:all:up не нужен.
-      - task: up-inventory
-      - task: up-order
-      - task: up-iam
+      - task: up-infra:parallel
+      # Kibana — последней: она грелась всё время, пока поднимались базы и Kafka,
+      # так что здесь остаётся дождаться остатка вместо полных ~40 секунд.
+      - task: kibana:init
       - echo "[task] ✅ Инфраструктура готова. Сервисы — task run:iam / run:inventory / run:payment / run:order / run:assembly"
 
   down-infra:
@@ -418,13 +455,23 @@ tasks:
   up-all:
     desc: "Поднять полную систему: инфраструктура + сервисы в контейнерах за Nginx (--scale order-service=3)"
     cmds:
-      - task: up-infra
+      # Здесь не `task: up-infra`, а его шаги по отдельности — ради порядка:
+      # сервисы собираются и стартуют, пока Kibana доходит до готовности,
+      # и kibana:init остаётся последним. Через up-infra Kibana ждали бы до
+      # сборки сервисов, то есть её прогрев не перекрывался бы ничем.
+      - task: net:create
+      - task: up-infra:parallel
       - echo "[task] ⚙️  Запускаем контейнеризованные сервисы (--scale order-service=3)"
+      # --progress plain обязателен: tty-прогресс compose перехватывает терминал
+      # (переводит его в raw), из-за чего и его собственная таблица, и весь вывод
+      # после неё печатаются без возврата каретки — строки уезжают лесенкой.
       - >-
         docker compose
+        --progress plain
         --env-file core.env
         -f deploy/compose/services/docker-compose.yml
         up -d --build --scale order-service=3
+      - task: kibana:init
 
   down-all:
     desc: "Остановить всю систему: контейнеризованные сервисы + инфраструктура"
@@ -527,8 +574,9 @@ tasks:
       - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
       # Сначала --wait поднимает postgres/redis до healthy, затем `run --rm` прогоняет
       # одноразовый migrator и возвращает его exit-код (см. пояснение в up-order).
-      - docker compose --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-iam redis-iam
-      - docker compose --env-file ../../../core.env --env-file compose.env run --rm --build migrator-iam
+      # --progress plain и -T — оттуда же: не даём compose перехватывать терминал.
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env up --detach --wait postgres-iam redis-iam
+      - docker compose --progress plain --env-file ../../../core.env --env-file compose.env run --rm -T --build migrator-iam
 
   down-iam:
     desc: "Остановить и удалить IAM сервис и все его зависимости"
@@ -576,6 +624,7 @@ tasks:
       - go test -tags=e2e -count=1 -timeout=300s -v ./tests/e2e/...
 
   es:wait:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Ожидает готовности Elasticsearch"
     cmds:
       - echo "⏳ Ожидаем готовности Elasticsearch..."
@@ -586,6 +635,7 @@ tasks:
         done
 
   es:create-template:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Создает index template для data stream otel-logs (нужен в ECS-режиме экспортера)"
     cmds:
       # OTel Collector шлёт логи с require_data_stream=true. Elasticsearch НЕ создаёт
@@ -607,36 +657,60 @@ tasks:
       - task: es:create-template
 
   kibana:wait:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Ожидает готовности Kibana"
     cmds:
       - echo '⏳ Ожидаем готовности Kibana...'
       - |
-        for i in $(seq 1 60); do
-          curl -sSf {{.KIBANA_URL}}/api/status >/dev/null 2>&1 && break
+        # Ждём именно overall.level == available, а не просто ответа от /api/status.
+        # Отвечать Kibana начинает раньше, чем поднимет плагины, и в этом окне
+        # POST /api/data_views возвращает ошибку — из-за этого kibana:create-view
+        # падал с пустым Data View ID.
+        for i in $(seq 1 90); do
+          level=$(curl -sf -m 5 {{.KIBANA_URL}}/api/status 2>/dev/null \
+            | jq -r '.status.overall.level // empty' 2>/dev/null)
+          [ "$level" = "available" ] && break
           sleep 2
         done
+        if [ "$level" != "available" ]; then
+          echo "❌ Kibana не вышла в состояние available за 180 секунд (последнее: ${level:-нет ответа})"
+          exit 1
+        fi
+        echo '✅ Kibana готова'
 
   kibana:create-view:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Создает Data View в Kibana и устанавливает его как default"
     cmds:
       - echo '📝 Создаем Data View otel-logs*...'
       - |
-        RESPONSE=$(curl -sS -X POST {{.KIBANA_URL}}/api/data_views/data_view \
-          -H "kbn-xsrf: true" \
-          -H "Content-Type: application/json" \
-          --data '{"data_view":{"title":"otel-logs*","name":"OTel Logs","timeFieldName":"@timestamp","allowNoIndex":true},"override":true}')
-        DATA_VIEW_ID=$(echo "$RESPONSE" | jq -r ".data_view.id // empty")
-        echo "Data View ID: $DATA_VIEW_ID"
-        if [ -n "$DATA_VIEW_ID" ]; then
-          curl -sS -X POST {{.KIBANA_URL}}/api/data_views/default \
+        # Несколько попыток: даже после overall.level=available у Kibana бывает
+        # короткое окно, когда saved objects ещё не готовы принимать запись.
+        DATA_VIEW_ID=""
+        for i in 1 2 3 4 5; do
+          RESPONSE=$(curl -sS -X POST {{.KIBANA_URL}}/api/data_views/data_view \
             -H "kbn-xsrf: true" \
             -H "Content-Type: application/json" \
-            -d "{\"data_view_id\": \"$DATA_VIEW_ID\", \"force\": true}"
-          echo '✅ Data View создан и установлен как default'
-        else
-          echo '❌ Не удалось создать Data View'
+            --data '{"data_view":{"title":"otel-logs*","name":"OTel Logs","timeFieldName":"@timestamp","allowNoIndex":true},"override":true}')
+          DATA_VIEW_ID=$(echo "$RESPONSE" | jq -r ".data_view.id // empty" 2>/dev/null)
+          [ -n "$DATA_VIEW_ID" ] && break
+          sleep 3
+        done
+
+        if [ -z "$DATA_VIEW_ID" ]; then
+          # Печатаем ответ Kibana: без него ошибка выглядит как пустой ID
+          # и понять причину нельзя.
+          echo '❌ Не удалось создать Data View. Ответ Kibana:'
+          echo "$RESPONSE"
           exit 1
         fi
+
+        echo "Data View ID: $DATA_VIEW_ID"
+        curl -sS -X POST {{.KIBANA_URL}}/api/data_views/default \
+          -H "kbn-xsrf: true" \
+          -H "Content-Type: application/json" \
+          -d "{\"data_view_id\": \"$DATA_VIEW_ID\", \"force\": true}"
+        echo '✅ Data View создан и установлен как default'
 
   kibana:init:
     desc: "Ожидает Kibana и создает Data View для просмотра логов"
@@ -645,6 +719,7 @@ tasks:
       - task: kibana:create-view
 
   kafka:wait:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Ожидает готовности брокера Kafka"
     cmds:
       - echo '⏳ Ожидаем готовности Kafka...'
@@ -660,6 +735,7 @@ tasks:
         echo '✅ Kafka готова'
 
   kafka:create-topics:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Создаёт топики order.paid и assembly.ship-assembled (идемпотентно)"
     cmds:
       # KAFKA_AUTO_CREATE_TOPICS_ENABLE=true не годится как единственный механизм:
@@ -688,6 +764,7 @@ tasks:
       - task: kafka:create-topics
 
   jaeger:wait:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Ожидает готовности Jaeger (приём спанов и UI)"
     cmds:
       # Отдельного init у трейсов нет: Jaeger хранит сервисы и операции сам,
@@ -709,10 +786,13 @@ tasks:
   # то есть отрабатывает и в up-infra, и в up-all. Руками после up-* запускать
   # ничего не нужно: логи в Kibana и трейсы в Jaeger доступны сразу.
   observability:init:
-    desc: "Готовит observability: index template в ES, Data View в Kibana, ожидание Jaeger"
+    desc: "Готовит observability: index template в ES и ожидание Jaeger"
     cmds:
+      # kibana:init сюда намеренно не входит: Kibana стартует ~40 секунд, и если
+      # ждать её здесь, это время встаёт в критический путь up-*. Вместо этого
+      # её дожидаются последним шагом up-infra / up-all, когда всё остальное
+      # уже поднято и Kibana успела прогреться параллельно.
       - task: es:init
-      - task: kibana:init
       - task: jaeger:wait
 
   vegeta:install:
@@ -745,6 +825,7 @@ tasks:
   # строках и тест меряет стоимость блокировки, а не сервис. На нескольких парах
   # (load:http чередует их) очередь распадается на независимые.
   load:seed:
+    silent: true # не эхоим сам скрипт: в параллельном выводе он превращается в кашу
     desc: "Заводит и пополняет детали под нагрузочный тест (вызывается из load:http)"
     cmds:
       - |
