@@ -29,7 +29,7 @@ func NewService(
 }
 
 func (s *service) RunConsumer(ctx context.Context) error {
-	slog.InfoContext(ctx, "запуск потребителя ShipAssembled")
+	slog.InfoContext(ctx, "starting the ShipAssembled consumer")
 
 	return s.shipAssembledConsumer.Consume(ctx, s.ShipAssembledHandler)
 }

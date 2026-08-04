@@ -62,11 +62,11 @@ func (a *App) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	errCh := make(chan error, 2) //nolint:mnd // Два компонента: gRPC-сервер и Kafka-потребитель
+	errCh := make(chan error, 2) //nolint:mnd // two components: the gRPC server and the Kafka consumer
 
 	go func() {
 		if err := a.runConsumer(ctx); err != nil {
-			errCh <- fmt.Errorf("потребитель упал: %w", err)
+			errCh <- fmt.Errorf("consumer failed: %w", err)
 			return
 		}
 		errCh <- nil
@@ -75,17 +75,17 @@ func (a *App) Run() error {
 	var runErr error
 	select {
 	case runErr = <-errCh:
-		// один из серверов сам упал
+		// one of the servers failed on its own
 	case <-ctx.Done():
-		slog.Info("получен сигнал завершения, начинаем graceful shutdown")
+		slog.Info("shutdown signal received, starting graceful shutdown")
 	}
-	cancel() // снимаем перехват сигналов, повторный Ctrl+C завершит процесс принудительно
+	cancel() // stop intercepting signals: a second Ctrl+C terminates the process immediately
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := closer.CloseAll(shutdownCtx); err != nil {
-		slog.Error("ошибка при завершении работы", "error", err)
+		slog.Error("shutdown failed", "error", err)
 		if runErr == nil {
 			runErr = err
 		}
@@ -94,9 +94,9 @@ func (a *App) Run() error {
 	return runErr
 }
 
-// runConsumer запускает Kafka-потребитель OrderPaidConsumer.
+// runConsumer starts the OrderPaid Kafka consumer.
 func (a *App) runConsumer(ctx context.Context) error {
-	slog.Info("🚀 Kafka-потребитель OrderPaid запущен")
+	slog.Info("🚀 OrderPaid Kafka consumer started")
 
 	return a.diContainer.OrderPaidConsumerService().RunConsumer(ctx)
 }

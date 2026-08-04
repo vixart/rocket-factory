@@ -68,7 +68,7 @@ func TestListParts(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение списка деталей",
+			name: "part list fetched successfully",
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{
@@ -89,7 +89,7 @@ func TestListParts(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid",
+			name: "invalid uuid",
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{
@@ -103,7 +103,7 @@ func TestListParts(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &inventoryv1.ListPartsRequest{
 					Uuids: []string{

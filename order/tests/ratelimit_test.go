@@ -1,10 +1,10 @@
 //go:build apitest
 
-// Package tests содержит интеграционный API-тест distributed rate limiter
+// Package tests holds the integration API test of the distributed rate limiter.
 //
-// Под одним рабочим Redis-контейнером (testcontainers) проверяем,
-// что при превышении лимита middleware возвращает 429, и что при
-// недоступности Redis работает fail-open (запрос проходит дальше)
+// Against a single live Redis container (testcontainers) it checks that the middleware
+// answers 429 once the limit is exceeded, and that it fails open (the request goes
+// through) when Redis is unavailable.
 package tests
 
 import (
@@ -27,8 +27,8 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/ratelimit"
 )
 
-// startRateLimitRedis поднимает Redis в testcontainer и возвращает host:port.
-// Контейнер останавливается через t.Cleanup
+// startRateLimitRedis starts Redis in a testcontainer and returns host:port.
+// The container is stopped via t.Cleanup.
 func startRateLimitRedis(t *testing.T) string {
 	t.Helper()
 	ctx := context.Background()
@@ -42,14 +42,14 @@ func startRateLimitRedis(t *testing.T) string {
 	addr, err := container.ConnectionString(ctx)
 	require.NoError(t, err)
 
-	// ConnectionString отдаёт redis://host:port — обрезаем схему
+	// ConnectionString returns redis://host:port — strip the scheme
 	const prefix = "redis://"
 	addr = strings.TrimPrefix(addr, prefix)
 
 	return addr
 }
 
-// okHandler — простой stub-обработчик: всегда возвращает 200
+// okHandler is a trivial stub handler: it always answers 200.
 func okHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -64,16 +64,16 @@ func TestRateLimit_429AfterBurstExceeded(t *testing.T) {
 
 	limiter := redis_rate.NewLimiter(rdb)
 
-	// Маленький лимит — чтобы стабильно поймать 429 за десяток запросов.
-	// rate=2 означает 2 запроса в секунду; burst=2 — максимум 2 запроса всплеском
+	// A small limit, so that 429 shows up reliably within a dozen requests.
+	// rate=2 means two requests per second; burst=2 allows at most two at once.
 	const rate = 2
 	const burst = 2
 
 	ts := httptest.NewServer(ratelimit.Middleware(limiter, rate, burst)(okHandler()))
 	t.Cleanup(ts.Close)
 
-	// Делаем 10 запросов на один путь подряд — первые burst пройдут,
-	// остальные должны получить 429
+	// Fire 10 requests at the same path in a row: the first burst goes through and
+	// the rest must get 429.
 	const totalRequests = 10
 	statuses := make([]int, 0, totalRequests)
 	for range totalRequests {
@@ -92,16 +92,16 @@ func TestRateLimit_429AfterBurstExceeded(t *testing.T) {
 			tooMany++
 		}
 	}
-	require.Greater(t, ok, 0, "хотя бы один запрос должен был пройти: %v", statuses)
-	require.Greater(t, tooMany, 0, "хотя бы один запрос должен был получить 429: %v", statuses)
+	require.Greater(t, ok, 0, "at least one request had to pass: %v", statuses)
+	require.Greater(t, tooMany, 0, "at least one request had to get 429: %v", statuses)
 	require.LessOrEqual(t, ok, burst+1,
-		"нельзя пропускать больше burst (+1 на toleration GCRA refill): %v", statuses)
+		"no more than burst may pass (+1 tolerance for the GCRA refill): %v", statuses)
 }
 
 func TestRateLimit_FailOpen_OnRedisUnavailable(t *testing.T) {
-	// 127.0.0.1:1 — привилегированный порт, никем не слушается → ECONNREFUSED.
-	// Это проще, чем поднимать testcontainer и сразу гасить его, и стабильнее
-	// (порт 0 был бы перенаправлен на динамический; порт 1 точно мёртвый).
+	// 127.0.0.1:1 is a privileged port nobody listens on → ECONNREFUSED. That is simpler
+	// than starting a testcontainer just to kill it, and more stable (port 0 would be
+	// remapped to a dynamic one; port 1 is reliably dead).
 	rdb := redis.NewClient(&redis.Options{
 		Addr:        "127.0.0.1:1",
 		DialTimeout: 200 * time.Millisecond,
@@ -117,17 +117,17 @@ func TestRateLimit_FailOpen_OnRedisUnavailable(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// Fail-open: rate limiter не смог достучаться до Redis,
-	// запрос всё равно должен пройти до handler'а
+	// Fail-open: the rate limiter could not reach Redis, yet the request must still
+	// reach the handler.
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-// TestRateLimit_Distributed_LimitSharedBetweenInstances — центральный сценарий
-// недели 8 по hw.md: «убедиться, что лимит общий (не x3 при 3 инстансах)».
+// TestRateLimit_Distributed_LimitSharedBetweenInstances is the central scenario:
+// "make sure the limit is shared, not tripled across three instances".
 //
-// Поднимаем один Redis, создаём 3 независимых redis_rate.Limiter / 3 httptest
-// сервера — все они работают через тот же Redis-ключ. Суммарно через них должно
-// пройти ровно `burst` запросов, а не `burst × 3` — это и есть distributed-эффект.
+// One Redis, three independent redis_rate.Limiter instances and three httptest servers,
+// all working through the same Redis key. In total exactly `burst` requests must pass,
+// not `burst × 3` — that is the distributed effect.
 func TestRateLimit_Distributed_LimitSharedBetweenInstances(t *testing.T) {
 	addr := startRateLimitRedis(t)
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
@@ -141,8 +141,8 @@ func TestRateLimit_Distributed_LimitSharedBetweenInstances(t *testing.T) {
 
 	servers := make([]*httptest.Server, instances)
 	for i := range instances {
-		// КАЖДЫЙ инстанс получает СВОЙ redis_rate.NewLimiter — но они работают через
-		// общий Redis-клиент и общий ключ (path), поэтому лимит расходуется суммарно.
+		// EACH instance gets its OWN redis_rate.NewLimiter, but they share the Redis
+		// client and the key (the path), so the limit is consumed jointly.
 		limiter := redis_rate.NewLimiter(rdb)
 		servers[i] = httptest.NewServer(ratelimit.Middleware(limiter, rate, burst)(okHandler()))
 	}
@@ -152,7 +152,7 @@ func TestRateLimit_Distributed_LimitSharedBetweenInstances(t *testing.T) {
 		}
 	})
 
-	const totalRequests = 30 // намного больше burst*instances
+	const totalRequests = 30 // far more than burst*instances
 	const path = "/distributed"
 
 	var (
@@ -161,8 +161,8 @@ func TestRateLimit_Distributed_LimitSharedBetweenInstances(t *testing.T) {
 		others  atomic.Int64
 	)
 
-	// Идём последовательно по инстансам: i-й запрос летит в i%3-й сервер.
-	// Цель — увидеть, что суммарно через все три проходит не больше burst+tolerance.
+	// Walk the instances in turn: request i goes to server i%3. The point is to see
+	// that no more than burst+tolerance pass through all three combined.
 	for i := range totalRequests {
 		srv := servers[i%instances]
 		resp, err := http.Get(srv.URL + path)
@@ -179,22 +179,22 @@ func TestRateLimit_Distributed_LimitSharedBetweenInstances(t *testing.T) {
 	}
 
 	assert.Zero(t, others.Load(),
-		"ожидались только 200/429, прочих кодов быть не должно")
-	assert.Positive(t, ok.Load(), "хотя бы один запрос должен пройти")
-	assert.Positive(t, tooMany.Load(), "хотя бы один запрос должен получить 429")
+		"only 200/429 were expected, no other codes")
+	assert.Positive(t, ok.Load(), "at least one request must pass")
+	assert.Positive(t, tooMany.Load(), "at least one request must get 429")
 
-	// Главная проверка distributed-семантики: суммарно через 3 инстанса прошло
-	// не больше burst+1, а не burst*3. Если бы каждый инстанс держал свой счётчик,
-	// мы бы увидели до 15 успешных ответов.
+	// The core distributed assertion: no more than burst+1 passed through all three
+	// instances rather than burst*3. With a per-instance counter we would see up to
+	// 15 successful responses.
 	assert.LessOrEqualf(t, ok.Load(), int64(burst+1),
-		"distributed: суммарно через %d инстансов должно пройти не больше burst+tolerance, "+
-			"а не burst×instances=%d. Получено: ok=%d tooMany=%d",
+		"distributed: at most burst+tolerance may pass through %d instances combined, "+
+			"not burst×instances=%d. Got: ok=%d tooMany=%d",
 		instances, burst*instances, ok.Load(), tooMany.Load())
 }
 
-// TestRateLimit_PerPath_IndependentLimits: middleware ключует лимит по
-// r.URL.Path. Запросы на /foo не должны мешать запросам на /bar даже если
-// /foo уже исчерпал burst.
+// TestRateLimit_PerPath_IndependentLimits: the middleware keys the limit by r.URL.Path.
+// Requests to /foo must not affect requests to /bar even when /foo has already
+// exhausted its burst.
 func TestRateLimit_PerPath_IndependentLimits(t *testing.T) {
 	addr := startRateLimitRedis(t)
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
@@ -208,25 +208,25 @@ func TestRateLimit_PerPath_IndependentLimits(t *testing.T) {
 	ts := httptest.NewServer(ratelimit.Middleware(limiter, rate, burst)(okHandler()))
 	t.Cleanup(ts.Close)
 
-	// /foo: bомбим до 429.
+	// /foo: hammer it until 429.
 	for range 5 {
 		resp, err := http.Get(ts.URL + "/foo")
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 	}
 
-	// /bar должен получить 200 — у него собственный счётчик.
+	// /bar must get 200: it has its own counter.
 	respBar, err := http.Get(ts.URL + "/bar")
 	require.NoError(t, err)
 	defer respBar.Body.Close()
 
 	assert.Equal(t, http.StatusOK, respBar.StatusCode,
-		"per-path rate limit: /bar должен иметь независимый счётчик от /foo")
+		"per-path rate limit: /bar must have a counter independent of /foo")
 }
 
-// TestRateLimit_Concurrency_AtomicGCRA: 50 параллельных горутин на один path.
-// Атомарность GCRA в redis_rate должна гарантировать, что суммарно проходит
-// не больше burst+tolerance — независимо от порядка планировщика.
+// TestRateLimit_Concurrency_AtomicGCRA: 50 concurrent goroutines on a single path.
+// The atomicity of GCRA in redis_rate must guarantee that no more than
+// burst+tolerance pass, regardless of scheduler order.
 func TestRateLimit_Concurrency_AtomicGCRA(t *testing.T) {
 	addr := startRateLimitRedis(t)
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
@@ -270,13 +270,13 @@ func TestRateLimit_Concurrency_AtomicGCRA(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Zero(t, others.Load(), "ожидались только 200/429")
-	assert.Positive(t, ok.Load(), "хотя бы один запрос должен пройти")
-	assert.Positive(t, tooMany.Load(), "большая часть должна быть отброшена 429")
+	assert.Zero(t, others.Load(), "only 200/429 were expected")
+	assert.Positive(t, ok.Load(), "at least one request must pass")
+	assert.Positive(t, tooMany.Load(), "most requests must be rejected with 429")
 
-	// burst+1 — допуск на GCRA refill за время выполнения 50 параллельных запросов
-	// (несколько миллисекунд). Главное — мы не получили 50 успешных ответов из 50.
+	// burst+1 tolerates the GCRA refill during the few milliseconds the 50 concurrent
+	// requests take. The point is that we did not get 50 successes out of 50.
 	assert.LessOrEqualf(t, ok.Load(), int64(burst+1),
-		"concurrency: GCRA должен оставаться атомарным под нагрузкой. ok=%d tooMany=%d",
+		"concurrency: GCRA must stay atomic under load. ok=%d tooMany=%d",
 		ok.Load(), tooMany.Load())
 }

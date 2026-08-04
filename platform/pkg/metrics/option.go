@@ -6,24 +6,24 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// options хранит настройки MeterProvider.
+// options holds the MeterProvider settings.
 type options struct {
-	// interval — интервал экспорта метрик в коллектор
-	// По умолчанию 10 секунд (вместо дефолтных 60 у OTel SDK) —
-	// чтобы метрики быстрее появлялись в Prometheus/Grafana при локальной разработке
+	// interval is how often metrics are exported to the collector.
+	// It defaults to 10 seconds instead of the OTel SDK default of 60, so that
+	// metrics show up in Prometheus/Grafana quickly during local development.
 	interval time.Duration
 
-	// views — пользовательские View для переопределения агрегации метрик
-	// Например, кастомные бакеты гистограмм для конкретных инструментов
+	// views override the default aggregation of specific instruments,
+	// for example custom histogram buckets.
 	views []sdkmetric.View
 }
 
-// Option — функциональная опция для настройки MeterProvider.
+// Option is a functional option for the MeterProvider.
 type Option func(*options)
 
-// WithInterval задаёт интервал экспорта метрик
-// По умолчанию 10 секунд — подходит для локальной разработки
-// В production рекомендуется 15–60 секунд.
+// WithInterval sets the metric export interval.
+// The default of 10 seconds suits local development;
+// 15–60 seconds is recommended in production.
 func WithInterval(d time.Duration) Option {
 	return func(o *options) {
 		if d > 0 {
@@ -32,9 +32,9 @@ func WithInterval(d time.Duration) Option {
 	}
 }
 
-// WithView добавляет View для переопределения агрегации конкретной метрики
+// WithView adds a View that overrides the aggregation of a specific metric.
 //
-// Пример — кастомные бакеты для гистограммы rpc.server.call.duration:
+// Example — custom buckets for the rpc.server.call.duration histogram:
 //
 //	metrics.WithView(sdkmetric.NewView(
 //	    sdkmetric.Instrument{Name: "rpc.server.call.duration"},

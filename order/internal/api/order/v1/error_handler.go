@@ -17,7 +17,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-// ErrorHandler — глобальный hook ogen. Подключается через orderv1.WithErrorHandler.
+// ErrorHandler is the global ogen hook, wired in via orderv1.WithErrorHandler.
 func ErrorHandler(ctx context.Context, w http.ResponseWriter, _ *http.Request, err error) {
 	code, message := mapError(err)
 
@@ -25,12 +25,12 @@ func ErrorHandler(ctx context.Context, w http.ResponseWriter, _ *http.Request, e
 	w.WriteHeader(code)
 
 	if encErr := json.NewEncoder(w).Encode(errorResponse{Code: code, Message: message}); encErr != nil {
-		slog.ErrorContext(ctx, "ошибка кодирования ответа", "error", encErr)
+		slog.ErrorContext(ctx, "failed to encode the response", "error", encErr)
 	}
 }
 
 func mapError(err error) (int, string) {
-	// Ошибки декодирования/валидации запроса от ogen — всегда 400.
+	// Request decoding and validation errors from ogen are always 400.
 	var decodeParams *ogenerrors.DecodeParamsError
 	var decodeRequest *ogenerrors.DecodeRequestError
 
@@ -62,6 +62,6 @@ func mapError(err error) (int, string) {
 
 	// 500 Internal Server Error
 	default:
-		return http.StatusInternalServerError, "внутренняя ошибка"
+		return http.StatusInternalServerError, "internal error"
 	}
 }

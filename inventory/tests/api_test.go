@@ -1,10 +1,10 @@
 //go:build apitest
 
-// Package tests содержит API-тесты gRPC auth-interceptor InventoryService
+// Package tests holds the API tests of the InventoryService gRPC auth interceptor.
 //
-// Использует bufconn для мока IAM AuthService и для тестируемого Inventory gRPC-сервера —
-// Whoami возвращает контролируемый ответ, а Inventory-метод возвращает текущий userUUID
-// из контекста, чтобы тест мог проверить, что interceptor его прокинул
+// It uses bufconn both for the IAM AuthService mock and for the Inventory gRPC server
+// under test: Whoami returns a controlled response, and the Inventory method returns the
+// current userUUID from the context so the test can check the interceptor passed it on.
 package tests
 
 import (
@@ -40,8 +40,8 @@ func (s *stubAuthServer) Whoami(_ context.Context, req *authv1.WhoamiRequest) (*
 	return s.whoami(req.GetSessionUuid())
 }
 
-// stubInventoryServer возвращает userUUID из ctx в имени детали — чтобы тест мог
-// убедиться, что interceptor положил его в контекст и хендлер увидел
+// stubInventoryServer returns the userUUID from ctx inside the part name, so the test
+// can verify the interceptor put it into the context and the handler saw it.
 type stubInventoryServer struct {
 	inventoryv1.UnimplementedInventoryServiceServer
 }
@@ -101,7 +101,7 @@ func startInventory(t *testing.T, authClient *iamClient.Client) inventoryv1.Inve
 func TestInterceptor_NoMetadata(t *testing.T) {
 	authClient := startStubAuth(t, &stubAuthServer{
 		whoami: func(string) (*authv1.WhoamiResponse, error) {
-			t.Fatal("Whoami не должен вызываться без metadata")
+			t.Fatal("Whoami must not be called without metadata")
 			return nil, nil
 		},
 	})
@@ -114,7 +114,7 @@ func TestInterceptor_NoMetadata(t *testing.T) {
 func TestInterceptor_EmptySession(t *testing.T) {
 	authClient := startStubAuth(t, &stubAuthServer{
 		whoami: func(string) (*authv1.WhoamiResponse, error) {
-			t.Fatal("Whoami не должен вызываться при пустом session-uuid")
+			t.Fatal("Whoami must not be called with an empty session-uuid")
 			return nil, nil
 		},
 	})
@@ -129,7 +129,7 @@ func TestInterceptor_EmptySession(t *testing.T) {
 func TestInterceptor_InvalidSession(t *testing.T) {
 	authClient := startStubAuth(t, &stubAuthServer{
 		whoami: func(string) (*authv1.WhoamiResponse, error) {
-			return nil, status.Error(codes.Unauthenticated, "сессия не найдена")
+			return nil, status.Error(codes.Unauthenticated, "session not found")
 		},
 	})
 	invClient := startInventory(t, authClient)
@@ -165,6 +165,6 @@ func requireGRPCCode(t *testing.T, err error, expected codes.Code) {
 	t.Helper()
 	require.Error(t, err)
 	st, ok := status.FromError(err)
-	require.True(t, ok, "ожидалась gRPC-ошибка, получили: %v", err)
-	require.Equal(t, expected, st.Code(), "сообщение: %s", st.Message())
+	require.True(t, ok, "expected a gRPC error, got: %v", err)
+	require.Equal(t, expected, st.Code(), "message: %s", st.Message())
 }

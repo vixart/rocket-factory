@@ -36,7 +36,7 @@ func TestAssemble(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная отправка события",
+			name: "event sent successfully",
 			setupMock: func(producer *mocks.ShipAssembledProducer) {
 				producer.EXPECT().
 					ProduceShipAssembled(
@@ -53,7 +53,7 @@ func TestAssemble(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка отправки события",
+			name: "event sending fails",
 			setupMock: func(producer *mocks.ShipAssembledProducer) {
 				producer.EXPECT().
 					ProduceShipAssembled(
@@ -91,7 +91,7 @@ func TestAssemble(t *testing.T) {
 			if tc.expected.err != nil {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tc.expected.err.Error())
-				assert.ErrorContains(t, err, "не удалось отправить событие ShipAssembled")
+				assert.ErrorContains(t, err, "failed to send the ShipAssembled event")
 
 				return
 			}

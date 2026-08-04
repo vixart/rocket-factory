@@ -71,7 +71,7 @@ func TestList(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение списка деталей",
+			name: "part list fetched successfully",
 			args: args{
 				uuids:    []uuid.UUID{uuid1, uuid2},
 				partType: valueobject.PartTypeEngine,
@@ -93,7 +93,7 @@ func TestList(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка репозитория",
+			name: "repository fails",
 			args: args{
 				uuids:    []uuid.UUID{uuid1},
 				partType: valueobject.PartTypeEngine,

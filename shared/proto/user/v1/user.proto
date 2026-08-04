@@ -1,50 +1,50 @@
 syntax = "proto3";
 
-// Package user.v1 содержит сервис управления пользователями.
+// Package user.v1 contains the user management service.
 package user.v1;
 
 import "common/v1/common.proto";
 
 option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/user/v1;userv1";
 
-// UserService сервис управления пользователями (регистрация, получение).
+// UserService manages users: registration and lookup.
 service UserService {
-  // Register регистрирует нового пользователя.
+  // Register creates a new user.
   rpc Register(RegisterRequest) returns (RegisterResponse);
 
-  // GetUser возвращает пользователя по UUID.
+  // GetUser returns a user by UUID.
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
 }
 
-// UserRegistrationInfo данные для регистрации пользователя.
+// UserRegistrationInfo is the data required to register a user.
 message UserRegistrationInfo {
-  // info основная информация о пользователе.
+  // info is the basic user information.
   common.v1.UserInfo info = 1;
 
-  // password пароль.
+  // password is the password.
   string password = 2;
 }
 
-// RegisterRequest запрос на регистрацию.
+// RegisterRequest is a registration request.
 message RegisterRequest {
-  // info данные для регистрации.
+  // info is the registration data.
   UserRegistrationInfo info = 1;
 }
 
-// RegisterResponse ответ на регистрацию.
+// RegisterResponse is the registration response.
 message RegisterResponse {
-  // user_uuid UUID созданного пользователя.
+  // user_uuid is the UUID of the created user.
   string user_uuid = 1;
 }
 
-// GetUserRequest запрос на получение пользователя.
+// GetUserRequest is a user lookup request.
 message GetUserRequest {
-  // user_uuid UUID пользователя.
+  // user_uuid is the user UUID.
   string user_uuid = 1;
 }
 
-// GetUserResponse ответ с пользователем.
+// GetUserResponse carries the user.
 message GetUserResponse {
-  // user найденный пользователь.
+  // user is the user that was found.
   common.v1.User user = 1;
 }

@@ -40,13 +40,13 @@ import (
 	paymentv1 "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
-// ConsumerService определяет контракт для запуска Kafka-потребителей.
+// ConsumerService is the contract for running Kafka consumers.
 type ConsumerService interface {
 	RunConsumer(ctx context.Context) error
 }
 
 type diContainer struct {
-	// Инфраструктура
+	// Infrastructure
 	pgPool        *pgxpool.Pool
 	txManager     orderRepository.TxManager
 	syncProducer  sarama.SyncProducer
@@ -56,20 +56,20 @@ type diContainer struct {
 	orderPaidProducer     *wrappedKafkaProducer.Producer
 	shipAssembledConsumer *wrappedKafkaConsumer.Consumer
 
-	// Клиенты
+	// Clients
 	iam       order.IAMClient
 	inventory order.InventoryClient
 	payment   order.PaymentClient
 
-	// Репозитории
+	// Repositories
 	orderRepo order.Repository
 
-	// Сервисы
+	// Services
 	orderSvc                 orderApiV1.OrderService
 	shipAssembledConsumerSvc ConsumerService
 	orderPaidProducerSvc     order.OrderPaidProducer
 
-	// API-обработчики
+	// API handlers
 	orderv1Server *orderv1.Server
 }
 
@@ -77,13 +77,13 @@ func (d *diContainer) PGPool(ctx context.Context) *pgxpool.Pool {
 	if d.pgPool == nil {
 		pool, err := pgxpool.New(ctx, config.AppConfig().PG.DSN())
 		if err != nil {
-			slog.Error("не удалось подключиться к PostgreSQL", "error", err)
+			slog.Error("failed to connect to PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
 		err = pool.Ping(ctx)
 		if err != nil {
-			slog.Error("не удалось выполнить ping PostgreSQL", "error", err)
+			slog.Error("failed to ping PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
@@ -102,7 +102,7 @@ func (d *diContainer) TxManager(ctx context.Context) orderRepository.TxManager {
 	if d.txManager == nil {
 		txManager, err := manager.New(trmpgx.NewDefaultFactory(d.PGPool(ctx)))
 		if err != nil {
-			slog.Error("не удалось создать Transaction Manager", "error", err)
+			slog.Error("failed to create the transaction manager", "error", err)
 			os.Exit(1)
 		}
 		d.txManager = txManager
@@ -117,7 +117,7 @@ func (d *diContainer) RateLimiter(_ context.Context) *redis_rate.Limiter {
 			Addr: config.AppConfig().RateLimit.RedisAddress,
 		}, slog.Default())
 		if err != nil {
-			slog.Error("не удалось создать Redis клиент", "error", err)
+			slog.Error("failed to create the Redis client", "error", err)
 			os.Exit(1)
 		}
 
@@ -149,7 +149,7 @@ func (d *diContainer) InventoryClient() order.InventoryClient {
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
-			slog.Error("не удалось создать клиент InventoryService", "error", err)
+			slog.Error("failed to create the InventoryService client", "error", err)
 			os.Exit(1)
 		}
 
@@ -174,7 +174,7 @@ func (d *diContainer) PaymentClient() order.PaymentClient {
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
-			slog.Error("не удалось создать клиент PaymentService", "error", err)
+			slog.Error("failed to create the PaymentService client", "error", err)
 			os.Exit(1)
 		}
 		closer.Add("PaymentService grpc client", func(_ context.Context) error {
@@ -197,7 +197,7 @@ func (d *diContainer) IAMClient() order.IAMClient {
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
-			slog.Error("не удалось создать клиент IAMService", "error", err)
+			slog.Error("failed to create the IAMService client", "error", err)
 			os.Exit(1)
 		}
 		closer.Add("IAMService grpc client", func(_ context.Context) error {
@@ -232,7 +232,7 @@ func (d *diContainer) OrderV1Server(ctx context.Context) *orderv1.Server {
 		api := orderApiV1.NewApi(d.OrderService(ctx))
 		orderv1Server, err := orderv1.NewServer(api, orderv1.WithErrorHandler(orderApiV1.ErrorHandler))
 		if err != nil {
-			slog.Error("ошибка создания сервера OpenAPI", "error", err)
+			slog.Error("failed to create the OpenAPI server", "error", err)
 			os.Exit(1)
 		}
 		d.orderv1Server = orderv1Server
@@ -241,8 +241,8 @@ func (d *diContainer) OrderV1Server(ctx context.Context) *orderv1.Server {
 	return d.orderv1Server
 }
 
-// SyncProducer возвращает синхронный Kafka-продюсер.
-// При первом вызове создаёт продюсер и регистрирует closer.
+// SyncProducer returns the synchronous Kafka producer.
+// On the first call it creates the producer and registers a closer.
 func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	if d.syncProducer == nil {
 		p, err := sarama.NewSyncProducer(
@@ -250,7 +250,7 @@ func (d *diContainer) SyncProducer() sarama.SyncProducer {
 			config.AppConfig().OrderPaidProducer.SaramaConfig(),
 		)
 		if err != nil {
-			slog.Error("не удалось создать sync producer", "error", err)
+			slog.Error("failed to create the sync producer", "error", err)
 			os.Exit(1)
 		}
 
@@ -264,8 +264,8 @@ func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	return d.syncProducer
 }
 
-// ConsumerGroup возвращает Kafka consumer group.
-// При первом вызове создаёт группу и регистрирует closer.
+// ConsumerGroup returns the Kafka consumer group.
+// On the first call it creates the group and registers a closer.
 func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	if d.consumerGroup == nil {
 		consumerGroup, err := sarama.NewConsumerGroup(
@@ -274,7 +274,7 @@ func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 			config.AppConfig().ShipAssembledConsumer.SaramaConfig(),
 		)
 		if err != nil {
-			slog.Error("не удалось создать consumer group", "error", err)
+			slog.Error("failed to create the consumer group", "error", err)
 			os.Exit(1)
 		}
 
@@ -288,7 +288,7 @@ func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	return d.consumerGroup
 }
 
-// OrderPaidProducer возвращает обёртку Kafka-продюсера для событий OrderPaid.
+// OrderPaidProducer returns the Kafka producer wrapper for OrderPaid events.
 func (d *diContainer) OrderPaidProducer() *wrappedKafkaProducer.Producer {
 	if d.orderPaidProducer == nil {
 		d.orderPaidProducer = wrappedKafkaProducer.NewProducer(
@@ -300,7 +300,7 @@ func (d *diContainer) OrderPaidProducer() *wrappedKafkaProducer.Producer {
 	return d.orderPaidProducer
 }
 
-// ShipAssembledConsumer возвращает обёртку Kafka-потребителя для событий ShipAssembled.
+// ShipAssembledConsumer returns the Kafka consumer wrapper for ShipAssembled events.
 func (d *diContainer) ShipAssembledConsumer() *wrappedKafkaConsumer.Consumer {
 	if d.shipAssembledConsumer == nil {
 		d.shipAssembledConsumer = wrappedKafkaConsumer.NewConsumer(
@@ -353,7 +353,7 @@ func newGRPCConnection(address, serviceName string, opts ...grpc.DialOption) (*g
 		append(defaultOpts, opts...)...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось подключиться к %s: %w", serviceName, err)
+		return nil, fmt.Errorf("failed to connect to %s: %w", serviceName, err)
 	}
 
 	return conn, nil

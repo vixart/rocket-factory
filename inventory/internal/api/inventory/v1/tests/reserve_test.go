@@ -40,7 +40,7 @@ func TestReserveParts(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное резервирование деталей",
+			name: "parts reserved successfully",
 			args: args{
 				req: &inventoryv1.ReservePartsRequest{
 					Uuids: []string{
@@ -59,7 +59,7 @@ func TestReserveParts(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid",
+			name: "invalid uuid",
 			args: args{
 				req: &inventoryv1.ReservePartsRequest{
 					Uuids: []string{
@@ -73,7 +73,7 @@ func TestReserveParts(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &inventoryv1.ReservePartsRequest{
 					Uuids: []string{

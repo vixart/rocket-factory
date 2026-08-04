@@ -12,10 +12,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
 )
 
-// InitTracer инициализирует глобальный TracerProvider и возвращает функцию
-// для корректного завершения (flush + shutdown). Вызовите её при остановке приложения
+// InitTracer initializes the global TracerProvider and returns the shutdown function
+// (flush + shutdown). Call it when the application stops.
 //
-// Пример использования:
+// Example:
 //
 //	shutdown, err := tracing.InitTracer(ctx, cfg)
 //	if err != nil { ... }
@@ -26,82 +26,82 @@ func InitTracer(ctx context.Context, cfg Config) (func(context.Context) error, e
 		samplingRatio = defaultSamplingRatio
 	}
 
-	// OTLP gRPC экспортер — отправляет спаны в коллектор (Jaeger, Tempo, OTEL Collector и т.д.)
+	// OTLP gRPC exporter — sends spans to a collector (Jaeger, Tempo, OTel Collector, ...).
 	exporter, err := otlptracegrpc.New(
 		ctx,
-		// Адрес OTLP-коллектора (например, "localhost:4317")
+		// OTLP collector address (for example, "localhost:4317")
 		otlptracegrpc.WithEndpoint(cfg.CollectorEndpoint),
-		// TLS отключён — подходит для локальной разработки и sidecar-коллекторов
-		// В проде используйте WithTLSCredentials
+		// TLS disabled — fine for local development and sidecar collectors;
+		// use WithTLSCredentials in production
 		otlptracegrpc.WithInsecure(),
-		// Таймаут на установку соединения с коллектором
+		// Timeout of the connection attempt to the collector
 		otlptracegrpc.WithTimeout(defaultTimeout),
-		// Сжатие gzip снижает объём трафика к коллектору
+		// gzip compression reduces the traffic to the collector
 		otlptracegrpc.WithCompressor(defaultCompressor),
-		// Retry с экспоненциальным backoff при сбоях отправки спанов
+		// Retry with exponential backoff when span export fails
 		otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
 			Enabled:         true,
-			InitialInterval: defaultRetryInitInterval, // начальная задержка между попытками
-			MaxInterval:     defaultRetryMaxInterval,  // потолок экспоненциального роста
-			MaxElapsedTime:  defaultRetryMaxElapsed,   // общее время, после которого retry прекращаются
+			InitialInterval: defaultRetryInitInterval, // initial delay between attempts
+			MaxInterval:     defaultRetryMaxInterval,  // ceiling of the exponential growth
+			MaxElapsedTime:  defaultRetryMaxElapsed,   // total time after which retries stop
 		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create OTLP exporter: %w", err)
 	}
 
-	// Ресурс описывает сервис, от которого приходят трейсы
-	// Эти атрибуты добавляются к каждому спану и видны в UI трейсинга
+	// The resource describes the service the traces come from.
+	// These attributes are added to every span and are visible in the tracing UI.
 	res, err := resource.New(
 		ctx,
-		// Явные атрибуты сервиса — по ним ищут и фильтруют трейсы в UI
+		// Explicit service attributes — used to search and filter traces in the UI
 		resource.WithAttributes(
-			semconv.ServiceName(cfg.ServiceName),               // имя сервиса (обязательный атрибут)
-			semconv.ServiceVersion(cfg.ServiceVersion),         // версия для корреляции с релизами
-			semconv.DeploymentEnvironmentName(cfg.Environment), // окружение: production, staging, development
+			semconv.ServiceName(cfg.ServiceName),               // service name (required attribute)
+			semconv.ServiceVersion(cfg.ServiceVersion),         // version, to correlate with releases
+			semconv.DeploymentEnvironmentName(cfg.Environment), // environment: production, staging, development
 		),
-		// Детекторы автоматически собирают информацию об инфраструктуре
-		// Полезно для отладки: на каком хосте/контейнере произошла проблема
-		resource.WithHost(),         // имя хоста и его идентификатор
-		resource.WithOS(),           // тип и версия ОС
-		resource.WithProcess(),      // PID, команда запуска, версия Go runtime
-		resource.WithContainer(),    // container ID (если запущен в Docker/K8s)
-		resource.WithTelemetrySDK(), // версия OpenTelemetry SDK
+		// Detectors collect infrastructure information automatically.
+		// Useful when debugging: which host or container had the problem.
+		resource.WithHost(),         // host name and host id
+		resource.WithOS(),           // OS type and version
+		resource.WithProcess(),      // PID, command line, Go runtime version
+		resource.WithContainer(),    // container ID when running in Docker/K8s
+		resource.WithTelemetrySDK(), // OpenTelemetry SDK version
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create resource: %w", err)
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		// BatchSpanProcessor — буферизирует спаны и отправляет пачками,
-		// снижая нагрузку на сеть по сравнению с SimpleSpanProcessor
+		// BatchSpanProcessor buffers spans and exports them in batches, which puts
+		// less load on the network than SimpleSpanProcessor
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		// ParentBased — если родительский спан семплирован, дочерний тоже будет
-		// TraceIDRatioBased задаёт долю трейсов: 1.0 = 100% (разработка), ~0.1 = 10% (прод)
+		// ParentBased — a child span is sampled whenever its parent is.
+		// TraceIDRatioBased sets the sampled fraction: 1.0 = 100% (dev), ~0.1 = 10% (prod)
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplingRatio))),
 	)
 
 	otel.SetTracerProvider(tp)
 
-	// Propagator определяет, КАК trace ID передаётся между сервисами
-	// Когда сервис A вызывает сервис B, propagator:
-	//   1. На стороне A (inject) — записывает trace ID в HTTP/gRPC заголовки запроса
-	//   2. На стороне B (extract) — достаёт trace ID из заголовков и продолжает тот же трейс
-	// Без этого каждый сервис создавал бы свой независимый трейс,
-	// и мы не смогли бы видеть сквозную цепочку вызовов
-	// Оба propagator'а — stateless-стратегии (реализации интерфейса TextMapPropagator)
-	// Пустые struct'ы, потому что формат заголовков фиксирован стандартом — настраивать нечего
-	// Они лишь определяют алгоритм записи/чтения trace-контекста в/из заголовков
+	// The propagator defines HOW the trace ID travels between services.
+	// When service A calls service B, the propagator:
+	//   1. On A (inject) — writes the trace ID into the HTTP/gRPC request headers
+	//   2. On B (extract) — reads it back and continues the same trace
+	// Without it every service would start its own independent trace and the
+	// end-to-end call chain would be invisible.
+	// Both propagators are stateless strategies (implementations of TextMapPropagator).
+	// They are empty structs because the header format is fixed by the standard —
+	// there is nothing to configure, only the read/write algorithm to choose.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		// W3C TraceContext — стандартные заголовки traceparent/tracestate
-		// Поддерживается Jaeger, Tempo, Datadog и другими системами трейсинга
+		// W3C TraceContext — the standard traceparent/tracestate headers,
+		// supported by Jaeger, Tempo, Datadog and other tracing systems
 		propagation.TraceContext{},
-		// Baggage — произвольные key-value пары (user_id, tenant_id),
-		// которые автоматически прокидываются через всю цепочку вызовов
+		// Baggage — arbitrary key-value pairs (user_id, tenant_id) that are
+		// carried automatically through the whole call chain
 		propagation.Baggage{},
 	))
 
-	// Возвращаем shutdown-функцию, которая сбросит оставшиеся спаны и освободит ресурсы
+	// Return the shutdown function: it flushes the remaining spans and releases resources.
 	return tp.Shutdown, nil
 }

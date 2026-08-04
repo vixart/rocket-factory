@@ -28,17 +28,17 @@ func TestCloser_LIFO_Order(t *testing.T) {
 
 	err := c.CloseAll(context.Background())
 	if err != nil {
-		t.Fatalf("неожиданная ошибка: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expected := []string{"third", "second", "first"}
 	if len(order) != len(expected) {
-		t.Fatalf("ожидалось %d вызовов, получено %d", len(expected), len(order))
+		t.Fatalf("expected %d calls, got %d", len(expected), len(order))
 	}
 
 	for i, v := range expected {
 		if order[i] != v {
-			t.Errorf("позиция %d: ожидалось %q, получено %q", i, v, order[i])
+			t.Errorf("position %d: expected %q, got %q", i, v, order[i])
 		}
 	}
 }
@@ -46,24 +46,24 @@ func TestCloser_LIFO_Order(t *testing.T) {
 func TestCloser_ReturnsFirstError(t *testing.T) {
 	c := newCloser()
 
-	errFirst := errors.New("первая ошибка")
-	errSecond := errors.New("вторая ошибка")
+	errFirst := errors.New("first error")
+	errSecond := errors.New("second error")
 
 	c.Add("ok", func(_ context.Context) error {
 		return nil
 	})
-	// Этот вызовется вторым (LIFO), его ошибка будет первой
+	// This one runs second (LIFO), so its error is reported first
 	c.Add("fail-second", func(_ context.Context) error {
 		return errSecond
 	})
-	// Этот вызовется первым (LIFO)
+	// This one runs first (LIFO)
 	c.Add("fail-first", func(_ context.Context) error {
 		return errFirst
 	})
 
 	err := c.CloseAll(context.Background())
 	if !errors.Is(err, errFirst) {
-		t.Fatalf("ожидалась первая ошибка %q, получено %q", errFirst, err)
+		t.Fatalf("expected the first error %q, got %q", errFirst, err)
 	}
 }
 
@@ -78,7 +78,7 @@ func TestCloser_AllFunctionsCalledDespiteErrors(t *testing.T) {
 	})
 	c.Add("b", func(_ context.Context) error {
 		called = append(called, "b")
-		return errors.New("ошибка b")
+		return errors.New("error b")
 	})
 	c.Add("c", func(_ context.Context) error {
 		called = append(called, "c")
@@ -88,7 +88,7 @@ func TestCloser_AllFunctionsCalledDespiteErrors(t *testing.T) {
 	_ = c.CloseAll(context.Background())
 
 	if len(called) != 3 {
-		t.Fatalf("ожидалось 3 вызова, получено %d: %v", len(called), called)
+		t.Fatalf("expected 3 calls, got %d: %v", len(called), called)
 	}
 }
 
@@ -106,7 +106,7 @@ func TestCloser_CloseAllOnce(t *testing.T) {
 	_ = c.CloseAll(context.Background())
 
 	if callCount != 1 {
-		t.Fatalf("ожидался 1 вызов, получено %d", callCount)
+		t.Fatalf("expected 1 call, got %d", callCount)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestCloser_EmptyCloser(t *testing.T) {
 
 	err := c.CloseAll(context.Background())
 	if err != nil {
-		t.Fatalf("ожидалась nil-ошибка для пустого closer, получено %v", err)
+		t.Fatalf("expected a nil error from an empty closer, got %v", err)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestCloser_RespectsContextCancellation(t *testing.T) {
 	c := newCloser()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // отменяем сразу
+	cancel() // cancel immediately
 
 	var receivedCtx context.Context
 	c.Add("resource", func(ctx context.Context) error {
@@ -133,11 +133,11 @@ func TestCloser_RespectsContextCancellation(t *testing.T) {
 
 	err := c.CloseAll(ctx)
 	if nil == err {
-		t.Fatal("ожидалась ошибка контекста, получено nil")
+		t.Fatal("expected a context error, got nil")
 	}
 
 	if nil == receivedCtx.Err() {
-		t.Fatal("ожидалось, что отменённый контекст будет передан в функцию закрытия")
+		t.Fatal("expected the cancelled context to reach the close function")
 	}
 }
 
@@ -156,13 +156,13 @@ func TestCloser_ConcurrentAdd(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Проверяем что все 100 добавились
+	// Check that all 100 were registered
 	c.mu.Lock()
 	count := len(c.funcs)
 	c.mu.Unlock()
 
 	if count != 100 {
-		t.Fatalf("ожидалось 100 функций, получено %d", count)
+		t.Fatalf("expected 100 functions, got %d", count)
 	}
 }
 
@@ -186,10 +186,10 @@ func TestCloser_ContextTimeout(t *testing.T) {
 	elapsed := time.Since(start)
 
 	if nil == err {
-		t.Fatal("ожидалась ошибка таймаута, получено nil")
+		t.Fatal("expected a timeout error, got nil")
 	}
 
 	if elapsed > 1*time.Second {
-		t.Fatalf("ожидался быстрый таймаут, но заняло %v", elapsed)
+		t.Fatalf("expected a fast timeout, but it took %v", elapsed)
 	}
 }

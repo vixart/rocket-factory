@@ -3,37 +3,37 @@ package tracing
 import "time"
 
 const (
-	// defaultCompressor — алгоритм сжатия для OTLP экспортера.
+	// defaultCompressor is the compression algorithm of the OTLP exporter.
 	defaultCompressor = "gzip"
 
-	// defaultTimeout — таймаут подключения к коллектору.
+	// defaultTimeout bounds the connection attempt to the collector.
 	defaultTimeout = 5 * time.Second
 
-	// Параметры retry-политики экспортера при сбоях отправки.
-	defaultRetryInitInterval = 500 * time.Millisecond // начальный интервал между попытками
-	defaultRetryMaxInterval  = 5 * time.Second        // максимальный интервал (экспоненциальный backoff)
-	defaultRetryMaxElapsed   = 30 * time.Second       // максимальное общее время retry
+	// Retry policy of the exporter when sending spans fails.
+	defaultRetryInitInterval = 500 * time.Millisecond // initial interval between attempts
+	defaultRetryMaxInterval  = 5 * time.Second        // maximum interval (exponential backoff)
+	defaultRetryMaxElapsed   = 30 * time.Second       // maximum total retry time
 
-	// defaultSamplingRatio — доля трейсов для семплирования (1.0 = 100%).
+	// defaultSamplingRatio is the fraction of sampled traces (1.0 = 100%).
 	defaultSamplingRatio = 1.0
 
-	// TraceIDHeader — заголовок для передачи trace ID клиенту в gRPC ответе,
-	// чтобы можно было найти трейс в Jaeger/Tempo.
+	// TraceIDHeader carries the trace ID back to the client in the gRPC response
+	// so that the trace can be looked up in Jaeger/Tempo.
 	TraceIDHeader = "x-trace-id"
 )
 
-// Config — конфигурация для инициализации трейсера.
+// Config holds the tracer initialization settings.
 type Config struct {
-	// CollectorEndpoint — адрес OTLP-коллектора (например, "localhost:4317")
+	// CollectorEndpoint is the OTLP collector address (for example, "localhost:4317").
 	CollectorEndpoint string
-	// ServiceName — имя сервиса, отображаемое в трейсах
+	// ServiceName is the service name shown in traces.
 	ServiceName string
-	// Environment — окружение развёртывания (например, "production", "staging")
+	// Environment is the deployment environment ("production", "staging").
 	Environment string
-	// ServiceVersion — версия сервиса (например, "1.0.0")
+	// ServiceVersion is the service version (for example, "1.0.0").
 	ServiceVersion string
-	// SamplingRatio — доля трейсов для семплирования: 0.0–1.0.
-	// 1.0 = все трейсы (разработка), 0.1 = 10% (продакшен)
-	// Если не задано (0), используется defaultSamplingRatio (100%)
+	// SamplingRatio is the sampled fraction of traces, 0.0–1.0:
+	// 1.0 = every trace (development), 0.1 = 10% (production).
+	// When left at 0, defaultSamplingRatio (100%) is used.
 	SamplingRatio float64
 }

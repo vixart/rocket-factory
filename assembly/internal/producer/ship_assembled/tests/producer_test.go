@@ -43,7 +43,7 @@ func TestProduceShipAssembled(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная отправка события",
+			name: "event sent successfully",
 			setupMock: func(producer *mocks.KafkaProducer) {
 				producer.On(
 					"Send",
@@ -76,7 +76,7 @@ func TestProduceShipAssembled(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка отправки события",
+			name: "event sending fails",
 			setupMock: func(producer *mocks.KafkaProducer) {
 				producer.On(
 					"Send",

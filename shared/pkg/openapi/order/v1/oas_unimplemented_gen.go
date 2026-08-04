@@ -15,7 +15,7 @@ var _ Handler = UnimplementedHandler{}
 
 // CancelOrder implements cancelOrder operation.
 //
-// Отменяет заказ, который ещё не был оплачен.
+// Cancels an order that has not been paid yet.
 //
 // POST /api/v1/orders/{order_uuid}/cancel
 func (UnimplementedHandler) CancelOrder(ctx context.Context, params CancelOrderParams) (r CancelOrderRes, _ error) {
@@ -24,8 +24,7 @@ func (UnimplementedHandler) CancelOrder(ctx context.Context, params CancelOrderP
 
 // CreateOrder implements createOrder operation.
 //
-// Создаёт новый заказ на постройку космического
-// корабля.
+// Creates a new spaceship build order.
 //
 // POST /api/v1/orders
 func (UnimplementedHandler) CreateOrder(ctx context.Context, req *CreateOrderRequest) (r CreateOrderRes, _ error) {
@@ -34,8 +33,7 @@ func (UnimplementedHandler) CreateOrder(ctx context.Context, req *CreateOrderReq
 
 // GetOrder implements getOrder operation.
 //
-// Возвращает полную информацию о заказе на постройку
-// космического корабля.
+// Returns the full information about a spaceship build order.
 //
 // GET /api/v1/orders/{order_uuid}
 func (UnimplementedHandler) GetOrder(ctx context.Context, params GetOrderParams) (r GetOrderRes, _ error) {
@@ -44,7 +42,7 @@ func (UnimplementedHandler) GetOrder(ctx context.Context, params GetOrderParams)
 
 // PayOrder implements payOrder operation.
 //
-// Проводит оплату заказа.
+// Pays for an order.
 //
 // POST /api/v1/orders/{order_uuid}/pay
 func (UnimplementedHandler) PayOrder(ctx context.Context, req *PayOrderRequest, params PayOrderParams) (r PayOrderRes, _ error) {

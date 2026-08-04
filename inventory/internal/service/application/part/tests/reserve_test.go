@@ -40,7 +40,7 @@ func TestReserve(t *testing.T) {
 		valueobject.PartTypeEngine,
 		5000,
 		3,
-		0, // reserved = 0 → Reserve() проходит (если stock > reserved)
+		0, // reserved = 0 → Reserve() succeeds while stock > reserved
 		valueobject.PartProperties{},
 		time.Time{},
 	)
@@ -52,7 +52,7 @@ func TestReserve(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный reserve",
+			name: "reserve succeeds",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -77,7 +77,7 @@ func TestReserve(t *testing.T) {
 			expected: expected{},
 		},
 		{
-			name: "ошибка list",
+			name: "list fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -93,11 +93,11 @@ func TestReserve(t *testing.T) {
 					Return(nil, errors.New("db error"))
 			},
 			expected: expected{
-				err: errors.New("не удалось получить детали"),
+				err: errors.New("failed to fetch parts"),
 			},
 		},
 		{
-			name: "ошибка domain reserve",
+			name: "domain Reserve fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -118,18 +118,18 @@ func TestReserve(t *testing.T) {
 							valueobject.PartTypeEngine,
 							5000,
 							1,
-							1, // stock - reserved = 0 → Reserve() падает
+							1, // stock - reserved = 0 → Reserve() fails
 							valueobject.PartProperties{},
 							time.Time{},
 						),
 					}, nil)
 			},
 			expected: expected{
-				err: errors.New("не удалось зарезервировать детали детали"),
+				err: errors.New("failed to reserve parts"),
 			},
 		},
 		{
-			name: "ошибка update batch",
+			name: "batch update fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},

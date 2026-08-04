@@ -2,32 +2,32 @@ parameters:
   - $ref: ../params/order_uuid.yaml
 
 get:
-  summary: Получить заказ по UUID
-  description: Возвращает полную информацию о заказе на постройку космического корабля
+  summary: Get an order by UUID
+  description: Returns the full information about a spaceship build order
   operationId: getOrder
   tags:
     - Orders
   responses:
     '200':
-      description: Заказ успешно найден
+      description: Order found
       content:
         application/json:
           schema:
             $ref: ../components/order_dto.yaml
     '400':
-      description: Невалидный формат UUID
+      description: Invalid UUID format
       content:
         application/json:
           schema:
             $ref: ../components/errors/error.yaml
     '404':
-      description: Заказ с указанным UUID не найден
+      description: No order with the given UUID
       content:
         application/json:
           schema:
             $ref: ../components/errors/error.yaml
     '500':
-      description: Внутренняя ошибка сервера
+      description: Internal server error
       content:
         application/json:
           schema:

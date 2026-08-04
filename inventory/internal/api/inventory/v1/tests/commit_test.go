@@ -42,7 +42,7 @@ func TestCommitParts(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный commit",
+			name: "commit succeeds",
 			args: args{
 				req: &inventoryv1.CommitPartsRequest{
 					Uuids: []string{
@@ -58,7 +58,7 @@ func TestCommitParts(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой список uuid",
+			name: "empty uuid list",
 			args: args{
 				req: &inventoryv1.CommitPartsRequest{
 					Uuids: []string{},
@@ -71,7 +71,7 @@ func TestCommitParts(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid в списке",
+			name: "invalid uuid in the list",
 			args: args{
 				req: &inventoryv1.CommitPartsRequest{
 					Uuids: []string{
@@ -86,7 +86,7 @@ func TestCommitParts(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса commit",
+			name: "commit service fails",
 			args: args{
 				req: &inventoryv1.CommitPartsRequest{
 					Uuids: []string{

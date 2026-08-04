@@ -1,28 +1,28 @@
-# Конфигурация mockery v3.
-# Документация: https://vektra.github.io/mockery/latest/configuration/
+# mockery v3 configuration.
+# Documentation: https://vektra.github.io/mockery/latest/configuration/
 
-# Шаблон testify с expecter API.
+# The testify template with the expecter API.
 template: testify
 
-# Форматирование сгенерированного кода.
+# Formatting of the generated code.
 formatter: goimports
 
-# Директория для сгенерированных моков (рядом с интерфейсом в подпапке mocks).
+# Where the generated mocks go (next to the interface, in a mocks subdirectory).
 dir: "{{.InterfaceDir}}/mocks"
 
-# Имя файла мока (snake_case через функцию snakecase).
+# Mock file name (snake_case via the snakecase function).
 filename: "mock_{{ .InterfaceName | snakecase }}.go"
 
-# Имя пакета моков.
+# Mock package name.
 pkgname: "mocks"
 
-# Имя структуры мока (совпадает с именем интерфейса).
+# Mock struct name (matches the interface name).
 structname: "{{.InterfaceName}}"
 
-# Принудительная перезапись существующих файлов.
+# Overwrite existing files.
 force-file-write: true
 
-# Boilerplate текст (лицензия, заголовок).
+# Boilerplate text (licence, header).
 template-data:
   boilerplate-file: ".mockery_boilerplate_text.txt"
 

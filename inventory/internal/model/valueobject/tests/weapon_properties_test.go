@@ -20,22 +20,22 @@ func TestNewWeaponProperties(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:  "валидный laser weapon",
+			name:  "valid laser weapon",
 			input: valueobject.LaserWeapon,
 			want:  valueobject.LaserWeapon,
 		},
 		{
-			name:  "валидный missile weapon",
+			name:  "valid missile weapon",
 			input: valueobject.MissileWeapon,
 			want:  valueobject.MissileWeapon,
 		},
 		{
-			name:    "невалидный weapon type",
+			name:    "invalid weapon type",
 			input:   valueobject.WeaponType("plasma"),
 			wantErr: errs.ErrInvalidProperties,
 		},
 		{
-			name:    "пустой weapon type",
+			name:    "empty weapon type",
 			input:   valueobject.WeaponType(""),
 			wantErr: errs.ErrInvalidProperties,
 		},

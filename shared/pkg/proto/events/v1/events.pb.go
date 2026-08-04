@@ -22,16 +22,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// OrderPaid — событие оплаты заказа
+// OrderPaid is emitted when an order is paid
 // Producer: OrderService
 // Consumer: AssemblyService
 type OrderPaid struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Уникальный идентификатор события (для идемпотентности)
+	// Unique event identifier, used for idempotency
 	EventUuid string `protobuf:"bytes,1,opt,name=event_uuid,json=eventUuid,proto3" json:"event_uuid,omitempty"`
-	// Идентификатор оплаченного заказа
+	// Identifier of the paid order
 	OrderUuid string `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
-	// Идентификатор пользователя
+	// User identifier
 	UserUuid      string `protobuf:"bytes,3,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -88,20 +88,20 @@ func (x *OrderPaid) GetUserUuid() string {
 	return ""
 }
 
-// ShipAssembled — событие завершения сборки корабля
+// ShipAssembled is emitted when a ship has been assembled
 // Producer: AssemblyService
 // Consumer: OrderService
 type ShipAssembled struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Уникальный идентификатор события
+	// Unique event identifier
 	EventUuid string `protobuf:"bytes,1,opt,name=event_uuid,json=eventUuid,proto3" json:"event_uuid,omitempty"`
-	// Идентификатор заказа
+	// Order identifier
 	OrderUuid string `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
-	// Идентификатор пользователя
+	// User identifier
 	UserUuid string `protobuf:"bytes,3,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
-	// Время сборки в секундах
+	// Build time in seconds
 	BuildTimeSec int64 `protobuf:"varint,4,opt,name=build_time_sec,json=buildTimeSec,proto3" json:"build_time_sec,omitempty"`
-	// Время завершения сборки
+	// When the assembly finished
 	AssembledAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=assembled_at,json=assembledAt,proto3" json:"assembled_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -64,7 +64,7 @@ func parseUUID(raw string) (uuid.UUID, error) {
 	parsedUUID, err := uuid.Parse(raw)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf(
-			"неверный формат uuid: %s, %w",
+			"invalid uuid format: %s, %w",
 			raw,
 			errs.ErrInvalidUUID,
 		)

@@ -16,6 +16,6 @@ type Part struct {
 	UUID          uuid.UUID
 	PartType      PartType
 	Name          string
-	Price         int64 // в копейках
+	Price         int64 // in kopecks
 	StockQuantity int64
 }

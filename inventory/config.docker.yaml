@@ -17,10 +17,10 @@ pg:
   user: "inventory-service-user"
   password: "inventory-service-password"
   sslmode: "disable"
-  # Пул pgx. Дефолт pgx — max(4, NumCPU), на нём Reserve упирается не в БД,
-  # а в нехватку соединений: транзакция держит соединение, пока ждёт блокировку
-  # строки. postgres-inventory поднят со стандартным max_connections=100,
-  # так что 25 на единственный инстанс сервиса — с большим запасом.
+  # pgx pool. The pgx default is max(4, NumCPU); on that Reserve is limited not by the
+  # database but by connection starvation: a transaction holds its connection while
+  # waiting for a row lock. postgres-inventory runs with the standard max_connections=100,
+  # so 25 for the single service instance leaves plenty of headroom.
   max_conns: 25
 
 client:

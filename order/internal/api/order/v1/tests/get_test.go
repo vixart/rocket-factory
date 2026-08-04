@@ -52,7 +52,7 @@ func TestGetOrder(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение заказа",
+			name: "order fetched successfully",
 			args: args{
 				params: orderv1.GetOrderParams{
 					OrderUUID: orderUUID,
@@ -96,7 +96,7 @@ func TestGetOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "заказ не найден",
+			name: "order not found",
 			args: args{
 				params: orderv1.GetOrderParams{
 					OrderUUID: orderUUID,
@@ -112,7 +112,7 @@ func TestGetOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "внутренняя ошибка",
+			name: "internal error",
 			args: args{
 				params: orderv1.GetOrderParams{
 					OrderUUID: orderUUID,
@@ -174,11 +174,11 @@ func TestGetOrder(t *testing.T) {
 
 			case *orderv1.GetOrderNotFound:
 				assert.Equal(t, 404, response.Code)
-				assert.Equal(t, "заказ не найден", response.Message)
+				assert.Equal(t, "order not found", response.Message)
 
 			case *orderv1.GetOrderInternalServerError:
 				assert.Equal(t, 500, response.Code)
-				assert.Equal(t, "что-то пошло не так", response.Message)
+				assert.Equal(t, "something went wrong", response.Message)
 			}
 		})
 	}

@@ -6,9 +6,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// TraceIDFromContext извлекает trace ID из текущего спана в контексте.
-// Возвращает пустую строку, если активного трейса нет (например, TracerProvider
-// не был инициализирован через InitTracer — типовой случай для API-тестов).
+// TraceIDFromContext extracts the trace ID of the current span in the context.
+// Returns an empty string when there is no active trace (for example, when the
+// TracerProvider was not initialized via InitTracer — the usual case in API tests).
 func TraceIDFromContext(ctx context.Context) string {
 	sc := trace.SpanFromContext(ctx).SpanContext()
 	if !sc.IsValid() {

@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: auth/v1/auth.proto
 
-// Package auth.v1 содержит сервис аутентификации.
+// Package auth.v1 contains the authentication service.
 
 package authv1
 
@@ -30,13 +30,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuthService сервис аутентификации (вход, проверка сессии).
+// AuthService handles authentication: login and session validation.
 type AuthServiceClient interface {
-	// Login выполняет вход в систему и создаёт сессию.
+	// Login signs a user in and creates a session.
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
-	// Whoami проверяет текущую сессию и возвращает информацию о пользователе.
+	// Whoami validates the current session and returns the user information.
 	Whoami(ctx context.Context, in *WhoamiRequest, opts ...grpc.CallOption) (*WhoamiResponse, error)
-	// Logout завершает сессию пользователя.
+	// Logout terminates the user session.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 }
 
@@ -82,13 +82,13 @@ func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts 
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 //
-// AuthService сервис аутентификации (вход, проверка сессии).
+// AuthService handles authentication: login and session validation.
 type AuthServiceServer interface {
-	// Login выполняет вход в систему и создаёт сессию.
+	// Login signs a user in and creates a session.
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
-	// Whoami проверяет текущую сессию и возвращает информацию о пользователе.
+	// Whoami validates the current session and returns the user information.
 	Whoami(context.Context, *WhoamiRequest) (*WhoamiResponse, error)
-	// Logout завершает сессию пользователя.
+	// Logout terminates the user session.
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }

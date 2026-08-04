@@ -16,7 +16,7 @@ func (r *repository) Get(ctx context.Context, uuid uuid.UUID) (model.Order, erro
 	order, err := r.getOrder(ctx, uuid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return model.Order{}, fmt.Errorf("заказ не найден: %w", errs.ErrOrderNotFound)
+			return model.Order{}, fmt.Errorf("order not found: %w", errs.ErrOrderNotFound)
 		}
 		return model.Order{}, err
 	}

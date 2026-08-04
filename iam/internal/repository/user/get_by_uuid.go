@@ -25,7 +25,7 @@ func (r *repository) GetByUUID(ctx context.Context, userUUID uuid.UUID) (model.U
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.User{}, errs.ErrUserNotFound
 		}
-		return model.User{}, fmt.Errorf("вернуть пользователя: %w", err)
+		return model.User{}, fmt.Errorf("fetch user: %w", err)
 	}
 
 	return converter.UserRecordToModel(user), nil

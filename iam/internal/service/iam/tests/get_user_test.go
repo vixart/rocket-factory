@@ -48,7 +48,7 @@ func TestGetUser(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение пользователя",
+			name: "user fetched successfully",
 			args: args{
 				userUUID: userUUID,
 			},
@@ -62,7 +62,7 @@ func TestGetUser(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка репозитория",
+			name: "repository fails",
 			args: args{
 				userUUID: userUUID,
 			},

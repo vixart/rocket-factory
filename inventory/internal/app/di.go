@@ -32,21 +32,21 @@ type IAMClient interface {
 }
 
 type diContainer struct {
-	// Инфраструктура
+	// Infrastructure
 	pgPool    *pgxpool.Pool
 	txManager partRepo.TxManager
 
-	// Зависимости приложения
+	// Application dependencies
 	partRepo                 partService.Repository
 	partCompatibilityChecker partService.CompatibilityChecker
 
-	// Клиенты
+	// Clients
 	iam IAMClient
 
-	// Зависимости API
+	// API dependencies
 	partSvc inventoryApiV1.InventoryService
 
-	// API-обработчики
+	// API handlers
 	inventoryv1Handler inventoryv1.InventoryServiceServer
 }
 
@@ -54,7 +54,7 @@ func (d *diContainer) TxManager(ctx context.Context) partRepo.TxManager {
 	if d.txManager == nil {
 		txManager, err := manager.New(trmpgx.NewDefaultFactory(d.PGPool(ctx)))
 		if err != nil {
-			slog.Error("не удалось создать Transaction Manager", "error", err)
+			slog.Error("failed to create the transaction manager", "error", err)
 			os.Exit(1)
 		}
 		d.txManager = txManager
@@ -67,13 +67,13 @@ func (d *diContainer) PGPool(ctx context.Context) *pgxpool.Pool {
 	if d.pgPool == nil {
 		pool, err := pgxpool.New(ctx, config.AppConfig().PG.DSN())
 		if err != nil {
-			slog.Error("не удалось подключиться к PostgreSQL", "error", err)
+			slog.Error("failed to connect to PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
 		err = pool.Ping(ctx)
 		if err != nil {
-			slog.Error("не удалось выполнить ping PostgreSQL", "error", err)
+			slog.Error("failed to ping PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
@@ -121,7 +121,7 @@ func (d *diContainer) IAMClient() IAMClient {
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
-			slog.Error("не удалось создать клиент IAMService", "error", err)
+			slog.Error("failed to create the IAMService client", "error", err)
 			os.Exit(1)
 		}
 		closer.Add("IAMService grpc client", func(_ context.Context) error {
@@ -160,7 +160,7 @@ func newGRPCConnection(address, serviceName string, opts ...grpc.DialOption) (*g
 		append(defaultOpts, opts...)...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось подключиться к %s: %w", serviceName, err)
+		return nil, fmt.Errorf("failed to connect to %s: %w", serviceName, err)
 	}
 
 	return conn, nil

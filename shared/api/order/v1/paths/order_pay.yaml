@@ -1,6 +1,6 @@
 post:
-  summary: Оплатить заказ
-  description: Проводит оплату заказа
+  summary: Pay for an order
+  description: Pays for an order
   operationId: payOrder
   tags:
     - Orders
@@ -14,31 +14,31 @@ post:
           $ref: '../components/pay_order_request.yaml'
   responses:
     '200':
-      description: Оплата прошла успешно
+      description: Payment succeeded
       content:
         application/json:
           schema:
             $ref: '../components/pay_order_response.yaml'
     '400':
-      description: Невалидный запрос
+      description: Invalid request
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '404':
-      description: Заказ не найден
+      description: Order not found
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '409':
-      description: Заказ уже оплачен или отменён
+      description: Order is already paid or cancelled
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '500':
-      description: Внутренняя ошибка сервера
+      description: Internal server error
       content:
         application/json:
           schema:

@@ -40,9 +40,9 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Бейдж в README читает JSON из gist через shields.io endpoint.
-      # Обновляем только на main: в PR (тем более из форков) секрет недоступен.
-      # always() — чтобы падение порога покрытия обновляло бейдж, а не замораживало его.
+      # The README badge reads the JSON from a gist through the shields.io endpoint.
+      # Update it only on main: the secret is unavailable in PRs, especially from forks.
+      # always() makes a coverage threshold failure still update the badge instead of freezing it.
       - name: Update coverage badge gist
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -50,11 +50,11 @@ jobs:
           GIST_ID: 67f50bd37b7dc5e95c8feae5fb8f7228
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::Секрет GIST_TOKEN не задан — бейдж покрытия не обновлён"
+            echo "::warning::GIST_TOKEN secret is not set — the coverage badge was not updated"
             exit 0
           fi
           if [ ! -f coverage/coverage.out ]; then
-            echo "::warning::coverage/coverage.out отсутствует — бейдж покрытия не обновлён"
+            echo "::warning::coverage/coverage.out is missing — the coverage badge was not updated"
             exit 0
           fi
 
@@ -62,4 +62,4 @@ jobs:
           jq -n --arg content "$(cat coverage/badge.json)" \
             '{files: {"coverage.json": {content: $content}}}' |
             gh api -X PATCH "gists/$GIST_ID" --input - > /dev/null
-          echo "✅ Бейдж обновлён: $(cat coverage/badge.json)"
+          echo "✅ Badge updated: $(cat coverage/badge.json)"

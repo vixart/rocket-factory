@@ -45,7 +45,7 @@ func TestValidateCompatibility(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная проверка совместимости только обязательных слотов",
+			name: "compatibility check succeeds for required slots only",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),
@@ -65,7 +65,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "успешная проверка совместимости всех слотов",
+			name: "compatibility check succeeds for all slots",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),
@@ -89,7 +89,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid корпуса",
+			name: "invalid hull uuid",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   "invalid",
@@ -102,7 +102,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid двигателя",
+			name: "invalid engine uuid",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),
@@ -115,7 +115,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid щита",
+			name: "invalid shield uuid",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),
@@ -129,7 +129,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid оружия",
+			name: "invalid weapon uuid",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),
@@ -143,7 +143,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &inventoryv1.ValidateCompatibilityRequest{
 					HullUuid:   hullUUID.String(),

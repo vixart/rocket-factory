@@ -1,9 +1,9 @@
-# migrator.Dockerfile — контейнер goose для накатки SQL-миграций.
-# Используется в deploy/compose/{iam,inventory,order}/docker-compose.yml,
-# чтобы при `task up-<svc>` миграции применялись до старта приложения.
-# Сам контейнер одноразовый — отрабатывает goose up и завершается с exit 0.
+# migrator.Dockerfile — a goose container that applies the SQL migrations.
+# It is used in deploy/compose/{iam,inventory,order}/docker-compose.yml so that
+# `task up-<svc>` applies the migrations before the application starts.
+# The container is one-shot: it runs goose up and exits with code 0.
 #
-# Версии передаются через build args из core.env (один источник истины).
+# Versions come from core.env through build args (a single source of truth).
 ARG GO_IMAGE=golang:1.26-alpine3.23
 ARG ALPINE_IMAGE=alpine:3.23
 ARG GOOSE_VERSION=v3.27.1
@@ -11,8 +11,8 @@ ARG GOOSE_VERSION=v3.27.1
 FROM ${GO_IMAGE} AS builder
 
 ARG GOOSE_VERSION
-# Cache mount'ы — чтобы goose не качался и не компилировался заново
-# при каждой пересборке (кеш общий с остальными сборками).
+# Cache mounts keep goose from being downloaded and rebuilt on every rebuild
+# (the cache is shared with the other builds).
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}

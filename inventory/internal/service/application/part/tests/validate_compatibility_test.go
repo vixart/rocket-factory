@@ -53,7 +53,7 @@ func TestValidateCompatibility(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная валидация всех слотов",
+			name: "all slots validate successfully",
 			args: args{
 				slots: valueobject.ShipSlots{
 					HullUUID:   hullID,
@@ -79,7 +79,7 @@ func TestValidateCompatibility(t *testing.T) {
 			expected: expected{},
 		},
 		{
-			name: "ошибка: отсутствует обязательный hull uuid",
+			name: "error: required hull uuid is missing",
 			args: args{
 				slots: valueobject.ShipSlots{
 					HullUUID:   uuid.Nil,
@@ -92,7 +92,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка: part not found",
+			name: "error: part not found",
 			args: args{
 				slots: valueobject.ShipSlots{
 					HullUUID:   hullID,
@@ -111,7 +111,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка: type mismatch",
+			name: "error: type mismatch",
 			args: args{
 				slots: valueobject.ShipSlots{
 					HullUUID:   hullID,
@@ -142,7 +142,7 @@ func TestValidateCompatibility(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка repo list",
+			name: "repository list fails",
 			args: args{
 				slots: valueobject.ShipSlots{
 					HullUUID:   hullID,
@@ -155,7 +155,7 @@ func TestValidateCompatibility(t *testing.T) {
 					Return(nil, errors.New("db error"))
 			},
 			expected: expected{
-				err: errors.New("получить детали"),
+				err: errors.New("fetch parts"),
 			},
 		},
 	}

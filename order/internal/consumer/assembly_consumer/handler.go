@@ -13,12 +13,12 @@ import (
 func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) error {
 	event, err := decodeShipAssembled(msg.Value)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось декодировать ShipAssembled", "error", err)
+		slog.ErrorContext(ctx, "failed to decode ShipAssembled", "error", err)
 		return nil
 	}
 
 	slog.InfoContext(
-		ctx, "обработка сообщения",
+		ctx, "handling a message",
 		"topic", msg.Topic,
 		"partition", msg.Partition,
 		"offset", msg.Offset,
@@ -29,7 +29,7 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 
 	orderUUID, err := uuid.Parse(event.OrderUUID)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось распознать OrderUUID: %w", "error", err)
+		slog.ErrorContext(ctx, "failed to parse OrderUUID", "error", err)
 		return nil
 	}
 
@@ -40,7 +40,7 @@ func (s *service) ShipAssembledHandler(ctx context.Context, msg kafka.Message) e
 		}
 
 		if order.Status == model.OrderStatusAssembled {
-			slog.Info("заказ с UUID: %q уже в статусе ASSEMBLED, игнорируем сообщение", "error", order.UUID)
+			slog.Info("order is already ASSEMBLED, skipping the message", "order_uuid", order.UUID)
 			return nil
 		}
 

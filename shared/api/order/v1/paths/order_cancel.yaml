@@ -1,6 +1,6 @@
 post:
-  summary: Отменить заказ
-  description: Отменяет заказ, который ещё не был оплачен
+  summary: Cancel an order
+  description: Cancels an order that has not been paid yet
   operationId: cancelOrder
   tags:
     - Orders
@@ -8,31 +8,31 @@ post:
     - $ref: '../params/order_uuid.yaml'
   responses:
     '200':
-      description: Заказ успешно отменён
+      description: Order cancelled
       content:
         application/json:
           schema:
             $ref: '../components/cancel_order_response.yaml'
     '400':
-      description: Невалидный UUID
+      description: Invalid UUID
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '404':
-      description: Заказ не найден
+      description: Order not found
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '409':
-      description: Заказ уже оплачен
+      description: Order is already paid
       content:
         application/json:
           schema:
             $ref: '../components/errors/error.yaml'
     '500':
-      description: Внутренняя ошибка сервера
+      description: Internal server error
       content:
         application/json:
           schema:

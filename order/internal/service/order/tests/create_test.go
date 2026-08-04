@@ -58,7 +58,7 @@ func TestCreate(t *testing.T) {
 		expected expected
 	}{
 		{
-			name: "не авторизован",
+			name: "unauthorized",
 			args: args{
 				ctx: context.Background(),
 				orderParts: input.OrderParts{
@@ -72,7 +72,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "успешное создание заказа только с обязательными деталями",
+			name: "order created successfully with required parts only",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -125,7 +125,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "успешное создание заказа со всеми деталями",
+			name: "order created successfully with every part",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -207,7 +207,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка inventory ListParts",
+			name: "inventory ListParts fails",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -228,7 +228,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "деталь не найдена",
+			name: "part not found",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -251,7 +251,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "нет товара на складе",
+			name: "part is out of stock",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -275,7 +275,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка проверки совместимости",
+			name: "compatibility check fails",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -303,7 +303,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка резервирования деталей",
+			name: "part reservation fails",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{
@@ -335,7 +335,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сохранения заказа",
+			name: "saving the order fails",
 			args: args{
 				ctx: ctxWithUser(userUUID),
 				orderParts: input.OrderParts{

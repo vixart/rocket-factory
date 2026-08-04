@@ -1,22 +1,22 @@
-# Что НЕ отправлять демону в build context.
+# What NOT to send to the daemon in the build context.
 #
-# Контекст у всех сервисных сборок — корень репозитория (context: ../../.. в
-# deploy/compose/services/docker-compose.yml), и он уезжает демону целиком на
-# каждую из шести сборок. Без этого файла это ~294 МБ, из которых 289 МБ — bin/
-# с бинарниками инструментов разработки (buf, golangci-lint, goose и прочие).
-# Они не нужны сборке и вдобавок ломают кеш: любая переустановка инструмента
-# меняет контекст и инвалидирует слой COPY . . во всех образах сразу.
+# Every service build uses the repository root as its context (context: ../../.. in
+# deploy/compose/services/docker-compose.yml) and ships it whole to the daemon on each
+# of the six builds. Without this file that is ~294 MB, 289 MB of which is bin/ with the
+# development tool binaries (buf, golangci-lint, goose and friends).
+# The build does not need them and they break the cache: reinstalling any tool changes
+# the context and invalidates the COPY . . layer in every image at once.
 
 .git
 .gitignore
 
-# Инструменты разработки — ставятся на хосте через task *:install
+# Development tools — installed on the host via task *:install
 bin/
 
-# Артефакты тестов и покрытия
+# Test and coverage artifacts
 coverage/
 
-# Файлы, к сборке не относящиеся
+# Files unrelated to the build
 *.md
 .claude/
 .github/

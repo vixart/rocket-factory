@@ -9,10 +9,10 @@ import (
 )
 
 type diContainer struct {
-	// Сервисы
+	// Services
 	paymentSvc paymentApiV1.PaymentService
 
-	// API-обработчики
+	// API handlers
 	paymentv1Handler paymentv1.PaymentServiceServer
 }
 

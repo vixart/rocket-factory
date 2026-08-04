@@ -15,8 +15,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Заказы в минуту",
-      "description": "Скорость создания заказов (rate).",
+      "title": "Orders per minute",
+      "description": "Order creation rate.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
       "fieldConfig": {
@@ -43,8 +43,8 @@
     },
     {
       "type": "stat",
-      "title": "Выручка (накопительная)",
-      "description": "Суммарная выручка по оплаченным заказам (в копейках).",
+      "title": "Revenue (cumulative)",
+      "description": "Total revenue of paid orders, in kopecks.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
       "fieldConfig": {
@@ -77,8 +77,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Оплаченные заказы в минуту",
-      "description": "Скорость оплаты заказов (rate).",
+      "title": "Paid orders per minute",
+      "description": "Order payment rate.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
       "fieldConfig": {
@@ -112,7 +112,7 @@
     {
       "type": "timeseries",
       "title": "HTTP RPS by Status Code",
-      "description": "Количество HTTP-запросов в секунду, сгруппированных по статус-коду ответа.",
+      "description": "HTTP requests per second grouped by response status code.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
       "fieldConfig": {
@@ -153,7 +153,7 @@
     {
       "type": "timeseries",
       "title": "HTTP Request Duration — P50 / P95 / P99",
-      "description": "Перцентили длительности HTTP-запросов к OrderService.",
+      "description": "Latency percentiles of HTTP requests to OrderService.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
       "fieldConfig": {
@@ -196,7 +196,7 @@
     {
       "type": "timeseries",
       "title": "HTTP RPS by Instance",
-      "description": "Количество HTTP-запросов в секунду по инстансам OrderService. Показывает распределение нагрузки между репликами (round-robin). Актуально при горизонтальном масштабировании (неделя 8).",
+      "description": "HTTP requests per second per OrderService instance. Shows how the load is spread across replicas (round-robin), which matters under horizontal scaling.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
       "fieldConfig": {

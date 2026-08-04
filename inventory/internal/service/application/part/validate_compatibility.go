@@ -41,7 +41,7 @@ func (s *service) resolveShipSlots(ctx context.Context, slots valueobject.ShipSl
 	for _, request := range requests {
 		if request.uuid == uuid.Nil {
 			if request.required {
-				return entity.ResolvedShipSlots{}, fmt.Errorf("%s_uuid обязателен: %w", request.name, errs.ErrInvalidUUID)
+				return entity.ResolvedShipSlots{}, fmt.Errorf("%s_uuid is required: %w", request.name, errs.ErrInvalidUUID)
 			}
 			continue
 		}
@@ -54,8 +54,8 @@ func (s *service) resolveShipSlots(ctx context.Context, slots valueobject.ShipSl
 
 	parts, err := s.partRepo.List(ctx, input.PartFilter{UUIDs: uuids})
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось получить детали для проверки совместимости", "part_uuids", uuids, "error", err)
-		return entity.ResolvedShipSlots{}, fmt.Errorf("получить детали: %w", err)
+		slog.ErrorContext(ctx, "failed to fetch parts for the compatibility check", "part_uuids", uuids, "error", err)
+		return entity.ResolvedShipSlots{}, fmt.Errorf("fetch parts: %w", err)
 	}
 
 	byUUID := make(map[uuid.UUID]entity.Part, len(parts))
@@ -73,7 +73,7 @@ func (s *service) resolveShipSlots(ctx context.Context, slots valueobject.ShipSl
 		part, ok := byUUID[request.uuid]
 		if !ok {
 			return entity.ResolvedShipSlots{}, fmt.Errorf(
-				"деталь %q для слота %s: %w",
+				"part %q for slot %s: %w",
 				request.uuid.String(),
 				request.name,
 				errs.ErrPartNotFound,
@@ -82,7 +82,7 @@ func (s *service) resolveShipSlots(ctx context.Context, slots valueobject.ShipSl
 
 		if part.PartType() != request.partType {
 			return entity.ResolvedShipSlots{}, fmt.Errorf(
-				"в слот %s передана деталь типа %s, ожидается %s: %w",
+				"slot %s received a part of type %s, expected %s: %w",
 				request.name,
 				part.PartType(),
 				request.partType,
@@ -115,7 +115,7 @@ func validateDuplicateUUIDs(requests []slotRequest) error {
 
 		if prev, ok := seen[r.uuid]; ok {
 			return fmt.Errorf(
-				"uuid %s задублирован в слотах %s и %s: %w",
+				"uuid %s is duplicated in slots %s and %s: %w",
 				r.uuid,
 				prev,
 				r.name,

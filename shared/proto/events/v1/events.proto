@@ -6,36 +6,36 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/events/v1;eventsv1";
 
-// OrderPaid — событие оплаты заказа
+// OrderPaid is emitted when an order is paid
 // Producer: OrderService
 // Consumer: AssemblyService
 message OrderPaid {
-  // Уникальный идентификатор события (для идемпотентности)
+  // Unique event identifier, used for idempotency
   string event_uuid = 1;
 
-  // Идентификатор оплаченного заказа
+  // Identifier of the paid order
   string order_uuid = 2;
 
-  // Идентификатор пользователя
+  // User identifier
   string user_uuid = 3;
 }
 
-// ShipAssembled — событие завершения сборки корабля
+// ShipAssembled is emitted when a ship has been assembled
 // Producer: AssemblyService
 // Consumer: OrderService
 message ShipAssembled {
-  // Уникальный идентификатор события
+  // Unique event identifier
   string event_uuid = 1;
 
-  // Идентификатор заказа
+  // Order identifier
   string order_uuid = 2;
 
-  // Идентификатор пользователя
+  // User identifier
   string user_uuid = 3;
 
-  // Время сборки в секундах
+  // Build time in seconds
   int64 build_time_sec = 4;
 
-  // Время завершения сборки
+  // When the assembly finished
   google.protobuf.Timestamp assembled_at = 5;
 }

@@ -30,7 +30,7 @@ func (r *repository) Update(ctx context.Context, order model.Order) error {
 		order.UUID,
 	)
 	if err != nil {
-		return fmt.Errorf("обновить заказ: %w", err)
+		return fmt.Errorf("update order: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {

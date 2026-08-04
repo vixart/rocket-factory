@@ -25,24 +25,24 @@ import (
 )
 
 const (
-	// gRPC keepalive параметры.
-	grpcMaxConnectionIdle     = 15 * time.Minute // Закрыть idle-соединения (нет активных RPC)
-	grpcMaxConnectionAge      = 30 * time.Minute // Принудительная ротация для балансировки
-	grpcMaxConnectionAgeGrace = 5 * time.Second  // Время на завершение активных RPC
-	grpcKeepaliveTime         = 5 * time.Minute  // Интервал ping'ов для обнаружения мёртвых соединений
-	grpcKeepaliveTimeout      = 1 * time.Second  // Тайм-аут ожидания pong
-	grpcMinPingInterval       = 5 * time.Second  // Минимальный интервал ping'ов от клиента (должен быть меньше keepalive.Time клиентов — 10s, иначе сервер шлёт GOAWAY too_many_pings)
+	// gRPC keepalive parameters.
+	grpcMaxConnectionIdle     = 15 * time.Minute // close idle connections (no active RPCs)
+	grpcMaxConnectionAge      = 30 * time.Minute // forced rotation, helps load balancing
+	grpcMaxConnectionAgeGrace = 5 * time.Second  // grace period for in-flight RPCs
+	grpcKeepaliveTime         = 5 * time.Minute  // ping interval to detect dead connections
+	grpcKeepaliveTimeout      = 1 * time.Second  // pong wait timeout
+	grpcMinPingInterval       = 5 * time.Second  // minimum client ping interval (must be below the client keepalive.Time)
 	shutdownTimeout           = 5 * time.Second
 )
 
-// App — корневая структура приложения, управляющая жизненным циклом всех компонентов.
+// App is the application root that owns the lifecycle of every component.
 type App struct {
 	diContainer *diContainer
 	grpcServer  *grpc.Server
 	listener    net.Listener
 }
 
-// New создаёт и инициализирует приложение.
+// New creates and initializes the application.
 func New(ctx context.Context) *App {
 	a := &App{}
 
@@ -51,13 +51,13 @@ func New(ctx context.Context) *App {
 	return a
 }
 
-// Run управляет жизненным циклом приложения: запускает gRPC-сервер,
-// обрабатывает сигналы ОС и выполняет graceful shutdown
+// Run drives the application lifecycle: it starts the gRPC server, handles OS
+// signals and performs the graceful shutdown.
 //
-// Сервер запускается в отдельной горутине, а main-горутина синхронно ждёт
-// либо сигнал SIGINT/SIGTERM, либо падение сервера. После этого
-// closer.CloseAll вызывается синхронно — main-горутина гарантированно
-// дожидается завершения всех закрытий перед выходом из Run.
+// The server runs in its own goroutine while the main goroutine waits for either
+// SIGINT/SIGTERM or a server failure. closer.CloseAll then runs synchronously, so
+// the main goroutine is guaranteed to wait for every close to finish before Run
+// returns.
 func (a *App) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -70,17 +70,17 @@ func (a *App) Run() error {
 	var runErr error
 	select {
 	case runErr = <-errCh:
-		// сервер сам упал (например, bind: address already in use)
+		// the server failed on its own (bind: address already in use, for example)
 	case <-ctx.Done():
-		slog.Info("получен сигнал завершения, начинаем graceful shutdown")
+		slog.Info("shutdown signal received, starting graceful shutdown")
 	}
-	cancel() // снимаем перехват сигналов, повторный Ctrl+C завершит процесс принудительно
+	cancel() // stop intercepting signals: a second Ctrl+C terminates the process immediately
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := closer.CloseAll(shutdownCtx); err != nil {
-		slog.Error("ошибка при завершении работы", "error", err)
+		slog.Error("shutdown failed", "error", err)
 		if runErr == nil {
 			runErr = err
 		}
@@ -89,7 +89,7 @@ func (a *App) Run() error {
 	return runErr
 }
 
-// initDeps последовательно инициализирует все зависимости приложения.
+// initDeps initializes every application dependency in order.
 func (a *App) initDeps(ctx context.Context) {
 	inits := []func(context.Context){
 		a.initDI,
@@ -104,12 +104,12 @@ func (a *App) initDeps(ctx context.Context) {
 	}
 }
 
-// initDI создаёт DI-контейнер.
+// initDI creates the DI container.
 func (a *App) initDI(_ context.Context) {
 	a.diContainer = &diContainer{}
 }
 
-// initLogger настраивает глобальный slog с уровнем из конфига.
+// initLogger configures the global slog logger with the level from the config.
 func (a *App) initLogger(_ context.Context) {
 	cfg := logger.Config{
 		Level:             config.AppConfig().Logger.Level,
@@ -133,7 +133,7 @@ func (a *App) initTracer(ctx context.Context) {
 	}
 	shutdown, err := tracing.InitTracer(ctx, cfg)
 	if err != nil {
-		slog.Error("не удалось инициализировать tracer", "error", err)
+		slog.Error("failed to initialize the tracer", "error", err)
 		os.Exit(1)
 	}
 	closer.Add("Tracer", func(ctx context.Context) error {
@@ -141,18 +141,18 @@ func (a *App) initTracer(ctx context.Context) {
 	})
 }
 
-// initListener создаёт TCP-листенер для gRPC-сервера.
+// initListener creates the TCP listener for the gRPC server.
 func (a *App) initListener(_ context.Context) {
-	listener, err := net.Listen("tcp", config.AppConfig().GRPC.Address()) //nolint:noctx // net.Listen не требует контекст, адрес из конфига
+	listener, err := net.Listen("tcp", config.AppConfig().GRPC.Address()) //nolint:noctx // net.Listen takes no context; the address comes from the config
 	if err != nil {
-		slog.Error("не удалось создать TCP-листенер", "error", err)
+		slog.Error("failed to create the TCP listener", "error", err)
 		os.Exit(1)
 	}
 
 	a.listener = listener
 }
 
-// initGRPCServer создаёт и настраивает gRPC-сервер, регистрирует обработчики.
+// initGRPCServer creates and configures the gRPC server and registers the handlers.
 func (a *App) initGRPCServer(ctx context.Context) {
 	a.grpcServer = grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
@@ -165,7 +165,7 @@ func (a *App) initGRPCServer(ctx context.Context) {
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             grpcMinPingInterval,
-			PermitWithoutStream: true, // Клиенты пингуют без активных RPC (PermitWithoutStream: true), иначе соединение рвётся
+			PermitWithoutStream: true, // clients ping without active RPCs, otherwise the connection is dropped
 		}),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
@@ -174,10 +174,10 @@ func (a *App) initGRPCServer(ctx context.Context) {
 		),
 	)
 
-	// Получаем API-обработчик до регистрации closer'а: ленивая инициализация
-	// зацепит за собой создание пула БД и зарегистрирует его в closer'е.
-	// Closer работает по LIFO, поэтому пул должен попасть туда раньше gRPC-сервера —
-	// тогда при shutdown сначала остановится приём запросов, а уже потом закроется БД
+	// Build the API handler before registering the closer: lazy initialization pulls in
+	// the database pool and registers it in the closer.
+	// The closer is LIFO, so the pool must be registered before the gRPC server: on
+	// shutdown the server stops accepting requests first and the database closes after.
 	api := a.diContainer.PaymentV1API(ctx)
 
 	closer.Add("gRPC server", func(_ context.Context) error {
@@ -187,15 +187,15 @@ func (a *App) initGRPCServer(ctx context.Context) {
 
 	reflection.Register(a.grpcServer)
 
-	// Регистрируем health service для проверки работоспособности
+	// Register the health service for liveness/readiness probes
 	health.RegisterService(a.grpcServer)
 
 	paymentv1.RegisterPaymentServiceServer(a.grpcServer, api)
 }
 
-// runGRPCServer запускает gRPC-сервер и блокирует до его остановки.
+// runGRPCServer starts the gRPC server and blocks until it stops.
 func (a *App) runGRPCServer() error {
-	slog.Info("🚀 gRPC-сервер запущен", "address", config.AppConfig().GRPC.Address())
+	slog.Info("🚀 gRPC server started", "address", config.AppConfig().GRPC.Address())
 
 	return a.grpcServer.Serve(a.listener)
 }

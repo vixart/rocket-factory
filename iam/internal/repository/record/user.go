@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// User — доменная модель пользователя.
+// User is the storage record of a user.
 type User struct {
 	UUID         uuid.UUID  `db:"uuid"`
 	Login        string     `db:"login"`

@@ -7,57 +7,56 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// Server реализует gRPC Health Checking Protocol (https://github.com/grpc/grpc/blob/master/doc/health-checking.md)
+// Server implements the gRPC Health Checking Protocol (https://github.com/grpc/grpc/blob/master/doc/health-checking.md).
 //
-// Это стандартный протокол для проверки состояния gRPC-сервисов. Он используется:
-//   - Kubernetes: livenessProbe и readinessProbe через grpc-health-probe или нативную gRPC-проверку
-//     (spec.containers[].livenessProbe.grpc.port). Kubelet периодически вызывает Check — если сервис
-//     не отвечает SERVING, Pod перезапускается (liveness) или исключается из балансировки (readiness)
-//   - gRPC-балансировщиками (Envoy, grpc-go client-side balancing) для определения доступных backends
-//   - Мониторингом и health-check dashboards
+// It is the standard way to probe the state of a gRPC service, used by:
+//   - Kubernetes: livenessProbe and readinessProbe, via grpc-health-probe or the native gRPC probe
+//     (spec.containers[].livenessProbe.grpc.port). Kubelet calls Check periodically: if the service
+//     does not answer SERVING, the Pod is restarted (liveness) or removed from balancing (readiness)
+//   - gRPC load balancers (Envoy, grpc-go client-side balancing) to find the available backends
+//   - monitoring systems and health-check dashboards
 //
-// Текущая реализация всегда возвращает SERVING — сервис считается здоровым, если gRPC-сервер
-// принимает соединения. Для более продвинутых сценариев можно добавить в структуру зависимости
-// (пул БД, Redis-клиент и т.д.) и проверять их доступность в методе Check:
+// The current implementation always returns SERVING: the service counts as healthy as long as
+// the gRPC server accepts connections. For richer scenarios, dependencies can be added to the
+// struct (database pool, Redis client, ...) and probed inside Check:
 //
 //	type Server struct {
 //	    grpc_health_v1.UnimplementedHealthServer
-//	    db    *pgxpool.Pool   // pool.Ping(ctx) для проверки PostgreSQL
-//	    redis *redis.Client   // client.Ping(ctx) для проверки Redis
+//	    db    *pgxpool.Pool   // pool.Ping(ctx) to probe PostgreSQL
+//	    redis *redis.Client   // client.Ping(ctx) to probe Redis
 //	}
 //
-// Если любая зависимость не отвечает — возвращаем NOT_SERVING, и Kubernetes
-// перезапустит Pod (liveness) или уберёт из балансировки (readiness).
+// If any dependency does not respond, return NOT_SERVING and Kubernetes will restart the
+// Pod (liveness) or take it out of balancing (readiness).
 type Server struct {
 	grpc_health_v1.UnimplementedHealthServer
 }
 
-// Check — unary RPC для проверки здоровья сервиса
+// Check is the unary RPC that reports service health.
 //
-// Вызывается Kubernetes (grpc liveness/readiness probe), балансировщиками и клиентами
-// Возвращает один из статусов: SERVING, NOT_SERVING, UNKNOWN
-// Поле req.Service позволяет проверить здоровье конкретного сервиса — пустая строка означает
-// проверку всего сервера целиком.
+// It is called by Kubernetes (gRPC liveness/readiness probes), load balancers and clients,
+// and returns one of SERVING, NOT_SERVING, UNKNOWN.
+// req.Service allows probing a specific service; an empty string means the whole server.
 func (s *Server) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,
 	}, nil
 }
 
-// Watch — server-streaming RPC для подписки на изменения статуса здоровья
+// Watch is the server-streaming RPC that pushes health status changes.
 //
-// В отличие от Check (pull-модель), Watch позволяет клиенту получать обновления
-// в реальном времени без периодического опроса. Используется gRPC-балансировщиками
-// для мгновенной реакции на изменение состояния backend'ов
-// В текущей реализации отправляет SERVING один раз и завершает стрим.
+// Unlike Check, which is pull based, Watch lets a client receive updates in real time
+// without polling. gRPC load balancers use it to react to backend state changes
+// immediately.
+// The current implementation sends SERVING once and closes the stream.
 func (s *Server) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	return stream.Send(&grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,
 	})
 }
 
-// RegisterService регистрирует health-сервис на gRPC-сервере
-// После регистрации сервис доступен по стандартному пути grpc.health.v1.Health.
+// RegisterService registers the health service on a gRPC server.
+// Once registered it is reachable at the standard grpc.health.v1.Health path.
 func RegisterService(s *grpc.Server) {
 	grpc_health_v1.RegisterHealthServer(s, &Server{})
 }

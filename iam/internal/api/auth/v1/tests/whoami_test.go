@@ -76,7 +76,7 @@ func TestWhoami(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный whoami",
+			name: "whoami succeeds",
 			args: args{
 				req: &authv1.WhoamiRequest{
 					SessionUuid: sessionUUID.String(),
@@ -89,7 +89,7 @@ func TestWhoami(t *testing.T) {
 			},
 		},
 		{
-			name: "успешный whoami с updatedAt",
+			name: "whoami succeeds with updatedAt",
 			args: args{
 				req: &authv1.WhoamiRequest{
 					SessionUuid: sessionUUID.String(),
@@ -102,7 +102,7 @@ func TestWhoami(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой session uuid",
+			name: "empty session uuid",
 			args: args{
 				req: &authv1.WhoamiRequest{
 					SessionUuid: "",
@@ -114,7 +114,7 @@ func TestWhoami(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный session uuid",
+			name: "invalid session uuid",
 			args: args{
 				req: &authv1.WhoamiRequest{
 					SessionUuid: "not-a-uuid",
@@ -126,7 +126,7 @@ func TestWhoami(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &authv1.WhoamiRequest{
 					SessionUuid: sessionUUID.String(),

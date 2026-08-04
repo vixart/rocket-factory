@@ -39,7 +39,7 @@ func TestLogout(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный логаут",
+			name: "logout succeeds",
 			args: args{
 				req: &authv1.LogoutRequest{
 					SessionUuid: sessionUUID.String(),
@@ -52,7 +52,7 @@ func TestLogout(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой session uuid",
+			name: "empty session uuid",
 			args: args{
 				req: &authv1.LogoutRequest{
 					SessionUuid: "",
@@ -64,7 +64,7 @@ func TestLogout(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный session uuid",
+			name: "invalid session uuid",
 			args: args{
 				req: &authv1.LogoutRequest{
 					SessionUuid: "not-a-uuid",
@@ -76,7 +76,7 @@ func TestLogout(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &authv1.LogoutRequest{
 					SessionUuid: sessionUUID.String(),

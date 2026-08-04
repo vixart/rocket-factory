@@ -40,7 +40,7 @@ func TestCommit(t *testing.T) {
 		valueobject.PartTypeEngine,
 		5000,
 		3,
-		1, // reserved > 0 чтобы Commit прошёл
+		1, // reserved > 0 so that Commit succeeds
 		valueobject.PartProperties{},
 		time.Time{},
 	)
@@ -52,7 +52,7 @@ func TestCommit(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный commit",
+			name: "commit succeeds",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -78,7 +78,7 @@ func TestCommit(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка list",
+			name: "list fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -94,11 +94,11 @@ func TestCommit(t *testing.T) {
 					Return(nil, errors.New("db error"))
 			},
 			expected: expected{
-				err: errors.New("не удалось получить детали"),
+				err: errors.New("failed to fetch parts"),
 			},
 		},
 		{
-			name: "ошибка domain Commit (нет резерва)",
+			name: "domain Commit fails (nothing reserved)",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -119,18 +119,18 @@ func TestCommit(t *testing.T) {
 							valueobject.PartTypeEngine,
 							5000,
 							3,
-							0, // ❌ reserved = 0 → Commit упадёт
+							0, // ❌ reserved = 0 → Commit fails
 							valueobject.PartProperties{},
 							time.Time{},
 						),
 					}, nil)
 			},
 			expected: expected{
-				err: errors.New("не удалось использовать детали"),
+				err: errors.New("failed to commit parts"),
 			},
 		},
 		{
-			name: "ошибка update batch",
+			name: "batch update fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},

@@ -122,7 +122,7 @@ func (c *client) ValidateCompatibility(ctx context.Context, orderParts input.Ord
 }
 
 func mapErrors(ctx context.Context, err error) error {
-	slog.ErrorContext(ctx, "ошибка при обращении к inventory сервису", "error", err)
+	slog.ErrorContext(ctx, "inventory service call failed", "error", err)
 
 	if st, ok := status.FromError(err); ok {
 		var errType error
@@ -139,8 +139,8 @@ func mapErrors(ctx context.Context, err error) error {
 			errType = errs.ErrInternalError
 		}
 
-		return fmt.Errorf("обращение к сервису inventory вернуло ошибку %q: %w", st.Message(), errType)
+		return fmt.Errorf("inventory service returned an error %q: %w", st.Message(), errType)
 	}
 
-	return fmt.Errorf("ошибка при обращении к inventory сервису: %w", errs.ErrInternalError)
+	return fmt.Errorf("inventory service call failed: %w", errs.ErrInternalError)
 }

@@ -1,13 +1,13 @@
-# Единая схема ошибки для всех HTTP-кодов.
+# A single error schema shared by every HTTP code.
 #
-# Вместо создания отдельных файлов для каждого HTTP-кода ошибки
-# (bad_request_error.yaml, not_found_error.yaml, internal_server_error.yaml и т.д.)
-# используем одну универсальную схему Error.
+# Instead of a separate file per HTTP error code
+# (bad_request_error.yaml, not_found_error.yaml, internal_server_error.yaml and so on)
+# we use one generic Error schema.
 #
-# Преимущества:
-# - Уменьшает дублирование (все ошибки имеют одинаковую структуру)
-# - Упрощает поддержку (изменения в одном месте)
-# - Генерирует один базовый тип Error в Go-коде
+# Benefits:
+# - reduces duplication: every error shares the same structure
+# - simplifies maintenance: changes happen in one place
+# - generates a single base Error type in the Go code
 
 name: Error
 type: object
@@ -17,9 +17,9 @@ required:
 properties:
   code:
     type: integer
-    description: HTTP-код ошибки
+    description: HTTP error code
     example: 400
   message:
     type: string
-    description: Человекочитаемое описание ошибки
+    description: Human-readable error description
     example: "Invalid request parameters"

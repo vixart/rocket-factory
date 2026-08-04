@@ -10,33 +10,33 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 )
 
-// Option — функциональная опция для конфигурации Consumer.
+// Option is a functional option for configuring a Consumer.
 type Option func(*Consumer)
 
-// WithMiddlewares добавляет middleware-цепочку к Consumer
-// Middleware применяются в порядке передачи: первый оборачивает всю цепочку.
+// WithMiddlewares attaches a middleware chain to the Consumer.
+// Middlewares apply in the order given: the first one wraps the whole chain.
 func WithMiddlewares(mws ...kafka.Middleware) Option {
 	return func(c *Consumer) {
 		c.middlewares = append(c.middlewares, mws...)
 	}
 }
 
-// Consumer — обёртка над sarama.ConsumerGroup с поддержкой middleware
+// Consumer wraps sarama.ConsumerGroup and adds middleware support.
 //
-// Запускает бесконечный цикл потребления сообщений из указанных топиков
-// При ребалансировке consumer group sarama вызывает Consume повторно —
-// цикл в методе Consume обрабатывает это автоматически.
+// It runs an endless consume loop over the given topics. On a consumer group
+// rebalance sarama returns from Consume and it has to be called again —
+// the loop inside Consume handles that automatically.
 type Consumer struct {
 	group       sarama.ConsumerGroup
 	topics      []string
 	middlewares []kafka.Middleware
 }
 
-// NewConsumer создаёт Consumer для указанных топиков
+// NewConsumer creates a Consumer for the given topics.
 //
-// group должен быть создан через sarama.NewConsumerGroup с корректной конфигурацией:
-//   - Consumer.Offsets.Initial — стратегия начального оффсета (OffsetOldest / OffsetNewest)
-//   - Consumer.Group.Rebalance.GroupStrategies — стратегия ребалансировки (RoundRobin, Range и т.д.)
+// group must be created via sarama.NewConsumerGroup with a valid configuration:
+//   - Consumer.Offsets.Initial — initial offset strategy (OffsetOldest / OffsetNewest)
+//   - Consumer.Group.Rebalance.GroupStrategies — rebalance strategy (RoundRobin, Range, ...)
 func NewConsumer(group sarama.ConsumerGroup, topics []string, opts ...Option) *Consumer {
 	c := &Consumer{
 		group:  group,
@@ -50,13 +50,13 @@ func NewConsumer(group sarama.ConsumerGroup, topics []string, opts ...Option) *C
 	return c
 }
 
-// Consume запускает бесконечный цикл потребления сообщений
+// Consume runs the endless message consumption loop.
 //
-// handler вызывается для каждого сообщения. При успешном возврате (nil) сообщение
-// помечается как обработанное (at-least-once семантика). При ошибке — сообщение
-// логируется и пропускается (оффсет НЕ коммитится, но обработка продолжается)
+// handler is called for every message. On success (nil) the message is marked as
+// processed (at-least-once semantics). On error the message is logged and skipped:
+// the offset is NOT committed, but consumption continues.
 //
-// Метод блокирует горутину до отмены ctx или критической ошибки.
+// The method blocks until ctx is cancelled or a fatal error occurs.
 func (c *Consumer) Consume(ctx context.Context, handler kafka.MessageHandler) error {
 	newGroupHandler := NewGroupHandler(handler, c.middlewares...)
 
@@ -66,7 +66,7 @@ func (c *Consumer) Consume(ctx context.Context, handler kafka.MessageHandler) er
 				return nil
 			}
 
-			slog.ErrorContext(ctx, "ошибка потребления Kafka", "error", err)
+			slog.ErrorContext(ctx, "Kafka consumption failed", "error", err)
 			return err
 		}
 
@@ -74,8 +74,8 @@ func (c *Consumer) Consume(ctx context.Context, handler kafka.MessageHandler) er
 			return ctx.Err()
 		}
 
-		// После ребалансировки sarama завершает текущий Consume и нужно
-		// вызвать его повторно, чтобы получить новые назначенные партиции
-		slog.InfoContext(ctx, "ребалансировка Kafka consumer group...")
+		// After a rebalance sarama returns from the current Consume, so it has to be
+		// called again to pick up the newly assigned partitions.
+		slog.InfoContext(ctx, "Kafka consumer group is rebalancing...")
 	}
 }

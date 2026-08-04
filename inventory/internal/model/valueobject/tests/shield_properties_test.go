@@ -20,22 +20,22 @@ func TestNewShieldProperties(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:  "валидный energy shield",
+			name:  "valid energy shield",
 			input: valueobject.EnergyShield,
 			want:  valueobject.EnergyShield,
 		},
 		{
-			name:  "валидный plasma shield",
+			name:  "valid plasma shield",
 			input: valueobject.PlasmaShield,
 			want:  valueobject.PlasmaShield,
 		},
 		{
-			name:    "невалидный shield type",
+			name:    "invalid shield type",
 			input:   valueobject.ShieldType("void"),
 			wantErr: errs.ErrInvalidProperties,
 		},
 		{
-			name:    "пустой shield type",
+			name:    "empty shield type",
 			input:   valueobject.ShieldType(""),
 			wantErr: errs.ErrInvalidProperties,
 		},

@@ -88,7 +88,7 @@ func TestCompatibilityChecker_Check(t *testing.T) {
 		expected expected
 	}{
 		{
-			name: "успешная совместимость",
+			name: "parts are compatible",
 			args: args{
 				parts: entity.ResolvedShipSlots{
 					Hull:   hull,
@@ -98,7 +98,7 @@ func TestCompatibilityChecker_Check(t *testing.T) {
 			expected: expected{},
 		},
 		{
-			name: "hull не выдерживает engine",
+			name: "hull cannot support the engine",
 			args: args{
 				parts: entity.ResolvedShipSlots{
 					Hull: entity.RestorePart(
@@ -123,7 +123,7 @@ func TestCompatibilityChecker_Check(t *testing.T) {
 			},
 		},
 		{
-			name: "shield конфликтует с weapon",
+			name: "shield conflicts with the weapon",
 			args: args{
 				parts: entity.ResolvedShipSlots{
 					Hull:   hull,
@@ -137,7 +137,7 @@ func TestCompatibilityChecker_Check(t *testing.T) {
 			},
 		},
 		{
-			name: "shield и weapon отсутствуют — OK",
+			name: "shield and weapon are absent — OK",
 			args: args{
 				parts: entity.ResolvedShipSlots{
 					Hull:   hull,

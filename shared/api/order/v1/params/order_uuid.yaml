@@ -1,7 +1,7 @@
 name: order_uuid
 in: path
 required: true
-description: UUID заказа (v4)
+description: Order UUID (v4)
 schema:
   type: string
   format: uuid

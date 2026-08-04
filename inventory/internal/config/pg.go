@@ -10,11 +10,11 @@ type pgConfig struct {
 	Password string `yaml:"password" env:"POSTGRES_PASSWORD" env-default:"secret"`
 	SSLMode  string `yaml:"sslmode"  env:"POSTGRES_SSLMODE"  env-default:"disable"`
 
-	// MaxConns — размер пула pgx. Без него pgxpool берёт свой дефолт
-	// max(4, NumCPU), то есть 4–8 соединений на весь сервис. Reserve держит
-	// соединение, пока ждёт блокировку строки в SELECT ... FOR UPDATE, поэтому
-	// на таком пуле несколько параллельных резервирований выгребают его досуха,
-	// и даже быстрые чтения встают в очередь за свободным соединением.
+	// MaxConns is the pgx pool size. Without it pgxpool uses its own default of
+	// max(4, NumCPU), i.e. 4–8 connections for the whole service. Reserve holds a
+	// connection while waiting for a row lock in SELECT ... FOR UPDATE, so on such a
+	// pool a few concurrent reservations drain it completely and even fast reads queue
+	// up waiting for a free connection.
 	MaxConns int `yaml:"max_conns" env:"POSTGRES_MAX_CONNS" env-default:"25"`
 }
 
@@ -24,8 +24,8 @@ func (c *pgConfig) DSN() string {
 		c.Host, c.Port, c.Database, c.User, c.Password, c.SSLMode,
 	)
 
-	// pool_max_conns=0 pgx считает ошибкой конфигурации, поэтому при неположительном
-	// значении параметр не добавляем — пул останется на дефолте pgx.
+	// pgx treats pool_max_conns=0 as a configuration error, so a non-positive value
+	// leaves the parameter out and the pool keeps the pgx default.
 	if c.MaxConns > 0 {
 		dsn += fmt.Sprintf(" pool_max_conns=%d", c.MaxConns)
 	}

@@ -15,7 +15,7 @@ func (a *api) CommitParts(ctx context.Context, req *inventoryv1.CommitPartsReque
 	for _, uuidStr := range req.GetUuids() {
 		parsedUuid, err := uuid.Parse(uuidStr)
 		if err != nil {
-			return nil, fmt.Errorf("неверный формат uuid: %s, %w", uuidStr, errs.ErrInvalidUUID)
+			return nil, fmt.Errorf("invalid uuid format: %s, %w", uuidStr, errs.ErrInvalidUUID)
 		}
 
 		parsedUuids = append(parsedUuids, parsedUuid)

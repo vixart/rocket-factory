@@ -1,9 +1,9 @@
-# Docker Compose для всех микросервисов.
-# Запуск: task up-all (включает --scale order-service=3)
+# Docker Compose for every microservice.
+# Run it with: task up-all (which includes --scale order-service=3)
 
 services:
 
-  # --- HTTP-сервис (масштабируется через --scale) ---
+  # --- HTTP service (scaled with --scale) ---
 
   order-service:
     build:
@@ -12,13 +12,13 @@ services:
       args:
         GO_IMAGE: ${GO_IMAGE}
         ALPINE_IMAGE: ${ALPINE_IMAGE}
-    # НЕ указываем container_name — при --scale Docker создаёт уникальные имена.
-    # НЕ указываем ports — трафик идёт через Nginx, а не напрямую.
+    # No container_name: with --scale Docker assigns unique names.
+    # No ports: traffic goes through Nginx rather than directly.
     volumes:
       - ../../../order/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
-    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    # Override layer on top of config.docker.yaml (cleanenv: env > yaml).
     env_file:
       - ../../../order/order.docker.env
     networks:
@@ -38,11 +38,11 @@ services:
     networks:
       - microservices-net
 
-  # --- gRPC-сервисы ---
-  # У gRPC-сервисов НЕ указан container_name — это даёт возможность масштабировать
-  # их через --scale (например, для экспериментов). Docker DNS всё равно резолвит
-  # имя сервиса в IP всех реплик. Для отладки по имени контейнера используйте
-  # docker ps (реальные имена вида services-inventory-service-1).
+  # --- gRPC services ---
+  # The gRPC services have no container_name either, which makes them scalable with
+  # --scale (handy for experiments). Docker DNS still resolves the service name to the
+  # IPs of every replica. To debug by container name use docker ps (the real names look
+  # like services-inventory-service-1).
 
   inventory-service:
     build:
@@ -57,7 +57,7 @@ services:
       - ../../../inventory/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
-    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    # Override layer on top of config.docker.yaml (cleanenv: env > yaml).
     env_file:
       - ../../../inventory/inventory.docker.env
     networks:
@@ -76,7 +76,7 @@ services:
       - ../../../payment/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
-    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    # Override layer on top of config.docker.yaml (cleanenv: env > yaml).
     env_file:
       - ../../../payment/payment.docker.env
     networks:
@@ -95,7 +95,7 @@ services:
       - ../../../iam/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
-    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    # Override layer on top of config.docker.yaml (cleanenv: env > yaml).
     env_file:
       - ../../../iam/iam.docker.env
     networks:
@@ -114,7 +114,7 @@ services:
       - ../../../assembly/config.docker.yaml:/config.yaml
     environment:
       - CONFIG_PATH=/config.yaml
-    # Слой переопределений поверх config.docker.yaml (cleanenv: env > yaml).
+    # Override layer on top of config.docker.yaml (cleanenv: env > yaml).
     env_file:
       - ../../../assembly/assembly.docker.env
     networks:

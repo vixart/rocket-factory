@@ -43,7 +43,7 @@ func TestPayOrder(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная оплата заказа",
+			name: "order paid successfully",
 			args: args{
 				req: &orderv1.PayOrderRequest{
 					PaymentMethod: orderv1.PaymentMethodCARD,
@@ -59,7 +59,7 @@ func TestPayOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка оплаты заказа",
+			name: "order payment fails",
 			args: args{
 				req: &orderv1.PayOrderRequest{
 					PaymentMethod: orderv1.PaymentMethodCARD,

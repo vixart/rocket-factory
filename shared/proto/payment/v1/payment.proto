@@ -4,13 +4,13 @@ package payment.v1;
 
 option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/payment/v1;paymentv1";
 
-// PaymentService обрабатывает оплату заказов
+// PaymentService processes order payments
 service PaymentService {
-  // PayOrder обрабатывает оплату заказа
+  // PayOrder processes the payment of an order
   rpc PayOrder(PayOrderRequest) returns (PayOrderResponse);
 }
 
-// Способ оплаты
+// Payment method
 enum PaymentMethod {
   PAYMENT_METHOD_UNSPECIFIED = 0;
   PAYMENT_METHOD_CARD = 1;
@@ -19,17 +19,17 @@ enum PaymentMethod {
   PAYMENT_METHOD_INVESTOR_MONEY = 4;
 }
 
-// Запрос на оплату заказа
+// Request to pay for an order
 message PayOrderRequest {
-  // UUID заказа
+  // Order UUID
   string order_uuid = 1;
 
-  // Выбранный способ оплаты (обязательный)
+  // Chosen payment method (required)
   PaymentMethod payment_method = 2;
 }
 
-// Ответ на оплату заказа
+// Order payment response
 message PayOrderResponse {
-  // UUID транзакции
+  // Transaction UUID
   string transaction_uuid = 1;
 }

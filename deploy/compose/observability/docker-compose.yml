@@ -1,9 +1,9 @@
-# Архитектура observability:
-# Go App -> OTel Collector (:4317) -> Jaeger (:16686)       — трейсы
-# Go App -> OTel Collector (:4317) -> Prometheus (:9090)    — метрики (Remote Write)
-# Go App -> OTel Collector (:4317) -> Elasticsearch (:9200) — логи
-# Prometheus -> Grafana (:3000)                              — визуализация метрик
-# Elasticsearch -> Kibana (:5601)                            — визуализация логов
+# Observability architecture:
+# Go App -> OTel Collector (:4317) -> Jaeger (:16686)       — traces
+# Go App -> OTel Collector (:4317) -> Prometheus (:9090)    — metrics (remote write)
+# Go App -> OTel Collector (:4317) -> Elasticsearch (:9200) — logs
+# Prometheus -> Grafana (:3000)                              — metric dashboards
+# Elasticsearch -> Kibana (:5601)                            — log exploration
 
 services:
 
@@ -15,15 +15,15 @@ services:
     ports:
       - "${JAEGER_UI_PORT}:16686"
     environment:
-      # Включает приём трейсов по протоколу OTLP (OpenTelemetry Protocol)
+      # Enables trace ingestion over OTLP (OpenTelemetry Protocol)
       - COLLECTOR_OTLP_ENABLED=true
-      # Тип хранилища для трейсов. Badger — встраиваемая key-value БД (альтернативы: memory, elasticsearch, cassandra)
+      # Trace storage type. Badger is an embedded key-value store (alternatives: memory, elasticsearch, cassandra)
       - STORAGE_TYPE=badger
-      # false = данные сохраняются на диск и переживают перезапуск контейнера (true = только в памяти)
+      # false = data is written to disk and survives a container restart (true = in memory only)
       - BADGER_EPHEMERAL=false
-      # Директория для хранения значений (value log) Badger
+      # Directory for the Badger value log
       - BADGER_DIRECTORY_VALUE=/badger/data
-      # Директория для хранения ключей (LSM-tree) Badger
+      # Directory for the Badger keys (LSM tree)
       - BADGER_DIRECTORY_KEY=/badger/key
     volumes:
       - jaeger_data:/badger/data
@@ -40,12 +40,12 @@ services:
 
   # --- Metrics ---
 
-  # Хранилище метрик (принимает данные через Remote Write API от OTel Collector)
+  # Metric storage (receives data from the OTel Collector through the remote write API)
   prometheus:
     image: ${PROMETHEUS_IMAGE}
     command:
       - --config.file=/dev/null
-      - --web.enable-remote-write-receiver # включает POST /api/v1/write
+      - --web.enable-remote-write-receiver # enables POST /api/v1/write
     ports:
       - "${PROMETHEUS_PORT}:9090"
     volumes:
@@ -59,7 +59,7 @@ services:
     networks:
       - microservices-net
 
-  # Веб-интерфейс для визуализации метрик (http://localhost:3000)
+  # Web interface for metric dashboards (http://localhost:3000)
   grafana:
     image: ${GRAFANA_IMAGE}
     ports:
@@ -84,7 +84,7 @@ services:
 
   # --- Logging ---
 
-  # Хранилище логов
+  # Log storage
   elasticsearch:
     image: ${ELASTICSEARCH_IMAGE}
     container_name: elasticsearch
@@ -92,12 +92,12 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - cluster.name=observability
-      # Фиксированный небольшой heap: без него ES берёт размер от объёма памяти
-      # хоста и дольше стартует. Для локального стека с логами одного прогона
-      # хватает с запасом.
+      # A fixed, modest heap: without it ES sizes the heap from the host memory and takes
+      # longer to start. For a local stack holding the logs of a single run it is plenty.
+
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
-      # Machine learning здесь не используется, а его инициализация — заметная
-      # часть времени старта.
+      # Machine learning is unused here and its initialization is a noticeable part of
+      # the startup time.
       - xpack.ml.enabled=false
     volumes:
       - es_data:/usr/share/elasticsearch/data
@@ -113,7 +113,7 @@ services:
     networks:
       - microservices-net
 
-  # Веб-интерфейс для просмотра логов (http://localhost:5601)
+  # Web interface for browsing logs (http://localhost:5601)
   kibana:
     image: ${KIBANA_IMAGE}
     container_name: kibana
@@ -138,8 +138,8 @@ services:
 
   # --- Telemetry Hub ---
 
-  # Принимает телеметрию от приложений (OTLP gRPC) и маршрутизирует:
-  # трейсы → Jaeger, метрики → Prometheus, логи → Elasticsearch
+  # Receives telemetry from the applications (OTLP gRPC) and routes it:
+  # traces → Jaeger, metrics → Prometheus, logs → Elasticsearch
   otel-collector:
     image: ${OTEL_COLLECTOR_IMAGE}
     container_name: otel-collector
@@ -171,5 +171,5 @@ networks:
   microservices-net:
     name: microservices-net
     external: true
-    # Сеть создаётся в Taskfile через docker network create
-    # Все docker-compose файлы подключаются к ней с external: true
+    # The network is created by the Taskfile via docker network create
+    # Every compose file joins it with external: true

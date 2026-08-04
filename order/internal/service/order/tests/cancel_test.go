@@ -38,7 +38,7 @@ func TestService_Cancel(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "успешная отмена заказа",
+			name: "order cancelled successfully",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
@@ -83,7 +83,7 @@ func TestService_Cancel(t *testing.T) {
 			},
 		},
 		{
-			name: "заказ не найден",
+			name: "order not found",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
@@ -105,7 +105,7 @@ func TestService_Cancel(t *testing.T) {
 			expectedErr: errs.ErrOrderNotFound,
 		},
 		{
-			name: "неверный статус заказа",
+			name: "wrong order status",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
@@ -133,7 +133,7 @@ func TestService_Cancel(t *testing.T) {
 			expectedErr: errs.ErrInvalidOrderStatus,
 		},
 		{
-			name: "ошибка release parts",
+			name: "release parts fails",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,
@@ -168,7 +168,7 @@ func TestService_Cancel(t *testing.T) {
 			expectedErr: inventoryErr,
 		},
 		{
-			name: "ошибка обновления",
+			name: "update fails",
 			setupMock: func(
 				repo *mocks.Repository,
 				inventory *mocks.InventoryClient,

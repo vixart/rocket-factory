@@ -5,5 +5,5 @@ enum:
   - PAID
   - CANCELLED
   - ASSEMBLED
-description: Статус заказа
+description: Order status
 example: PENDING_PAYMENT

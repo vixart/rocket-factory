@@ -38,7 +38,7 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	defer cancel()
 	parts, err := s.inventoryClient.ListParts(ctxWithTimeout, partsUuids)
 	if err != nil {
-		return nil, fmt.Errorf("при создании заказа не удалось получить детали: %w", err)
+		return nil, fmt.Errorf("failed to fetch parts while creating the order: %w", err)
 	}
 
 	if len(parts) != len(partsUuids) {
@@ -48,7 +48,7 @@ func (s *service) Create(ctx context.Context, orderParts input.OrderParts) (*mod
 	orderItems := make([]model.OrderItem, 0, len(parts))
 	for _, p := range parts {
 		if p.StockQuantity <= 0 {
-			return nil, fmt.Errorf("детали нет на складе: %s | %w", p.UUID, errs.ErrOutOfStock)
+			return nil, fmt.Errorf("part is out of stock: %s | %w", p.UUID, errs.ErrOutOfStock)
 		}
 		orderItems = append(orderItems, model.OrderItem{
 			UUID:     p.UUID,
@@ -96,7 +96,7 @@ func validateUniqueUUIDs(ids []uuid.UUID) error {
 
 		if _, ok := seen[id]; ok {
 			return fmt.Errorf(
-				"uuid %s задублирован в наборе деталей: %w",
+				"uuid %s is duplicated in the part set: %w",
 				id,
 				errs.ErrInvalidUUID,
 			)

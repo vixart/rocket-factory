@@ -12,7 +12,7 @@ import (
 func decodeShipAssembled(data []byte) (model.ShipAssembledEvent, error) {
 	var pb eventsv1.ShipAssembled
 	if err := proto.Unmarshal(data, &pb); err != nil {
-		return model.ShipAssembledEvent{}, fmt.Errorf("не удалось десериализовать protobuf: %w", err)
+		return model.ShipAssembledEvent{}, fmt.Errorf("failed to unmarshal protobuf: %w", err)
 	}
 
 	return model.ShipAssembledEvent{

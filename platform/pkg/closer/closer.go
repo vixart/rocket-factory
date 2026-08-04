@@ -7,42 +7,42 @@ import (
 	"time"
 )
 
-// closeFn описывает одну функцию закрытия с именем ресурса.
+// closeFn is a single close function together with the resource name.
 type closeFn struct {
 	name string
 	fn   func(context.Context) error
 }
 
-// closer управляет процессом graceful shutdown приложения
-// Функции закрытия вызываются в обратном порядке (LIFO) — последний добавленный
-// ресурс закрывается первым, что гарантирует корректный порядок зависимостей.
+// closer drives the graceful shutdown of the application.
+// Close functions run in reverse order (LIFO): the resource added last is closed
+// first, which keeps the dependency order correct.
 type closer struct {
 	mu    sync.Mutex
 	once  sync.Once
 	funcs []closeFn
 }
 
-// globalCloser — глобальный экземпляр, инициализируется при загрузке пакета
-// Благодаря этому closer готов к использованию сразу — его не нужно создавать
-// вручную, достаточно вызывать пакетные функции Add и CloseAll.
+// globalCloser is the package-level instance, initialized when the package loads,
+// so the closer is ready to use immediately: no manual construction is needed,
+// the package-level Add and CloseAll are enough.
 var globalCloser = newCloser()
 
-// newCloser создаёт новый экземпляр closer.
+// newCloser creates a new closer instance.
 func newCloser() *closer {
 	return &closer{}
 }
 
-// Add добавляет функцию закрытия в глобальный closer.
+// Add registers a close function in the global closer.
 func Add(name string, f func(context.Context) error) {
 	globalCloser.Add(name, f)
 }
 
-// CloseAll вызывает все функции закрытия глобального closer-а.
+// CloseAll runs every close function of the global closer.
 func CloseAll(ctx context.Context) error {
 	return globalCloser.CloseAll(ctx)
 }
 
-// Add добавляет функцию закрытия с именем ресурса.
+// Add registers a close function under a resource name.
 func (c *closer) Add(name string, f func(context.Context) error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -50,8 +50,8 @@ func (c *closer) Add(name string, f func(context.Context) error) {
 	c.funcs = append(c.funcs, closeFn{name: name, fn: f})
 }
 
-// CloseAll вызывает все зарегистрированные функции закрытия в обратном порядке (LIFO)
-// Безопасен для повторного вызова — выполнится только один раз.
+// CloseAll runs every registered close function in reverse order (LIFO).
+// It is safe to call repeatedly: the work happens only once.
 func (c *closer) CloseAll(ctx context.Context) error {
 	var result error
 
@@ -65,30 +65,30 @@ func (c *closer) CloseAll(ctx context.Context) error {
 			return
 		}
 
-		slog.Info("начинаем graceful shutdown", "count", len(funcs))
+		slog.Info("starting graceful shutdown", "count", len(funcs))
 
-		// Обходим в обратном порядке (LIFO): ресурсы, добавленные последними, закрываются первыми
-		// Это важно, потому что зависимости регистрируются в порядке создания: сначала БД, потом
-		// сервисы, потом gRPC-сервер. При завершении нужно сначала остановить сервер (перестать
-		// принимать запросы), затем дождаться завершения бизнес-логики и только потом закрыть БД
+		// Iterate in reverse (LIFO): resources added last are closed first.
+		// This matters because dependencies are registered in creation order: database first,
+		// then services, then the gRPC server. On shutdown the server must stop first (stop
+		// accepting requests), then in-flight business logic finishes, and only then the database closes.
 		for i := len(funcs) - 1; i >= 0; i-- {
 			f := funcs[i]
 
 			start := time.Now()
-			slog.Info("закрываем ресурс", "name", f.name)
+			slog.Info("closing resource", "name", f.name)
 
 			if err := f.fn(ctx); err != nil {
-				slog.Error("ошибка при закрытии ресурса", "name", f.name, "error", err, "duration", time.Since(start))
+				slog.Error("failed to close resource", "name", f.name, "error", err, "duration", time.Since(start))
 
 				if result == nil {
 					result = err
 				}
 			} else {
-				slog.Info("ресурс закрыт", "name", f.name, "duration", time.Since(start))
+				slog.Info("resource closed", "name", f.name, "duration", time.Since(start))
 			}
 		}
 
-		slog.Info("graceful shutdown завершён", "count", len(funcs))
+		slog.Info("graceful shutdown finished", "count", len(funcs))
 	})
 
 	return result

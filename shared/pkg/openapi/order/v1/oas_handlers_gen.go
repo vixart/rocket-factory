@@ -35,7 +35,7 @@ func (c *codeRecorder) Unwrap() http.ResponseWriter {
 
 // handleCancelOrderRequest handles cancelOrder operation.
 //
-// Отменяет заказ, который ещё не был оплачен.
+// Cancels an order that has not been paid yet.
 //
 // POST /api/v1/orders/{order_uuid}/cancel
 func (s *Server) handleCancelOrderRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -127,7 +127,7 @@ func (s *Server) handleCancelOrderRequest(args [1]string, argsEscaped bool, w ht
 		mreq := middleware.Request{
 			Context:          ctx,
 			OperationName:    CancelOrderOperation,
-			OperationSummary: "Отменить заказ",
+			OperationSummary: "Cancel an order",
 			OperationID:      "cancelOrder",
 			Body:             nil,
 			RawBody:          rawBody,
@@ -178,8 +178,7 @@ func (s *Server) handleCancelOrderRequest(args [1]string, argsEscaped bool, w ht
 
 // handleCreateOrderRequest handles createOrder operation.
 //
-// Создаёт новый заказ на постройку космического
-// корабля.
+// Creates a new spaceship build order.
 //
 // POST /api/v1/orders
 func (s *Server) handleCreateOrderRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -276,7 +275,7 @@ func (s *Server) handleCreateOrderRequest(args [0]string, argsEscaped bool, w ht
 		mreq := middleware.Request{
 			Context:          ctx,
 			OperationName:    CreateOrderOperation,
-			OperationSummary: "Создать заказ",
+			OperationSummary: "Create an order",
 			OperationID:      "createOrder",
 			Body:             request,
 			RawBody:          rawBody,
@@ -322,8 +321,7 @@ func (s *Server) handleCreateOrderRequest(args [0]string, argsEscaped bool, w ht
 
 // handleGetOrderRequest handles getOrder operation.
 //
-// Возвращает полную информацию о заказе на постройку
-// космического корабля.
+// Returns the full information about a spaceship build order.
 //
 // GET /api/v1/orders/{order_uuid}
 func (s *Server) handleGetOrderRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -415,7 +413,7 @@ func (s *Server) handleGetOrderRequest(args [1]string, argsEscaped bool, w http.
 		mreq := middleware.Request{
 			Context:          ctx,
 			OperationName:    GetOrderOperation,
-			OperationSummary: "Получить заказ по UUID",
+			OperationSummary: "Get an order by UUID",
 			OperationID:      "getOrder",
 			Body:             nil,
 			RawBody:          rawBody,
@@ -466,7 +464,7 @@ func (s *Server) handleGetOrderRequest(args [1]string, argsEscaped bool, w http.
 
 // handlePayOrderRequest handles payOrder operation.
 //
-// Проводит оплату заказа.
+// Pays for an order.
 //
 // POST /api/v1/orders/{order_uuid}/pay
 func (s *Server) handlePayOrderRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -573,7 +571,7 @@ func (s *Server) handlePayOrderRequest(args [1]string, argsEscaped bool, w http.
 		mreq := middleware.Request{
 			Context:          ctx,
 			OperationName:    PayOrderOperation,
-			OperationSummary: "Оплатить заказ",
+			OperationSummary: "Pay for an order",
 			OperationID:      "payOrder",
 			Body:             request,
 			RawBody:          rawBody,

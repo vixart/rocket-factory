@@ -40,7 +40,7 @@ func (c *client) Whoami(ctx context.Context, sessionUUID uuid.UUID) (uuid.UUID, 
 }
 
 func mapErrors(err error) error {
-	slog.Error("ошибка при обращении к iam сервису", "error", err)
+	slog.Error("iam service call failed", "error", err)
 
 	if st, ok := status.FromError(err); ok {
 		var errType error
@@ -51,8 +51,8 @@ func mapErrors(err error) error {
 			errType = errs.ErrInternalError
 		}
 
-		return fmt.Errorf("обращение к сервису iam вернуло ошибку %q: %w", st.Message(), errType)
+		return fmt.Errorf("iam service returned an error %q: %w", st.Message(), errType)
 	}
 
-	return fmt.Errorf("ошибка при обращении к iam сервису: %w", errs.ErrInternalError)
+	return fmt.Errorf("iam service call failed: %w", errs.ErrInternalError)
 }

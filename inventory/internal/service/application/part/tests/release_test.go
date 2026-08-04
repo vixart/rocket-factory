@@ -40,7 +40,7 @@ func TestRelease(t *testing.T) {
 		valueobject.PartTypeEngine,
 		5000,
 		3,
-		1, // важно: reserved > 0 чтобы Release() прошёл
+		1, // important: reserved > 0 so that Release() succeeds
 		valueobject.PartProperties{},
 		time.Time{},
 	)
@@ -52,7 +52,7 @@ func TestRelease(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный release",
+			name: "release succeeds",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -77,7 +77,7 @@ func TestRelease(t *testing.T) {
 			expected: expected{},
 		},
 		{
-			name: "ошибка list",
+			name: "list fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -93,11 +93,11 @@ func TestRelease(t *testing.T) {
 					Return(nil, errors.New("db error"))
 			},
 			expected: expected{
-				err: errors.New("не удалось получить детали"),
+				err: errors.New("failed to fetch parts"),
 			},
 		},
 		{
-			name: "ошибка domain Release",
+			name: "domain Release fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},
@@ -118,18 +118,18 @@ func TestRelease(t *testing.T) {
 							valueobject.PartTypeEngine,
 							5000,
 							3,
-							0, // reserved = 0 → Release() упадёт
+							0, // reserved = 0 → Release() fails
 							valueobject.PartProperties{},
 							time.Time{},
 						),
 					}, nil)
 			},
 			expected: expected{
-				err: errors.New("не удалось освободить детали"),
+				err: errors.New("failed to release parts"),
 			},
 		},
 		{
-			name: "ошибка update batch",
+			name: "batch update fails",
 			args: args{
 				uuids: []uuid.UUID{id},
 			},

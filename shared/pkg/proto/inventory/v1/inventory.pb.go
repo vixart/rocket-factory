@@ -22,19 +22,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Тип детали
+// Part type
 type PartType int32
 
 const (
-	// Не указан
+	// Unspecified
 	PartType_PART_TYPE_UNSPECIFIED PartType = 0
-	// Корпус
+	// Hull
 	PartType_PART_TYPE_HULL PartType = 1
-	// Двигатель
+	// Engine
 	PartType_PART_TYPE_ENGINE PartType = 2
-	// Щит
+	// Shield
 	PartType_PART_TYPE_SHIELD PartType = 3
-	// Оружие
+	// Weapon
 	PartType_PART_TYPE_WEAPON PartType = 4
 )
 
@@ -83,22 +83,22 @@ func (PartType) EnumDescriptor() ([]byte, []int) {
 	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{0}
 }
 
-// Part представляет деталь космического корабля
+// Part is a spaceship part
 type Part struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Уникальный идентификатор детали
+	// Unique part identifier
 	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	// Название детали
+	// Part name
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Описание детали
+	// Part description
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// Цена в копейках (5000₽ = 500000)
+	// Price in kopecks (5000 RUB = 500000)
 	Price int64 `protobuf:"varint,4,opt,name=price,proto3" json:"price,omitempty"`
-	// Тип детали
+	// Part type
 	PartType PartType `protobuf:"varint,5,opt,name=part_type,json=partType,proto3,enum=inventory.v1.PartType" json:"part_type,omitempty"`
-	// Количество на складе
+	// Quantity in stock
 	StockQuantity int64 `protobuf:"varint,6,opt,name=stock_quantity,json=stockQuantity,proto3" json:"stock_quantity,omitempty"`
-	// Дата создания
+	// Creation date
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -183,10 +183,10 @@ func (x *Part) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// Запрос на получение детали по UUID
+// Request to fetch a part by UUID
 type GetPartRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID детали
+	// Part UUID
 	Uuid          string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -229,10 +229,10 @@ func (x *GetPartRequest) GetUuid() string {
 	return ""
 }
 
-// Ответ с деталью
+// Response carrying the part
 type GetPartResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Найденная деталь
+	// The part that was found
 	Part          *Part `protobuf:"bytes,1,opt,name=part,proto3" json:"part,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -275,12 +275,12 @@ func (x *GetPartResponse) GetPart() *Part {
 	return nil
 }
 
-// Запрос на получение списка деталей
+// Request to list parts
 type ListPartsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Фильтр по типу детали
+	// Filter by part type
 	PartType PartType `protobuf:"varint,1,opt,name=part_type,json=partType,proto3,enum=inventory.v1.PartType" json:"part_type,omitempty"`
-	// Фильтр по UUID
+	// Filter by UUID
 	Uuids         []string `protobuf:"bytes,2,rep,name=uuids,proto3" json:"uuids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -330,10 +330,10 @@ func (x *ListPartsRequest) GetUuids() []string {
 	return nil
 }
 
-// Ответ со списком деталей
+// Response carrying the list of parts
 type ListPartsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Список деталей
+	// The parts
 	Parts         []*Part `protobuf:"bytes,1,rep,name=parts,proto3" json:"parts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -376,16 +376,16 @@ func (x *ListPartsResponse) GetParts() []*Part {
 	return nil
 }
 
-// Запрос на проверку совместимости деталей по слотам корабля
+// Request to validate part compatibility across the ship slots
 type ValidateCompatibilityRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID детали в слоте корпуса (обязательный слот)
+	// UUID of the part in the hull slot (required slot)
 	HullUuid string `protobuf:"bytes,1,opt,name=hull_uuid,json=hullUuid,proto3" json:"hull_uuid,omitempty"`
-	// UUID детали в слоте двигателя (обязательный слот)
+	// UUID of the part in the engine slot (required slot)
 	EngineUuid string `protobuf:"bytes,2,opt,name=engine_uuid,json=engineUuid,proto3" json:"engine_uuid,omitempty"`
-	// UUID детали в слоте щита (опциональный слот, пустая строка — слот не используется)
+	// UUID of the part in the shield slot (optional; an empty string means the slot is unused)
 	ShieldUuid string `protobuf:"bytes,3,opt,name=shield_uuid,json=shieldUuid,proto3" json:"shield_uuid,omitempty"`
-	// UUID детали в слоте оружия (опциональный слот, пустая строка — слот не используется)
+	// UUID of the part in the weapon slot (optional; an empty string means the slot is unused)
 	WeaponUuid    string `protobuf:"bytes,4,opt,name=weapon_uuid,json=weaponUuid,proto3" json:"weapon_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -449,7 +449,7 @@ func (x *ValidateCompatibilityRequest) GetWeaponUuid() string {
 	return ""
 }
 
-// Ответ на проверку совместимости (пустой — значит совместимы)
+// Compatibility response (empty means the parts are compatible)
 type ValidateCompatibilityResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -486,10 +486,10 @@ func (*ValidateCompatibilityResponse) Descriptor() ([]byte, []int) {
 	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{6}
 }
 
-// Запрос на резервирование деталей
+// Request to reserve parts
 type ReservePartsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID деталей для резервирования
+	// UUIDs of the parts to reserve
 	Uuids         []string `protobuf:"bytes,1,rep,name=uuids,proto3" json:"uuids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -532,7 +532,7 @@ func (x *ReservePartsRequest) GetUuids() []string {
 	return nil
 }
 
-// Ответ на резервирование (пустой — значит успешно)
+// Reservation response (empty means success)
 type ReservePartsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -569,10 +569,10 @@ func (*ReservePartsResponse) Descriptor() ([]byte, []int) {
 	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{8}
 }
 
-// Запрос на освобождение ранее зарезервированных деталей
+// Request to release previously reserved parts
 type ReleasePartsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID деталей для освобождения
+	// UUIDs of the parts to release
 	Uuids         []string `protobuf:"bytes,1,rep,name=uuids,proto3" json:"uuids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -615,7 +615,7 @@ func (x *ReleasePartsRequest) GetUuids() []string {
 	return nil
 }
 
-// Ответ на освобождение (пустой — значит успешно)
+// Release response (empty means success)
 type ReleasePartsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -652,10 +652,10 @@ func (*ReleasePartsResponse) Descriptor() ([]byte, []int) {
 	return file_inventory_v1_inventory_proto_rawDescGZIP(), []int{10}
 }
 
-// Запрос на списание деталей со склада
+// Request to write parts off the stock
 type CommitPartsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID деталей для списания
+	// UUIDs of the parts to write off
 	Uuids         []string `protobuf:"bytes,1,rep,name=uuids,proto3" json:"uuids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -698,7 +698,7 @@ func (x *CommitPartsRequest) GetUuids() []string {
 	return nil
 }
 
-// Ответ на списание (пустой — значит успешно)
+// Write-off response (empty means success)
 type CommitPartsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields

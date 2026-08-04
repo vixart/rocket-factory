@@ -1,17 +1,17 @@
-// Package metrics инициализирует OTel MeterProvider с OTLP gRPC экспортером
+// Package metrics initializes the OTel MeterProvider with an OTLP gRPC exporter.
 //
-// Пакет предоставляет платформенную инициализацию метрик — создание MeterProvider,
-// подключение к OTel Collector и регистрацию глобального провайдера
-// Бизнес-метрики (Counter, Histogram и т.д.) каждый сервис создаёт самостоятельно
+// It provides the platform-level metrics setup: creating the MeterProvider, connecting
+// to the OTel Collector and registering the global provider.
+// Business metrics (Counter, Histogram, ...) are created by each service itself.
 //
-// Иерархия OTel Metrics:
+// OTel metrics hierarchy:
 //
-//	MeterProvider — фабрика Meter'ов, управляет экспортом метрик (куда и как часто отправлять)
-//	  └── Meter — именованный «набор инструментов» (обычно один на сервис/библиотеку)
-//	        └── Instrument — конкретная метрика (Counter, UpDownCounter, Histogram и др.)
+//	MeterProvider — factory of Meters, owns the export settings (where and how often to send)
+//	  └── Meter — a named toolbox, usually one per service or library
+//	        └── Instrument — a concrete metric (Counter, UpDownCounter, Histogram, ...)
 //
-// Аналогия: MeterProvider — это электростанция, Meter — щиток в квартире,
-// Instrument — конкретный счётчик (воды, света, газа).
+// By analogy: the MeterProvider is the power plant, the Meter is the breaker panel,
+// and an Instrument is an individual meter on the wall.
 package metrics
 
 import (
@@ -37,14 +37,14 @@ var (
 	initOnce sync.Once
 )
 
-// Init создаёт OTel MeterProvider с OTLP gRPC экспортером и регистрирует его глобально
-// Метрики отправляются push-моделью в OpenTelemetry Collector
+// Init creates the OTel MeterProvider with an OTLP gRPC exporter and registers it globally.
+// Metrics are pushed to the OpenTelemetry Collector.
 //
-// serviceName — имя сервиса, прикрепляется к каждой метрике через resource
-// Функциональные опции позволяют настроить поведение (интервал, бакеты, views)
+// serviceName is attached to every metric through the resource.
+// Functional options tune the behaviour (interval, buckets, views).
 //
-// После вызова Init все Meter'ы, созданные через otel.Meter(), используют этот провайдер —
-// включая платформенные библиотеки (например, platform/redis).
+// After Init every Meter obtained via otel.Meter() uses this provider, including the
+// platform libraries (platform/redis, for example).
 func Init(cfg Config, opts ...Option) {
 	initOnce.Do(func() {
 		ctx := context.Background()
@@ -56,15 +56,15 @@ func Init(cfg Config, opts ...Option) {
 			opt(o)
 		}
 
-		// OTLP gRPC экспортер — push метрик в OTel Collector
+		// OTLP gRPC exporter — pushes metrics to the OTel Collector.
 		//
-		// SDK автоматически читает env-переменные:
-		//   OTEL_EXPORTER_OTLP_ENDPOINT (дефолт: https://localhost:4317)
-		//   OTEL_EXPORTER_OTLP_INSECURE ("true" для отключения TLS)
-		//   OTEL_EXPORTER_OTLP_METRICS_ENDPOINT (приоритет над общим)
+		// The SDK reads these environment variables automatically:
+		//   OTEL_EXPORTER_OTLP_ENDPOINT (default: https://localhost:4317)
+		//   OTEL_EXPORTER_OTLP_INSECURE ("true" disables TLS)
+		//   OTEL_EXPORTER_OTLP_METRICS_ENDPOINT (takes precedence over the generic one)
 		//
-		// WithInsecure отключает TLS — для локальной разработки, где коллектор
-		// доступен по http://localhost:4317 без сертификатов
+		// WithInsecure disables TLS — for local development where the collector is
+		// reachable at http://localhost:4317 without certificates.
 		exporter, err := otlpmetricgrpc.New(
 			ctx,
 			otlpmetricgrpc.WithEndpoint(cfg.CollectorEndpoint),
@@ -75,7 +75,7 @@ func Init(cfg Config, opts ...Option) {
 			return
 		}
 
-		// Resource — метаданные сервиса, прикрепляются к каждой метрике
+		// Resource — service metadata attached to every metric.
 		res, err := resource.New(
 			ctx,
 			resource.WithAttributes(
@@ -89,8 +89,8 @@ func Init(cfg Config, opts ...Option) {
 			return
 		}
 
-		// MeterProvider — корневой объект, управляющий сбором и экспортом метрик
-		// PeriodicReader каждые N секунд собирает значения всех инструментов и пушит в экспортер
+		// MeterProvider is the root object that owns collection and export.
+		// PeriodicReader collects every instrument every N seconds and pushes to the exporter.
 		providerOpts := []sdkmetric.Option{
 			sdkmetric.WithResource(res),
 			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(
@@ -99,19 +99,19 @@ func Init(cfg Config, opts ...Option) {
 			)),
 		}
 
-		// Добавляем пользовательские Views, если заданы
+		// Add the user-supplied Views, if any
 		for _, view := range o.views {
 			providerOpts = append(providerOpts, sdkmetric.WithView(view))
 		}
 
 		provider = sdkmetric.NewMeterProvider(providerOpts...)
 
-		// Регистрируем провайдер глобально — otel.Meter() будет использовать его
+		// Register the provider globally so that otel.Meter() picks it up
 		otel.SetMeterProvider(provider)
 	})
 }
 
-// Flush принудительно отправляет накопленные метрики (полезно в тестах перед проверкой).
+// Flush forces an export of the accumulated metrics (useful in tests before assertions).
 func Flush() error {
 	if provider == nil {
 		return nil
@@ -123,7 +123,7 @@ func Flush() error {
 	return provider.ForceFlush(ctx)
 }
 
-// Close завершает MeterProvider, отправляя накопленные метрики.
+// Close shuts the MeterProvider down, exporting the accumulated metrics.
 func Close() error {
 	if provider == nil {
 		return nil

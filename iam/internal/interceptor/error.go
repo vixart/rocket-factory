@@ -23,7 +23,7 @@ func ErrorInterceptor(
 		return resp, nil
 	}
 
-	slog.Info("перехвачена ошибка", "error", err)
+	slog.Info("error intercepted", "error", err)
 
 	switch {
 	case errors.Is(err, errs.ErrUserNotFound):
@@ -54,6 +54,6 @@ func ErrorInterceptor(
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 
 	default:
-		return nil, status.Error(codes.Internal, "внутренняя ошибка")
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 }

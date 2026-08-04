@@ -1,30 +1,30 @@
 #!/bin/bash
 
-# Скрипт для извлечения версий инструментов из Taskfile.yaml
-# Использование: .github/scripts/extract-versions.sh
+# Extracts tool versions from Taskfile.yaml
+# Usage: .github/scripts/extract-versions.sh
 
-# Путь к Taskfile.yml
+# Path to the Taskfile
 TASKFILE="Taskfile.yaml"
 
-# Проверка наличия файла
+# Check that the file exists
 if [ ! -f "$TASKFILE" ]; then
-  echo "Ошибка: Файл $TASKFILE не найден" >&2
+  echo "Error: file $TASKFILE not found" >&2
   exit 1
 fi
 
-# Извлечение всех переменных из секции vars
-echo "Извлекаем переменные из Taskfile.yaml:"
+# Extract every variable from the vars section
+echo "Extracting variables from Taskfile.yaml:"
 
-# Определяем начало и конец секции vars
+# Find where the vars section starts and ends
 VARS_START=$(grep -n "^vars:" "$TASKFILE" | cut -d: -f1)
 if [ -z "$VARS_START" ]; then
-  echo "Ошибка: секция vars не найдена в $TASKFILE" >&2
+  echo "Error: vars section not found in $TASKFILE" >&2
   exit 1
 fi
 
 VARS_START=$((VARS_START + 1))
 
-# Ищем следующую секцию после vars или конец файла
+# Look for the next section after vars, or the end of the file
 NEXT_SECTION=$(tail -n +$VARS_START "$TASKFILE" | grep -n "^[a-z]" | head -1 | cut -d: -f1)
 if [ -n "$NEXT_SECTION" ]; then
   VARS_END=$((VARS_START + NEXT_SECTION - 2))
@@ -32,20 +32,20 @@ else
   VARS_END=$(wc -l < "$TASKFILE")
 fi
 
-# Извлекаем все строки из секции vars
+# Take every line of the vars section
 VARS_SECTION=$(sed -n "${VARS_START},${VARS_END}p" "$TASKFILE")
 
-# Инициализируем ассоциативный массив для хранения переменных
+# Associative array holding the variables
 declare -A VARS
 
-# Извлекаем имя и значение каждой переменной
+# Extract the name and value of each variable
 while IFS= read -r line; do
-  # Пропускаем пустые строки и строки с комментариями
+  # Skip empty lines and comments
   if [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]]; then
     continue
   fi
   
-  # Извлекаем имя и значение
+  # Extract the name and the value
   if [[ "$line" =~ ^[[:space:]]*([A-Z_0-9]+):\ *\'([^\']*)\' ]]; then
     var_name=${BASH_REMATCH[1]}
     var_value=${BASH_REMATCH[2]}
@@ -64,25 +64,25 @@ while IFS= read -r line; do
   fi
 done <<< "$VARS_SECTION"
 
-# Находим список модулей
+# Find the module list
 if [ -n "${VARS[MODULES]}" ]; then
   MODULES="${VARS[MODULES]}"
-  echo "- найдены модули: $MODULES"
+  echo "- modules found: $MODULES"
 else
-  # Если не найдено в vars, пытаемся найти в другом месте (для обратной совместимости)
+  # If it is not in vars, look elsewhere (backwards compatibility)
   MODULES=$(sed -n 's/.*MODULES: \(.*\)/\1/p' "$TASKFILE" | head -1)
-  echo "- модули (из старого формата): $MODULES"
+  echo "- modules (legacy format): $MODULES"
 fi
 
-# Установка переменных GitHub Actions
+# Export the GitHub Actions variables
 if [ -n "$GITHUB_ENV" ]; then
-  echo "Устанавливаем переменные в GITHUB_ENV:"
-  # Экспортируем все переменные
+  echo "Writing variables to GITHUB_ENV:"
+  # Export every variable
   for var_name in "${!VARS[@]}"; do
     echo "$var_name=${VARS[$var_name]}" >> $GITHUB_ENV
     echo "  $var_name -> GITHUB_ENV"
   done
-  # Для совместимости добавляем MODULES отдельно, если оно не в vars
+  # For compatibility add MODULES separately when it is not in vars
   if [ -z "${VARS[MODULES]}" ] && [ -n "$MODULES" ]; then
     echo "MODULES=$MODULES" >> $GITHUB_ENV
     echo "  MODULES -> GITHUB_ENV"
@@ -90,13 +90,13 @@ if [ -n "$GITHUB_ENV" ]; then
 fi
 
 if [ -n "$GITHUB_OUTPUT" ]; then
-  echo "Устанавливаем переменные в GITHUB_OUTPUT:"
-  # Экспортируем все переменные
+  echo "Writing variables to GITHUB_OUTPUT:"
+  # Export every variable
   for var_name in "${!VARS[@]}"; do
     echo "$var_name=${VARS[$var_name]}" >> $GITHUB_OUTPUT
     echo "  $var_name -> GITHUB_OUTPUT"
   done
-  # Для совместимости добавляем MODULES отдельно, если оно не в vars
+  # For compatibility add MODULES separately when it is not in vars
   if [ -z "${VARS[MODULES]}" ] && [ -n "$MODULES" ]; then
     echo "MODULES=$MODULES" >> $GITHUB_OUTPUT
     echo "  MODULES -> GITHUB_OUTPUT"

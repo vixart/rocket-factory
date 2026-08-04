@@ -38,7 +38,7 @@ func TestCreateOrder(t *testing.T) {
 		check     func(t *testing.T, res orderv1.CreateOrderRes, err error)
 	}{
 		{
-			name: "успешное создание заказа",
+			name: "order created successfully",
 			req: &orderv1.CreateOrderRequest{
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,
@@ -85,7 +85,7 @@ func TestCreateOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка создания заказа",
+			name: "order creation fails",
 			req: &orderv1.CreateOrderRequest{
 				HullUUID:   hullUUID,
 				EngineUUID: engineUUID,

@@ -25,7 +25,7 @@ func (r *repository) Get(ctx context.Context, uuid uuid.UUID) (entity.Part, erro
 		&part.UUID, &part.Name, &part.Description, &part.PartType, &part.Price, &part.StockQuantity, &part.Properties, &part.Reserved, &part.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return entity.Part{}, fmt.Errorf("деталь не найдена в репозитории: %w", errs.ErrPartNotFound)
+			return entity.Part{}, fmt.Errorf("part not found in the repository: %w", errs.ErrPartNotFound)
 		}
 		return entity.Part{}, err
 	}

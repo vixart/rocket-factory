@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: auth/v1/auth.proto
 
-// Package auth.v1 содержит сервис аутентификации.
+// Package auth.v1 contains the authentication service.
 
 package authv1
 
@@ -24,12 +24,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// LoginRequest запрос на вход в систему.
+// LoginRequest is a sign-in request.
 type LoginRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// login логин пользователя.
+	// login is the user login.
 	Login string `protobuf:"bytes,1,opt,name=login,proto3" json:"login,omitempty"`
-	// password пароль пользователя.
+	// password is the user password.
 	Password      string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -79,10 +79,10 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
-// LoginResponse ответ на вход в систему.
+// LoginResponse is the sign-in response.
 type LoginResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// session_uuid UUID созданной сессии.
+	// session_uuid is the UUID of the created session.
 	SessionUuid   string `protobuf:"bytes,1,opt,name=session_uuid,json=sessionUuid,proto3" json:"session_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -125,10 +125,10 @@ func (x *LoginResponse) GetSessionUuid() string {
 	return ""
 }
 
-// WhoamiRequest запрос на проверку сессии.
+// WhoamiRequest is a session validation request.
 type WhoamiRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// session_uuid UUID активной сессии.
+	// session_uuid is the UUID of the active session.
 	SessionUuid   string `protobuf:"bytes,1,opt,name=session_uuid,json=sessionUuid,proto3" json:"session_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -171,12 +171,12 @@ func (x *WhoamiRequest) GetSessionUuid() string {
 	return ""
 }
 
-// WhoamiResponse ответ с информацией о сессии и пользователе.
+// WhoamiResponse carries the session and user information.
 type WhoamiResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// session информация о текущей сессии.
+	// session is the current session.
 	Session *v1.Session `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
-	// user владелец сессии.
+	// user is the session owner.
 	User          *v1.User `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -226,10 +226,10 @@ func (x *WhoamiResponse) GetUser() *v1.User {
 	return nil
 }
 
-// LogoutRequest запрос на завершение сессии.
+// LogoutRequest is a session termination request.
 type LogoutRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// session_uuid UUID сессии для завершения.
+	// session_uuid is the UUID of the session to terminate.
 	SessionUuid   string `protobuf:"bytes,1,opt,name=session_uuid,json=sessionUuid,proto3" json:"session_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -272,7 +272,7 @@ func (x *LogoutRequest) GetSessionUuid() string {
 	return ""
 }
 
-// LogoutResponse ответ на завершение сессии.
+// LogoutResponse is the session termination response.
 type LogoutResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
