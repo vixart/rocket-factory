@@ -7,15 +7,15 @@ import (
 	"github.com/go-redis/redis_rate/v10"
 )
 
-// Middleware создаёт HTTP middleware с распределённым rate limiter на основе redis_rate.
+// Middleware builds an HTTP middleware with a distributed rate limiter backed by redis_rate.
 //
-// Библиотека redis_rate использует алгоритм GCRA (Generic Cell Rate Algorithm) —
-// это вариант token bucket, реализованный атомарно в Redis через Lua-скрипт.
-// Благодаря Redis все инстансы сервиса разделяют общий счётчик запросов,
-// поэтому лимит работает глобально, а не per-instance.
+// redis_rate implements GCRA (Generic Cell Rate Algorithm), a token bucket variant
+// executed atomically in Redis through a Lua script. Because the counter lives in
+// Redis, every instance of the service shares it, so the limit is global rather than
+// per instance.
 //
-// rate  — сколько запросов в секунду разрешено в среднем.
-// burst — максимальный размер всплеска (сколько запросов можно сделать одновременно).
+// rate  — average number of requests per second allowed.
+// burst — maximum burst size (how many requests may be made at once).
 func Middleware(limiter *redis_rate.Limiter, rate, burst int) func(http.Handler) http.Handler {
 	limit := redis_rate.Limit{
 		Rate:   rate,
@@ -25,14 +25,14 @@ func Middleware(limiter *redis_rate.Limiter, rate, burst int) func(http.Handler)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Библиотека redis_rate сама добавляет префикс "rate:" к ключу,
-			// поэтому дополнительный префикс не нужен.
+			// redis_rate prefixes the key with "rate:" on its own,
+			// so no extra prefix is needed here.
 			key := r.URL.Path
 
 			res, err := limiter.Allow(r.Context(), key, limit)
 			if err != nil {
 				slog.WarnContext(
-					r.Context(), "rate limiter недоступен, пропускаем запрос",
+					r.Context(), "rate limiter is unavailable, letting the request through",
 					"error", err,
 					"path", r.URL.Path,
 				)
@@ -44,8 +44,8 @@ func Middleware(limiter *redis_rate.Limiter, rate, burst int) func(http.Handler)
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				w.WriteHeader(http.StatusTooManyRequests)
 
-				if _, wErr := w.Write([]byte("превышен лимит запросов")); wErr != nil {
-					slog.WarnContext(r.Context(), "не удалось записать тело 429-ответа", "error", wErr)
+				if _, wErr := w.Write([]byte("request rate limit exceeded")); wErr != nil {
+					slog.WarnContext(r.Context(), "failed to write the 429 response body", "error", wErr)
 				}
 
 				return

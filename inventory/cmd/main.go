@@ -11,14 +11,14 @@ import (
 )
 
 func main() {
-	// Загружаем переменные окружения из inventory.env (если файл существует)
-	_ = godotenv.Load("inventory.env") //nolint:gosec // .env файл опционален — ошибка загрузки допустима
+	// Load environment variables from inventory.env when the file exists
+	_ = godotenv.Load("inventory.env") //nolint:gosec // the .env file is optional, a load error is fine
 
 	config.MustLoad()
 
 	a := app.New(context.Background())
 
 	if err := a.Run(); err != nil {
-		slog.Error("ошибка при работе приложения", "error", err)
+		slog.Error("application failed", "error", err)
 	}
 }

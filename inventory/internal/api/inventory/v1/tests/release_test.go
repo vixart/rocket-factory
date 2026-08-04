@@ -40,7 +40,7 @@ func TestReleaseParts(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное освобождение деталей",
+			name: "parts released successfully",
 			args: args{
 				req: &inventoryv1.ReleasePartsRequest{
 					Uuids: []string{
@@ -59,7 +59,7 @@ func TestReleaseParts(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid",
+			name: "invalid uuid",
 			args: args{
 				req: &inventoryv1.ReleasePartsRequest{
 					Uuids: []string{
@@ -73,7 +73,7 @@ func TestReleaseParts(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &inventoryv1.ReleasePartsRequest{
 					Uuids: []string{

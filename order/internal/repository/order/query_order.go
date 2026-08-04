@@ -47,7 +47,7 @@ func (r *repository) getOrderItems(ctx context.Context, uuid uuid.UUID) ([]model
 
 	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, queryOrderItems, uuid)
 	if err != nil {
-		return nil, fmt.Errorf("получить список деталей: %w", err)
+		return nil, fmt.Errorf("fetch order items: %w", err)
 	}
 
 	defer rows.Close()

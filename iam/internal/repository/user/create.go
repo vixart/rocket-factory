@@ -31,7 +31,7 @@ func (r *repository) Create(ctx context.Context, user model.User) error {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return errs.ErrUserAlreadyExists
 		}
-		return fmt.Errorf("создать пользователя: %w", err)
+		return fmt.Errorf("create user: %w", err)
 	}
 
 	return nil

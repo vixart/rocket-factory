@@ -24,7 +24,7 @@ func (r *repository) GetByLogin(ctx context.Context, login string) (model.User, 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.User{}, errs.ErrUserNotFound
 		}
-		return model.User{}, fmt.Errorf("вернуть пользователя: %w", err)
+		return model.User{}, fmt.Errorf("fetch user: %w", err)
 	}
 
 	return converter.UserRecordToModel(user), nil

@@ -18,7 +18,7 @@ func (a *api) ReserveParts(
 	for _, uuidStr := range req.Uuids {
 		parsedUuid, err := uuid.Parse(uuidStr)
 		if err != nil {
-			return nil, fmt.Errorf("неверный формат uuid: %s, %w", uuidStr, errs.ErrInvalidUUID)
+			return nil, fmt.Errorf("invalid uuid format: %s, %w", uuidStr, errs.ErrInvalidUUID)
 		}
 
 		parsedUuids = append(parsedUuids, parsedUuid)

@@ -58,7 +58,7 @@ func TestWhoami(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение сессии",
+			name: "session fetched successfully",
 			args: args{
 				sessionUUID: sessionUUID,
 			},
@@ -73,7 +73,7 @@ func TestWhoami(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка хранилища",
+			name: "storage fails",
 			args: args{
 				sessionUUID: sessionUUID,
 			},

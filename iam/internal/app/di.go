@@ -39,13 +39,13 @@ func (d *diContainer) PGPool(ctx context.Context) *pgxpool.Pool {
 	if d.pgPool == nil {
 		pool, err := pgxpool.New(ctx, config.AppConfig().PG.DSN())
 		if err != nil {
-			slog.Error("не удалось подключиться к PostgreSQL", "error", err)
+			slog.Error("failed to connect to PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
 		err = pool.Ping(ctx)
 		if err != nil {
-			slog.Error("не удалось выполнить ping PostgreSQL", "error", err)
+			slog.Error("failed to ping PostgreSQL", "error", err)
 			os.Exit(1)
 		}
 
@@ -71,7 +71,7 @@ func (d *diContainer) RedisClient(_ context.Context) *redis.Client {
 			ConnMaxIdleTime: config.AppConfig().Redis.IdleTimeout,
 		}, slog.Default())
 		if err != nil {
-			slog.Error("не удалось создать Redis клиент", "error", err)
+			slog.Error("failed to create the Redis client", "error", err)
 			os.Exit(1)
 		}
 

@@ -25,18 +25,18 @@ func (r *repository) list(
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("не удалось сформировать запрос: %w", err)
+		return nil, fmt.Errorf("failed to build the query: %w", err)
 	}
 
 	rows, err := r.getter.DefaultTrOrDB(ctx, r.pool).Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("получить список деталей: %w", err)
+		return nil, fmt.Errorf("fetch part list: %w", err)
 	}
 	defer rows.Close()
 
 	records, err := pgx.CollectRows(rows, pgx.RowToStructByName[record.PartRecord])
 	if err != nil {
-		return nil, fmt.Errorf("считать строки: %w", err)
+		return nil, fmt.Errorf("scan rows: %w", err)
 	}
 
 	return r.mapAndOrder(records, partFilter)
@@ -70,13 +70,13 @@ func (r *repository) buildListQuery(
 			"uuid": partFilter.UUIDs,
 		})
 
-		// ORDER BY обязателен именно для FOR UPDATE: без него Postgres блокирует
-		// строки в произвольном порядке, и две параллельные транзакции, захватившие
-		// корпус и двигатель в разной последовательности, встают в deadlock
-		// (в логах — "считать строки: ERROR: deadlock detected"). Сортировка по uuid
-		// даёт всем транзакциям единый порядок захвата.
-		// На выдачу это не влияет: mapAndOrder всё равно раскладывает результат
-		// в порядке partFilter.UUIDs.
+		// ORDER BY is required specifically for FOR UPDATE: without it Postgres locks rows
+		// in arbitrary order, and two concurrent transactions that take the hull and the
+		// engine in a different sequence end up in a deadlock (the logs show
+		// "scan rows: ERROR: deadlock detected"). Ordering by uuid gives every transaction
+		// the same locking order.
+		// It does not affect the result order: mapAndOrder still returns parts in the order
+		// of partFilter.UUIDs.
 		return builder.OrderBy("uuid")
 	}
 
@@ -112,7 +112,7 @@ func (r *repository) mapAndOrder(
 	}
 
 	if len(recordByUUID) != len(partFilter.UUIDs) {
-		return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
+		return nil, fmt.Errorf("find parts: %w", errs.ErrPartNotFound)
 	}
 
 	ordered := make([]entity.Part, 0, len(partFilter.UUIDs))
@@ -120,7 +120,7 @@ func (r *repository) mapAndOrder(
 	for _, id := range partFilter.UUIDs {
 		rec, ok := recordByUUID[id]
 		if !ok {
-			return nil, fmt.Errorf("найти детали: %w", errs.ErrPartNotFound)
+			return nil, fmt.Errorf("find parts: %w", errs.ErrPartNotFound)
 		}
 		part, err := converter.PartRecordToModel(rec)
 		if err != nil {

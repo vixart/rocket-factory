@@ -6,24 +6,24 @@ import (
 	errs "github.com/vixart/rocket-factory/inventory/internal/errors"
 )
 
-// HullProperties — свойства корпуса (Value Object).
+// HullProperties are the hull properties (value object).
 type HullProperties struct {
 	strength int
 }
 
 func (h *HullProperties) Strength() int { return h.strength }
 
-// NewHullProperties создаёт свойства корпуса. Прочность должна быть в диапазоне 30–200.
+// NewHullProperties creates hull properties. Strength must be between 30 and 200.
 func NewHullProperties(strength int) (PartProperties, error) {
 	if strength < 30 || strength > 200 {
-		return PartProperties{}, fmt.Errorf("прочность корпуса должна быть от 30 до 200, получено %d: %w", strength, errs.ErrInvalidProperties)
+		return PartProperties{}, fmt.Errorf("hull strength must be between 30 and 200, got %d: %w", strength, errs.ErrInvalidProperties)
 	}
 	return PartProperties{
 		hull: &HullProperties{strength: strength},
 	}, nil
 }
 
-// CanSupport проверяет, выдержит ли корпус нагрузку двигателя.
+// CanSupport reports whether the hull can carry the engine.
 func (h *HullProperties) CanSupport(e *EngineProperties) bool {
 	return h.strength >= e.requiredStrength
 }

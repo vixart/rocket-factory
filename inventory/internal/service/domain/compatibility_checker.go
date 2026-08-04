@@ -8,17 +8,17 @@ import (
 	"github.com/vixart/rocket-factory/inventory/internal/model/valueobject"
 )
 
-// compatibilityChecker проверяет совместимость деталей космического корабля.
+// compatibilityChecker validates the compatibility of spaceship parts.
 type compatibilityChecker struct{}
 
 func NewCompatibilityChecker() *compatibilityChecker {
 	return &compatibilityChecker{}
 }
 
-// Check проверяет бизнес-правила совместимости для набора деталей.
+// Check applies the compatibility business rules to a set of parts.
 func (c *compatibilityChecker) Check(parts entity.ResolvedShipSlots) error {
 	if !parts.Hull.Properties().Hull().CanSupport(parts.Engine.Properties().Engine()) {
-		return fmt.Errorf("корпус несовместим с двигателем: %w", errs.ErrIncompatibleParts)
+		return fmt.Errorf("hull is incompatible with the engine: %w", errs.ErrIncompatibleParts)
 	}
 
 	var shieldProperties *valueobject.ShieldProperties
@@ -32,7 +32,7 @@ func (c *compatibilityChecker) Check(parts entity.ResolvedShipSlots) error {
 	}
 
 	if shieldProperties != nil && weaponProperties != nil && shieldProperties.ConflictsWith(weaponProperties) {
-		return fmt.Errorf("щит несовместим с оружием: %w", errs.ErrIncompatibleParts)
+		return fmt.Errorf("shield is incompatible with the weapon: %w", errs.ErrIncompatibleParts)
 	}
 
 	return nil

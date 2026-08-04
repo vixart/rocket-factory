@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Способ оплаты
+// Payment method
 type PaymentMethod int32
 
 const (
@@ -77,12 +77,12 @@ func (PaymentMethod) EnumDescriptor() ([]byte, []int) {
 	return file_payment_v1_payment_proto_rawDescGZIP(), []int{0}
 }
 
-// Запрос на оплату заказа
+// Request to pay for an order
 type PayOrderRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID заказа
+	// Order UUID
 	OrderUuid string `protobuf:"bytes,1,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
-	// Выбранный способ оплаты (обязательный)
+	// Chosen payment method (required)
 	PaymentMethod PaymentMethod `protobuf:"varint,2,opt,name=payment_method,json=paymentMethod,proto3,enum=payment.v1.PaymentMethod" json:"payment_method,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -132,10 +132,10 @@ func (x *PayOrderRequest) GetPaymentMethod() PaymentMethod {
 	return PaymentMethod_PAYMENT_METHOD_UNSPECIFIED
 }
 
-// Ответ на оплату заказа
+// Order payment response
 type PayOrderResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID транзакции
+	// Transaction UUID
 	TransactionUuid string `protobuf:"bytes,1,opt,name=transaction_uuid,json=transactionUuid,proto3" json:"transaction_uuid,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache

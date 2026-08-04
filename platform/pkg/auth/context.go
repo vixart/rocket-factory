@@ -13,25 +13,25 @@ type (
 	sessionUUIDCtxKey struct{}
 )
 
-// WithUserUUID кладёт UUID пользователя в контекст.
+// WithUserUUID puts the user UUID into the context.
 func WithUserUUID(ctx context.Context, userUUID uuid.UUID) context.Context {
 	return context.WithValue(ctx, userUUIDCtxKey{}, userUUID)
 }
 
-// UserUUIDFromContext извлекает UUID пользователя из контекста.
+// UserUUIDFromContext extracts the user UUID from the context.
 func UserUUIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	userUUID, ok := ctx.Value(userUUIDCtxKey{}).(uuid.UUID)
 	return userUUID, ok
 }
 
-// WithSessionUUID кладёт UUID сессии в контекст.
-// Хранится как строка — это чистый passthrough из заголовка/metadata в исходящие
-// gRPC metadata через SessionForwarder; парсинг здесь не нужен.
+// WithSessionUUID puts the session UUID into the context.
+// It is a pure passthrough from the incoming header/metadata to the outgoing gRPC
+// metadata via SessionForwarder, so no parsing is needed here.
 func WithSessionUUID(ctx context.Context, sessionUUID uuid.UUID) context.Context {
 	return context.WithValue(ctx, sessionUUIDCtxKey{}, sessionUUID)
 }
 
-// SessionUUIDFromContext извлекает UUID сессии из контекста.
+// SessionUUIDFromContext extracts the session UUID from the context.
 func SessionUUIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	sessionUUID, ok := ctx.Value(sessionUUIDCtxKey{}).(uuid.UUID)
 	return sessionUUID, ok

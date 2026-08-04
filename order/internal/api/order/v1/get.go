@@ -18,12 +18,12 @@ func (a *api) GetOrder(ctx context.Context, params orderv1.GetOrderParams) (orde
 	if errors.Is(err, errs.ErrOrderNotFound) {
 		return &orderv1.GetOrderNotFound{
 			Code:    http.StatusNotFound,
-			Message: "заказ не найден",
+			Message: "order not found",
 		}, nil
 	} else if err != nil {
 		return &orderv1.GetOrderInternalServerError{
 			Code:    http.StatusInternalServerError,
-			Message: "что-то пошло не так",
+			Message: "something went wrong",
 		}, nil
 	}
 

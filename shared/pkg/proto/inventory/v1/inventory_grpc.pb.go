@@ -31,21 +31,21 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// InventoryService управляет каталогом деталей для космических кораблей
+// InventoryService manages the catalogue of spaceship parts
 type InventoryServiceClient interface {
-	// GetPart возвращает деталь по UUID
+	// GetPart returns a part by UUID
 	GetPart(ctx context.Context, in *GetPartRequest, opts ...grpc.CallOption) (*GetPartResponse, error)
-	// ListParts возвращает список деталей с опциональной фильтрацией
+	// ListParts returns a list of parts with optional filtering
 	ListParts(ctx context.Context, in *ListPartsRequest, opts ...grpc.CallOption) (*ListPartsResponse, error)
-	// ValidateCompatibility проверяет совместимость деталей между собой
+	// ValidateCompatibility checks that the parts are compatible with each other
 	ValidateCompatibility(ctx context.Context, in *ValidateCompatibilityRequest, opts ...grpc.CallOption) (*ValidateCompatibilityResponse, error)
-	// ReserveParts резервирует детали для заказа
+	// ReserveParts reserves parts for an order
 	ReserveParts(ctx context.Context, in *ReservePartsRequest, opts ...grpc.CallOption) (*ReservePartsResponse, error)
-	// ReleaseParts освобождает ранее зарезервированные детали
+	// ReleaseParts releases previously reserved parts
 	ReleaseParts(ctx context.Context, in *ReleasePartsRequest, opts ...grpc.CallOption) (*ReleasePartsResponse, error)
-	// CommitParts списывает детали со склада после успешной сборки корабля
-	// Вызывается OrderService после получения события ShipAssembled из Kafka
-	// stock -= 1, reserved -= 1 для каждой детали
+	// CommitParts writes parts off the stock after a ship has been assembled.
+	// OrderService calls it after receiving the ShipAssembled event from Kafka:
+	// stock -= 1, reserved -= 1 for every part
 	CommitParts(ctx context.Context, in *CommitPartsRequest, opts ...grpc.CallOption) (*CommitPartsResponse, error)
 }
 
@@ -121,21 +121,21 @@ func (c *inventoryServiceClient) CommitParts(ctx context.Context, in *CommitPart
 // All implementations must embed UnimplementedInventoryServiceServer
 // for forward compatibility.
 //
-// InventoryService управляет каталогом деталей для космических кораблей
+// InventoryService manages the catalogue of spaceship parts
 type InventoryServiceServer interface {
-	// GetPart возвращает деталь по UUID
+	// GetPart returns a part by UUID
 	GetPart(context.Context, *GetPartRequest) (*GetPartResponse, error)
-	// ListParts возвращает список деталей с опциональной фильтрацией
+	// ListParts returns a list of parts with optional filtering
 	ListParts(context.Context, *ListPartsRequest) (*ListPartsResponse, error)
-	// ValidateCompatibility проверяет совместимость деталей между собой
+	// ValidateCompatibility checks that the parts are compatible with each other
 	ValidateCompatibility(context.Context, *ValidateCompatibilityRequest) (*ValidateCompatibilityResponse, error)
-	// ReserveParts резервирует детали для заказа
+	// ReserveParts reserves parts for an order
 	ReserveParts(context.Context, *ReservePartsRequest) (*ReservePartsResponse, error)
-	// ReleaseParts освобождает ранее зарезервированные детали
+	// ReleaseParts releases previously reserved parts
 	ReleaseParts(context.Context, *ReleasePartsRequest) (*ReleasePartsResponse, error)
-	// CommitParts списывает детали со склада после успешной сборки корабля
-	// Вызывается OrderService после получения события ShipAssembled из Kafka
-	// stock -= 1, reserved -= 1 для каждой детали
+	// CommitParts writes parts off the stock after a ship has been assembled.
+	// OrderService calls it after receiving the ShipAssembled event from Kafka:
+	// stock -= 1, reserved -= 1 for every part
 	CommitParts(context.Context, *CommitPartsRequest) (*CommitPartsResponse, error)
 	mustEmbedUnimplementedInventoryServiceServer()
 }

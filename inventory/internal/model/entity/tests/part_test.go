@@ -39,7 +39,7 @@ func TestPart_ReserveAndRelease(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, part.Reserved())
-	assert.Equal(t, 5, part.StockQuantity()) // stock не меняется
+	assert.Equal(t, 5, part.StockQuantity()) // stock stays the same
 
 	// --- Release success ---
 	err = part.Release()

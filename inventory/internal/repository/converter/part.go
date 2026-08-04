@@ -12,17 +12,17 @@ import (
 func PartRecordToModel(rec record.PartRecord) (entity.Part, error) {
 	var propsRec record.PartPropertiesRecord
 	if err := json.Unmarshal(rec.Properties, &propsRec); err != nil {
-		return entity.Part{}, fmt.Errorf("десериализовать свойства: %w", err)
+		return entity.Part{}, fmt.Errorf("unmarshal properties: %w", err)
 	}
 
 	props, err := partPropertiesFromRecord(propsRec)
 	if err != nil {
-		return entity.Part{}, fmt.Errorf("конвертировать свойства: %w", err)
+		return entity.Part{}, fmt.Errorf("convert properties: %w", err)
 	}
 
 	partType, err := valueobject.NewPartType(rec.PartType)
 	if err != nil {
-		return entity.Part{}, fmt.Errorf("конвертировать тип детали: %w", err)
+		return entity.Part{}, fmt.Errorf("convert part type: %w", err)
 	}
 
 	return entity.RestorePart(

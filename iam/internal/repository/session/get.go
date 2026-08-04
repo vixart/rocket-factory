@@ -19,11 +19,11 @@ func (r *repository) Get(ctx context.Context, sessionUuid uuid.UUID) (model.User
 	var sessionView redis_view.SessionRedisView
 	err := r.client.HGetAll(ctx, sessionKey).Scan(&sessionView)
 	if err != nil {
-		// redis.Nil от HGetAll не приходит — эту ошибку возвращают только
-		// строковые команды (GET, HGET и т.п.) для отсутствующего ключа.
-		// Здесь ветка нужна только на случай, если кто-то прокинет Nil
-		// сверху (например, обёрткой клиента). Реальный «not found»
-		// у HGetAll ловится проверкой на пустой UUID ниже.
+		// HGetAll never returns redis.Nil: only string commands (GET, HGET, ...)
+		// report a missing key that way. This branch only guards against someone
+		// passing Nil down from above (a client wrapper, for example). The real
+		// "not found" case of HGetAll is caught by the empty UUID check below.
+		//
 		if errors.Is(err, redis.Nil) {
 			return model.User{}, model.Session{}, errs.ErrSessionNotFound
 		}
@@ -31,9 +31,9 @@ func (r *repository) Get(ctx context.Context, sessionUuid uuid.UUID) (model.User
 		return model.User{}, model.Session{}, err
 	}
 
-	// HGetAll для несуществующего ключа возвращает пустую map БЕЗ ошибки.
-	// Это единственный способ отличить «нет такого ключа» от «ключ есть, но пустой» —
-	// проверяем обязательное поле первичного ключа в нашей view.
+	// For a missing key HGetAll returns an empty map and NO error. Checking the
+	// primary key field of our view is the only way to tell a missing key from a
+	// key that exists but is empty.
 	if sessionView.SessionUUID == "" {
 		return model.User{}, model.Session{}, errs.ErrSessionNotFound
 	}

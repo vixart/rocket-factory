@@ -55,7 +55,7 @@ func TestGetPart(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение детали",
+			name: "part fetched successfully",
 			args: args{
 				req: &inventoryv1.GetPartRequest{
 					Uuid: validUUID.String(),
@@ -68,7 +68,7 @@ func TestGetPart(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой uuid",
+			name: "empty uuid",
 			args: args{
 				req: &inventoryv1.GetPartRequest{
 					Uuid: "",
@@ -80,7 +80,7 @@ func TestGetPart(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid",
+			name: "invalid uuid",
 			args: args{
 				req: &inventoryv1.GetPartRequest{
 					Uuid: "not-a-uuid",
@@ -92,7 +92,7 @@ func TestGetPart(t *testing.T) {
 			},
 		},
 		{
-			name: "деталь не найдена",
+			name: "part not found",
 			args: args{
 				req: &inventoryv1.GetPartRequest{
 					Uuid: validUUID.String(),
@@ -108,7 +108,7 @@ func TestGetPart(t *testing.T) {
 			},
 		},
 		{
-			name: "внутренняя ошибка сервиса",
+			name: "internal service error",
 			args: args{
 				req: &inventoryv1.GetPartRequest{
 					Uuid: validUUID.String(),

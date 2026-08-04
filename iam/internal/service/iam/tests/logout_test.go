@@ -39,7 +39,7 @@ func TestLogout(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный логаут",
+			name: "logout succeeds",
 			args: args{
 				sessionUUID: sessionUUID,
 			},
@@ -50,7 +50,7 @@ func TestLogout(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка хранилища",
+			name: "storage fails",
 			args: args{
 				sessionUUID: sessionUUID,
 			},

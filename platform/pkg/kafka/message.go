@@ -2,14 +2,14 @@ package kafka
 
 import "time"
 
-// Header — заголовок Kafka-сообщения (ключ-значение)
-// Kafka допускает дублирование ключей, поэтому используем слайс, а не map.
+// Header is a Kafka message header (key-value pair)
+// Kafka allows duplicate keys, so a slice is used instead of a map.
 type Header struct {
 	Key   string
 	Value []byte
 }
 
-// Message — универсальная обёртка над сообщением Kafka.
+// Message is a transport-agnostic wrapper around a Kafka message.
 type Message struct {
 	Headers   []Header
 	Timestamp time.Time

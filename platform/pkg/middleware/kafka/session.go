@@ -9,19 +9,18 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 )
 
-// SessionHeaderKey — имя Kafka-заголовка, через который сервисы прокидывают
-// UUID пользовательской сессии между собой. Совпадает с gRPC metadata-ключом
-// (см. order/internal/interceptor/auth.go), чтобы один и тот же session-uuid
-// шёл по всей цепочке HTTP → Kafka → gRPC под одним именем.
+// SessionHeaderKey is the Kafka header the services use to pass the user session
+// UUID between each other. It matches the gRPC metadata key (see
+// order/internal/interceptor/auth.go) so that the same session-uuid travels the whole
+// HTTP → Kafka → gRPC chain under one name.
 const SessionHeaderKey = "session-uuid"
 
-// ProducerSessionHeaders собирает Kafka-заголовки для исходящего сообщения, доставая
-// session-uuid из context. Если в context'е session-uuid нет — возвращает nil
-// (заголовок не будет добавлен, и consumer на другой стороне не сможет
-// восстановить session-uuid, а защищённые gRPC-вызовы из обработчика упадут
-// с Unauthenticated).
+// ProducerSessionHeaders builds the Kafka headers of an outgoing message from the
+// session-uuid in the context. When there is none it returns nil: the header is
+// omitted, the consumer on the other side cannot restore the session-uuid, and any
+// protected gRPC call made from the handler fails with Unauthenticated.
 //
-// Использование в producer-сервисе:
+// Usage in a producer service:
 //
 //	return s.producer.Send(ctx, &kafka.Message{
 //	    Key:     key,
@@ -38,19 +37,19 @@ func ProducerSessionHeaders(ctx context.Context) []kafka.Header {
 	}
 }
 
-// ConsumerSession — Kafka middleware, которое читает session-uuid из заголовков
-// сообщения и кладёт его в context перед вызовом основного обработчика.
+// ConsumerSession is a Kafka middleware that reads the session-uuid from the message
+// headers and puts it into the context before calling the main handler.
 //
-// Зачем: SessionForwarder gRPC-клиента (см. order/internal/interceptor/auth.go)
-// автоматически берёт session-uuid из context и пробрасывает в исходящую
-// metadata. Без этого middleware Kafka-handler получает «голый» context от
-// sarama.ConsumerGroupSession без session-uuid, и любой защищённый gRPC-вызов
-// (например, InventoryService.CommitParts) вернёт codes.Unauthenticated.
+// Why: the gRPC client SessionForwarder (see order/internal/interceptor/auth.go) takes
+// the session-uuid from the context and forwards it in the outgoing metadata. Without
+// this middleware the Kafka handler gets a bare context from
+// sarama.ConsumerGroupSession with no session-uuid, and any protected gRPC call
+// (InventoryService.CommitParts, for example) returns codes.Unauthenticated.
 //
-// Если заголовка нет или он невалидный — context не модифицируется. Это
-// сознательное решение: middleware не должно решать за бизнес-обработчик, что
-// делать с отсутствием сессии (отбросить, отдать на DLQ, выполнить под
-// service-identity) — это зона ответственности конкретного сервиса.
+// When the header is missing or invalid the context is left untouched. That is
+// deliberate: the middleware must not decide on behalf of the business handler what
+// to do about a missing session (drop it, route it to a DLQ, run under a service
+// identity) — that is the responsibility of the individual service.
 func ConsumerSession() kafka.Middleware {
 	return func(next kafka.MessageHandler) kafka.MessageHandler {
 		return func(ctx context.Context, msg kafka.Message) error {

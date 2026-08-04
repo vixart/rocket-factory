@@ -24,7 +24,7 @@ func MustLoad() {
 
 	cfg, err := Load(configPath)
 	if err != nil {
-		panic(fmt.Sprintf("не удалось загрузить конфиг: %v", err))
+		panic(fmt.Sprintf("failed to load config: %v", err))
 	}
 
 	appConfig = cfg
@@ -36,11 +36,11 @@ func AppConfig() *config {
 
 const defaultConfigPath = "config.local.yaml"
 
-// ResolveConfigPath определяет путь к конфиг-файлу по цепочке приоритетов:
-// флаг -config > env CONFIG_PATH > "config.local.yaml".
+// ResolveConfigPath resolves the config file path by priority:
+// -config flag > CONFIG_PATH env var > "config.local.yaml".
 func ResolveConfigPath() string {
 	var cfgFlag string
-	flag.StringVar(&cfgFlag, "config", "", "путь к YAML-конфигу (например, config.staging.yaml)")
+	flag.StringVar(&cfgFlag, "config", "", "path to the YAML config (for example, config.staging.yaml)")
 	flag.Parse()
 
 	if cfgFlag != "" {
@@ -58,18 +58,18 @@ func Load(path string) (*config, error) {
 	var cfg config
 
 	if path != "" {
-		// ReadConfig читает YAML-файл, а затем перетирает значения из env-переменных
-		// Приоритет: env > yaml > env-default
+		// ReadConfig reads the YAML file and then overrides values from environment variables.
+		// Priority: env > yaml > env-default
 		if err := cleanenv.ReadConfig(path, &cfg); err != nil {
-			return nil, fmt.Errorf("не удалось загрузить конфиг из %q: %w", path, err)
+			return nil, fmt.Errorf("failed to load config from %q: %w", path, err)
 		}
 
 		return &cfg, nil
 	}
 
-	// Если путь не указан — читаем только из env-переменных
+	// With no path given, read from environment variables only
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		return nil, fmt.Errorf("не удалось загрузить конфиг из env: %w", err)
+		return nil, fmt.Errorf("failed to load config from env: %w", err)
 	}
 
 	return &cfg, nil

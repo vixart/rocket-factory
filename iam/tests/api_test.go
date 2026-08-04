@@ -1,9 +1,9 @@
 //go:build apitest
 
-// Package tests содержит интеграционные API-тесты IAM-сервиса
+// Package tests holds the integration API tests of the IAM service.
 //
-// Поднимает PostgreSQL и Redis через testcontainers-go и запускает gRPC-сервер
-// IAM в bufconn — без реальных портов и Docker Compose
+// It starts PostgreSQL and Redis via testcontainers-go and runs the IAM gRPC server
+// on bufconn — no real ports and no Docker Compose.
 package tests
 
 import (
@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 
 	pgContainer, dsn, err := startPostgres(ctx)
 	if err != nil {
-		panic("не удалось поднять PostgreSQL: " + err.Error())
+		panic("failed to start PostgreSQL: " + err.Error())
 	}
 	defer func() {
 		_ = pgContainer.Terminate(ctx)
@@ -57,19 +57,19 @@ func TestMain(m *testing.M) {
 
 	redisContainer, redisAddr, err := startRedis(ctx)
 	if err != nil {
-		panic("не удалось поднять Redis: " + err.Error())
+		panic("failed to start Redis: " + err.Error())
 	}
 	defer func() {
 		_ = redisContainer.Terminate(ctx)
 	}()
 
 	if err = applyMigrations(dsn); err != nil {
-		panic("не удалось применить миграции: " + err.Error())
+		panic("failed to apply migrations: " + err.Error())
 	}
 
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		panic("не удалось создать pgxpool: " + err.Error())
+		panic("failed to create pgxpool: " + err.Error())
 	}
 	defer pool.Close()
 
@@ -94,7 +94,7 @@ func TestMain(m *testing.M) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		panic("не удалось подключиться к bufconn: " + err.Error())
+		panic("failed to connect to bufconn: " + err.Error())
 	}
 	defer func() {
 		_ = conn.Close()
@@ -144,7 +144,7 @@ func startRedis(ctx context.Context) (*tcredis.RedisContainer, string, error) {
 		return nil, "", err
 	}
 
-	// ConnectionString возвращает redis://host:port — отрезаем схему
+	// ConnectionString returns redis://host:port — strip the scheme
 	const prefix = "redis://"
 	if len(addr) > len(prefix) {
 		addr = addr[len(prefix):]
@@ -170,8 +170,8 @@ func applyMigrations(dsn string) error {
 	return goose.Up(db, migrationsDir)
 }
 
-// findMigrationsDir поднимается вверх от текущей директории, пока не найдёт
-// migrations/iam/. Это нужно потому, что тесты запускаются из iam/tests/.
+// findMigrationsDir walks up from the current directory until it finds
+// migrations/iam/, because the tests run from iam/tests/.
 func findMigrationsDir() string {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -191,7 +191,7 @@ func findMigrationsDir() string {
 		dir = parent
 	}
 
-	panic("не найдена директория migrations/iam")
+	panic("migrations/iam directory not found")
 }
 
 func TestRegisterLoginWhoamiLogout_HappyPath(t *testing.T) {
@@ -240,7 +240,7 @@ func TestRegister_ValidationErrors(t *testing.T) {
 		code codes.Code
 	}{
 		{
-			name: "пустой логин",
+			name: "empty login",
 			req: &userv1.RegisterRequest{
 				Info: &userv1.UserRegistrationInfo{
 					Info:     &commonv1.UserInfo{Login: ""},
@@ -250,7 +250,7 @@ func TestRegister_ValidationErrors(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 		{
-			name: "слабый пароль",
+			name: "weak password",
 			req: &userv1.RegisterRequest{
 				Info: &userv1.UserRegistrationInfo{
 					Info:     &commonv1.UserInfo{Login: "carl"},
@@ -300,10 +300,10 @@ func TestWhoami_EmptySession(t *testing.T) {
 	requireGRPCCode(t, err, codes.InvalidArgument)
 }
 
-// TestWhoami_NotFound отдельно проверяет поведение, когда сессия не существует
-// в Redis (никогда не было / истекла по TTL / была удалена). Этот код-путь
-// один и тот же независимо от причины отсутствия ключа — главное, что Whoami
-// должен вернуть Unauthenticated, а не Internal или OK
+// TestWhoami_NotFound covers the case of a session that does not exist in Redis
+// (never existed, expired by TTL or was deleted). The code path is the same
+// regardless of the reason: what matters is that Whoami returns Unauthenticated
+// rather than Internal or OK.
 func TestWhoami_NotFound(t *testing.T) {
 	ctx := context.Background()
 
@@ -313,9 +313,9 @@ func TestWhoami_NotFound(t *testing.T) {
 	requireGRPCCode(t, err, codes.Unauthenticated)
 }
 
-// TestWhoami_AfterLogout проверяет, что после явного Logout сессия недоступна
-// и Whoami возвращает Unauthenticated. Это то же поведение, что и при истечении TTL,
-// но триггер другой — Logout идёт через IAMService.Logout → SessionRepository.Delete
+// TestWhoami_AfterLogout checks that after an explicit Logout the session is gone
+// and Whoami returns Unauthenticated. The behaviour matches TTL expiry, but the
+// trigger differs: Logout goes through IAMService.Logout → SessionRepository.Delete.
 func TestWhoami_AfterLogout(t *testing.T) {
 	ctx := context.Background()
 
@@ -336,11 +336,11 @@ func TestWhoami_AfterLogout(t *testing.T) {
 	sessionUUID := loginResp.GetSessionUuid()
 	require.NotEmpty(t, sessionUUID)
 
-	// Сессия валидна сразу после Login
+	// The session is valid right after Login
 	_, err = authSvc.Whoami(ctx, &authv1.WhoamiRequest{SessionUuid: sessionUUID})
 	require.NoError(t, err)
 
-	// После Logout — сессия должна исчезнуть из Redis
+	// After Logout the session must be gone from Redis
 	_, err = authSvc.Logout(ctx, &authv1.LogoutRequest{SessionUuid: sessionUUID})
 	require.NoError(t, err)
 
@@ -358,7 +358,7 @@ func TestGetUser_InvalidUUID(t *testing.T) {
 func TestLogout_Idempotent(t *testing.T) {
 	ctx := context.Background()
 
-	// Logout несуществующей сессии не должен возвращать ошибку
+	// Logging out a non-existent session must not return an error
 	_, err := authSvc.Logout(ctx, &authv1.LogoutRequest{SessionUuid: "11111111-2222-3333-4444-555555555555"})
 	require.NoError(t, err)
 }
@@ -367,6 +367,6 @@ func requireGRPCCode(t *testing.T, err error, expected codes.Code) {
 	t.Helper()
 	require.Error(t, err)
 	st, ok := status.FromError(err)
-	require.True(t, ok, "ожидалась gRPC-ошибка, получили: %v", err)
-	require.Equal(t, expected, st.Code(), "сообщение: %s", st.Message())
+	require.True(t, ok, "expected a gRPC error, got: %v", err)
+	require.Equal(t, expected, st.Code(), "message: %s", st.Message())
 }

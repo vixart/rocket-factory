@@ -23,7 +23,7 @@ const (
 	maxBuildTime = 3 * time.Second
 )
 
-// ConsumerService определяет контракт для запуска Kafka-потребителей.
+// ConsumerService is the contract for running Kafka consumers.
 type ConsumerService interface {
 	RunConsumer(ctx context.Context) error
 }
@@ -35,14 +35,14 @@ type diContainer struct {
 	orderPaidConsumer     *wrappedKafkaConsumer.Consumer
 	shipAssembledProducer *wrappedKafkaProducer.Producer
 
-	// Сервисы
+	// Services
 	orderPaidConsumerSvc     ConsumerService
 	shipAssembledProducerSvc assemblyService.ShipAssembledProducer
 	shipAssembleSvc          assemblyConsumer.ShipAssembleService
 }
 
-// ConsumerGroup возвращает Kafka consumer group.
-// При первом вызове создаёт группу и регистрирует closer.
+// ConsumerGroup returns the Kafka consumer group.
+// On the first call it creates the group and registers a closer.
 func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	if d.consumerGroup == nil {
 		consumerGroup, err := sarama.NewConsumerGroup(
@@ -51,7 +51,7 @@ func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 			config.AppConfig().OrderPaidConsumer.SaramaConfig(),
 		)
 		if err != nil {
-			slog.Error("не удалось создать consumer group", "error", err)
+			slog.Error("failed to create the consumer group", "error", err)
 			os.Exit(1)
 		}
 
@@ -65,8 +65,8 @@ func (d *diContainer) ConsumerGroup() sarama.ConsumerGroup {
 	return d.consumerGroup
 }
 
-// SyncProducer возвращает синхронный Kafka-продюсер.
-// При первом вызове создаёт продюсер и регистрирует closer.
+// SyncProducer returns the synchronous Kafka producer.
+// On the first call it creates the producer and registers a closer.
 func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	if d.syncProducer == nil {
 		p, err := sarama.NewSyncProducer(
@@ -74,7 +74,7 @@ func (d *diContainer) SyncProducer() sarama.SyncProducer {
 			config.AppConfig().ShipAssembledProducer.SaramaConfig(),
 		)
 		if err != nil {
-			slog.Error("не удалось создать sync producer", "error", err)
+			slog.Error("failed to create the sync producer", "error", err)
 			os.Exit(1)
 		}
 
@@ -88,7 +88,7 @@ func (d *diContainer) SyncProducer() sarama.SyncProducer {
 	return d.syncProducer
 }
 
-// ShipAssembledProducer возвращает обёртку Kafka-продюсера для событий ShipAssembled.
+// ShipAssembledProducer returns the Kafka producer wrapper for ShipAssembled events.
 func (d *diContainer) ShipAssembledProducer() *wrappedKafkaProducer.Producer {
 	if d.shipAssembledProducer == nil {
 		d.shipAssembledProducer = wrappedKafkaProducer.NewProducer(
@@ -100,7 +100,7 @@ func (d *diContainer) ShipAssembledProducer() *wrappedKafkaProducer.Producer {
 	return d.shipAssembledProducer
 }
 
-// OrderPaidConsumer возвращает обёртку Kafka-потребителя для событий OrderPaid.
+// OrderPaidConsumer returns the Kafka consumer wrapper for OrderPaid events.
 func (d *diContainer) OrderPaidConsumer() *wrappedKafkaConsumer.Consumer {
 	if d.orderPaidConsumer == nil {
 		d.orderPaidConsumer = wrappedKafkaConsumer.NewConsumer(

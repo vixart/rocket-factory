@@ -1,53 +1,53 @@
-services: # Здесь описываются контейнеры, необходимые для Inventory-сервиса
+services: # Containers required by the Inventory service
 
-  postgres-inventory: # Контейнер с PostgreSQL — используется для хранения данных об инвентаре (детали, компоненты)
+  postgres-inventory: # PostgreSQL container holding the inventory data (parts and components)
     image: ${POSTGRES_IMAGE}
-    # Используем официальный образ PostgreSQL на базе Alpine Linux
+    # The official Alpine-based PostgreSQL image: small and fast, it saves resources
 
     container_name: postgres-inventory
-    # Устанавливаем удобное читаемое имя контейнера — пригодится для логов и отладки
+    # A readable container name, handy in logs and while debugging
 
     env_file:
       - compose.env
-      # POSTGRES_DB/USER/PASSWORD для контейнера БД (см. compose.env рядом)
-      # Это позволяет переиспользовать одни и те же переменные в docker-compose, Taskfile и тестах
+      # POSTGRES_DB/USER/PASSWORD for the database container (see compose.env next to it),
+      # so the same variables are reused by compose, the Taskfile and the tests
 
     volumes:
       - postgres_inventory_data:/var/lib/postgresql
-      # Подключаем локальный Docker-том к директории PostgreSQL, где хранятся все данные (таблицы, индексы и т.д.)
-      # Это нужно для сохранения данных между перезапусками контейнера
+      # Mount a Docker volume onto the PostgreSQL data directory (tables, indexes and so on),
+      # so the data survives container restarts
 
     ports:
       - "${POSTGRES_PORT}:5432"
-      # Пробрасываем внутренний порт PostgreSQL (5432) наружу на порт из inventory.env (POSTGRES_PORT=5433)
-      # Порт 5433, чтобы не конфликтовать с PostgreSQL для OrderService (порт 5432)
+      # Publish the internal PostgreSQL port (5432) on the port from inventory.env (POSTGRES_PORT=5433).
+      # 5433 avoids clashing with the OrderService PostgreSQL on 5432
 
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      # Проверка готовности PostgreSQL: выполняем pg_isready для проверки доступности базы
-      # Интервал маленький, потому что на этой проверке ждёт `up --wait` в задаче
-      # up-inventory: при interval=10s первая проверка происходит через 10 секунд
-      # после старта, хотя postgres готов за 1–2 секунды, и эти секунды просто
-      # добавляются к времени up-all.
-      interval: 2s # Запускаем проверку каждые 2 секунды
-      timeout: 3s # Максимальное время ожидания выполнения проверки
-      retries: 15 # После 15 неудачных проверок подряд контейнер считается "неработоспособным"
-      start_period: 5s # Пока идёт инициализация БД, неудачные проверки не считаются за отказ
+      # Readiness probe: pg_isready checks that the database is reachable.
+      # The interval is small because `up --wait` in the up-inventory task waits on this
+      # probe: with interval=10s the first check happens 10 seconds after start even
+      # though postgres is ready in 1-2 seconds, and those seconds are simply added to
+      # the up-all time.
+      interval: 2s # Run the probe every 2 seconds
+      timeout: 3s # Maximum time to wait for a probe
+      retries: 15 # After 15 consecutive failures the container counts as unhealthy
+      start_period: 5s # Failures during database initialization do not count
 
     restart: unless-stopped
-    # Автоматически перезапускаем контейнер, если он аварийно завершился
-    # Но если мы остановим его вручную — он не запустится повторно
+    # Restart the container automatically after a crash,
+    # but not after a manual stop
 
     networks:
       - microservices-net
-      # Подключаем контейнер к общей сети всех микросервисов, чтобы они могли взаимодействовать между собой по имени
+      # Join the shared microservices network so containers can reach each other by name
 
-  migrator-inventory: # Одноразовый контейнер goose — накатывает SQL-миграции и завершается (exit 0)
+  migrator-inventory: # One-shot goose container: applies the SQL migrations and exits with 0
     build:
       context: ../../..
       dockerfile: deploy/dockerfiles/migrator.Dockerfile
       args:
-        # Версии образов и goose — из core.env (единый источник истины)
+        # Image and goose versions come from core.env (a single source of truth)
         GO_IMAGE: ${GO_IMAGE}
         ALPINE_IMAGE: ${ALPINE_IMAGE}
         GOOSE_VERSION: ${GOOSE_VERSION}
@@ -55,15 +55,15 @@ services: # Здесь описываются контейнеры, необхо
     depends_on:
       postgres-inventory:
         condition: service_healthy
-        # Не стартуем миграции, пока PostgreSQL не пройдёт healthcheck
+        # Do not start the migrations until PostgreSQL passes its healthcheck
 
     volumes:
       - ../../../migrations/inventory:/migrations:ro
-      # Монтируем SQL-миграции внутрь контейнера в /migrations
+      # Mount the SQL migrations into the container at /migrations
 
     command:
-      # Внутри docker-сети база доступна по имени контейнера postgres-inventory:5432,
-      # а не по хостовому порту. Креды берём из POSTGRES_* (интерполяция из inventory.env).
+      # Inside the docker network the database is reachable at postgres-inventory:5432
+      # rather than through the host port. Credentials come from POSTGRES_* (inventory.env).
       - -dir
       - /migrations
       - postgres
@@ -73,13 +73,13 @@ services: # Здесь описываются контейнеры, необхо
     networks:
       - microservices-net
 
-volumes: # Раздел с томами — определяем хранилище, которое создаст Docker
+volumes: # Volumes Docker will create
   postgres_inventory_data:
-  # Именованный том, в котором будут храниться данные PostgreSQL для Inventory-сервиса
-  # Он живёт отдельно от контейнера и сохраняется даже после удаления контейнера
+  # Named volume with the PostgreSQL data of the Inventory service. It lives separately
+  # from the container and survives even when the container is removed
 
-networks: # Определение используемой сети
+networks: # Network definition
   microservices-net:
     external: true
-    # Мы не создаём новую сеть, а подключаемся к внешней, общей для всех микросервисов
-    # Её создаёт task up-core (docker network create microservices-net)
+    # We do not create a network but join the external one shared by every microservice
+    # It is created by task up-core (docker network create microservices-net)

@@ -29,30 +29,30 @@ func (m *authMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "отсутствует заголовок Authorization", http.StatusUnauthorized)
+			http.Error(w, "Authorization header is missing", http.StatusUnauthorized)
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			http.Error(w, "формат: Bearer <token>", http.StatusUnauthorized)
+			http.Error(w, "expected format: Bearer <token>", http.StatusUnauthorized)
 			return
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token == "" {
-			http.Error(w, "пустой токен", http.StatusUnauthorized)
+			http.Error(w, "token is empty", http.StatusUnauthorized)
 			return
 		}
 
 		sessionUUID, err := uuid.Parse(token)
 		if err != nil {
-			http.Error(w, "токен неверного формата", http.StatusUnauthorized)
+			http.Error(w, "token has an invalid format", http.StatusUnauthorized)
 			return
 		}
 
 		userUUID, sessionUUID, err := m.iamService.Whoami(r.Context(), sessionUUID)
 		if err != nil {
-			http.Error(w, "сессия не действительна", http.StatusUnauthorized)
+			http.Error(w, "session is not valid", http.StatusUnauthorized)
 			return
 		}
 
@@ -60,7 +60,7 @@ func (m *authMiddleware) AuthMiddleware(next http.Handler) http.Handler {
 		ctx = auth.WithSessionUUID(ctx, sessionUUID)
 
 		slog.Debug(
-			"Сессия установлена",
+			"session established",
 			slog.String("userUUID", userUUID.String()),
 			slog.String("sessionUUID", sessionUUID.String()),
 		)

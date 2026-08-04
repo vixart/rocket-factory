@@ -1,38 +1,38 @@
 -- +goose Up
 
--- Заполняем properties для seed-данных из миграции 00002.
--- Каждый тип детали получает свой набор свойств, используемых в ValidateCompatibility.
+-- Fill in properties for the seed data of migration 00002.
+-- Each part type gets the property set used by ValidateCompatibility.
 
--- Формат JSONB: {"<тип>": {<свойства>}} — Pointer Union паттерн.
--- Ключ верхнего уровня (hull/engine/shield/weapon) определяет тип свойств.
--- json.Unmarshal в Go автоматически заполнит ровно одно поле в PartProperties.
+-- JSONB format: {"<type>": {<properties>}} — the pointer union pattern.
+-- The top-level key (hull/engine/shield/weapon) selects the property type.
+-- json.Unmarshal in Go fills exactly one field of PartProperties.
 
--- Корпуса — strength определяет, какой класс двигателя выдержит корпус.
--- Алюминиевый (strength=50): потянет только класс C (требует ≥30).
--- Титановый (strength=150): потянет любой двигатель, включая класс A (требует ≥100).
--- Плазменный (strength=120, stock=0): тоже потянет любой двигатель, но используется в тестах out-of-stock.
+-- Hulls: strength decides which engine class the hull can carry.
+-- Aluminium (strength=50) only supports class C, which requires ≥30.
+-- Titanium (strength=150) supports every engine, including class A, which requires ≥100.
+-- Plasma (strength=120, stock=0) would support any engine too, but serves the out-of-stock tests.
 UPDATE parts SET properties = '{"hull": {"strength": 50}}'  WHERE uuid = '550e8400-e29b-41d4-a716-446655440001';
 UPDATE parts SET properties = '{"hull": {"strength": 150}}' WHERE uuid = '550e8400-e29b-41d4-a716-446655440002';
 UPDATE parts SET properties = '{"hull": {"strength": 120}}' WHERE uuid = '550e8400-e29b-41d4-a716-446655440007';
 
--- Двигатели — class (A/B/C) и required_strength (минимальная прочность корпуса).
--- Класс C (required_strength=30) — лёгкий, подходит для любого корпуса.
--- Класс B (required_strength=70) — средний, алюминиевый корпус (50) не выдержит.
+-- Engines: class (A/B/C) and required_strength (the minimum hull strength).
+-- Class C (required_strength=30) is light and fits any hull.
+-- Class B (required_strength=70) is medium; the aluminium hull (50) cannot carry it.
 UPDATE parts SET properties = '{"engine": {"class": "C", "required_strength": 30}}'  WHERE uuid = '550e8400-e29b-41d4-a716-446655440003';
 UPDATE parts SET properties = '{"engine": {"class": "B", "required_strength": 70}}'  WHERE uuid = '550e8400-e29b-41d4-a716-446655440004';
 
--- Щиты — shield_type: "energy" или "plasma".
--- Энергетический щит совместим с любым оружием.
--- Плазменный щит (не в seed, но возможен) конфликтует с лазерным оружием.
+-- Shields: shield_type is "energy" or "plasma".
+-- The energy shield is compatible with every weapon.
+-- A plasma shield (not seeded, but possible) conflicts with laser weapons.
 UPDATE parts SET properties = '{"shield": {"shield_type": "energy"}}' WHERE uuid = '550e8400-e29b-41d4-a716-446655440005';
 
--- Оружие — weapon_type: "laser" или "missile".
--- Лазер несовместим с плазменным щитом (электромагнитные помехи).
+-- Weapons: weapon_type is "laser" or "missile".
+-- A laser is incompatible with a plasma shield (electromagnetic interference).
 UPDATE parts SET properties = '{"weapon": {"weapon_type": "laser"}}' WHERE uuid = '550e8400-e29b-41d4-a716-446655440006';
 
 -- +goose Down
 
--- Откат: сбрасываем properties обратно в пустой объект.
+-- Rollback: reset properties back to an empty object.
 UPDATE parts SET properties = '{}' WHERE uuid IN (
     '550e8400-e29b-41d4-a716-446655440001',
     '550e8400-e29b-41d4-a716-446655440002',

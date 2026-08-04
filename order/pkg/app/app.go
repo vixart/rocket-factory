@@ -39,7 +39,7 @@ func NewHTTPHandler(
 	authMiddleware := middleware.NewAuthMiddleware(iamClient)
 	orderServer, err := orderv1.NewServer(api, orderv1.WithErrorHandler(OrderApiV1.ErrorHandler))
 	if err != nil {
-		return nil, fmt.Errorf("ошибка создания сервера OpenAPI: %w", err)
+		return nil, fmt.Errorf("failed to create the OpenAPI server: %w", err)
 	}
 	return authMiddleware.AuthMiddleware(orderServer), nil
 }
@@ -62,7 +62,7 @@ func NewHTTPHandlerWithProducer(
 	authMiddleware := middleware.NewAuthMiddleware(iamClient)
 	orderServer, err := orderv1.NewServer(api, orderv1.WithErrorHandler(OrderApiV1.ErrorHandler))
 	if err != nil {
-		return nil, fmt.Errorf("ошибка создания сервера OpenAPI: %w", err)
+		return nil, fmt.Errorf("failed to create the OpenAPI server: %w", err)
 	}
 	return authMiddleware.AuthMiddleware(orderServer), nil
 }

@@ -60,12 +60,12 @@ func (p *Part) CreatedAt() time.Time {
 }
 
 func (p *Part) Reserve() error {
-	slog.Debug("ДЕТАЛИ",
+	slog.Debug("PART",
 		"reserved", p.reserved,
 		"stock", p.stockQuantity,
 	)
 	if p.stockQuantity-p.reserved <= 0 {
-		return fmt.Errorf("невозможно зарезервировать деталь с id: \"%s\" : %w", p.uuid, errs.ErrOutOfStock)
+		return fmt.Errorf("cannot reserve part with id: \"%s\" : %w", p.uuid, errs.ErrOutOfStock)
 	}
 
 	p.reserved += 1
@@ -75,7 +75,7 @@ func (p *Part) Reserve() error {
 
 func (p *Part) Release() error {
 	if p.reserved <= 0 {
-		return fmt.Errorf("невозможно освободить деталь с id: \"%s\" : %w", p.uuid, errs.ErrNothingToRelease)
+		return fmt.Errorf("cannot release part with id: \"%s\" : %w", p.uuid, errs.ErrNothingToRelease)
 	}
 
 	p.reserved -= 1
@@ -85,11 +85,11 @@ func (p *Part) Release() error {
 
 func (p *Part) Commit() error {
 	if p.reserved <= 0 {
-		return fmt.Errorf("невозможно использовать деталь с id: \"%s\", ее нет в резерве: %w", p.uuid, errs.ErrNothingToCommit)
+		return fmt.Errorf("cannot commit part with id: \"%s\", it is not reserved: %w", p.uuid, errs.ErrNothingToCommit)
 	}
 
 	if p.stockQuantity <= 0 {
-		return fmt.Errorf("невозможно использовать деталь с id: \"%s\", ее нет на складе: %w", p.uuid, errs.ErrNothingToCommit)
+		return fmt.Errorf("cannot commit part with id: \"%s\", it is out of stock: %w", p.uuid, errs.ErrNothingToCommit)
 	}
 
 	p.reserved -= 1
@@ -98,7 +98,7 @@ func (p *Part) Commit() error {
 	return nil
 }
 
-// RestorePart восстанавливает сущность из БД (без валидации — данные уже проверены).
+// RestorePart rebuilds the entity from the database (no validation: the data was already checked).
 func RestorePart(partUUID uuid.UUID, name, description string, partType valueobject.PartType, price int64,
 	stockQuantity, reserved int, properties valueobject.PartProperties, createdAt time.Time,
 ) Part {

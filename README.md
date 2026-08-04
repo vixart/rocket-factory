@@ -2,16 +2,60 @@
 
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/vixart/67f50bd37b7dc5e95c8feae5fb8f7228/raw/coverage.json)
 
-Учебный проект микросервисной архитектуры на Go: «завод по сборке космических кораблей».
-Пользователь регистрируется, создаёт заказ из набора деталей, оплачивает его — после чего корабль
-асинхронно собирается, а статус заказа обновляется через события Kafka.
+A demo microservice project in Go: a spaceship assembly factory. A user registers, creates an
+order from a set of parts and pays for it — after which the ship is assembled asynchronously
+and the order status is updated through Kafka events.
 
-Репозиторий построен как **Go workspace** (`go.work`) из независимых модулей: пять сервисов,
-общая платформенная библиотека и общие контракты API.
+The repository is a **Go workspace** (`go.work`) of independent modules: five services, a shared
+platform library and the shared API contracts.
 
 ---
 
-## Архитектура
+## What the project demonstrates
+
+**Code architecture.** The layers `API → Service → Repository → Client` with separate models
+(API / domain / storage) and converters between them. Dependency inversion: interfaces are
+declared on the consumer side (`deps.go`) and implementations are supplied by a hand-written DI
+container with lazy initialization and reverse-order resource shutdown.
+
+**DDD.** Entities with behaviour rather than anaemic structs: `Reserve` / `Release` / `Commit`
+never let a part reach an invalid state. Value objects for part properties, an "order + items"
+aggregate with a single entry point, and a domain service that validates the compatibility of
+hull, engine, shield and weapon. The domain layer knows nothing about the database or the logger.
+
+**Data and consistency.** PostgreSQL through pgx with a connection pool, queries built with
+Squirrel, migrations with goose. A transaction manager hides the transaction in the context, so
+the repository does not know it is running inside one. Concurrent part reservation is guarded by
+`SELECT ... FOR UPDATE` with a deterministic locking order (otherwise: deadlocks), and the
+properties of the different part types live in JSONB instead of bloating the schema.
+
+**Asynchrony.** Kafka (KRaft) as the event bus: `order.paid` → assembly → `assembly.ship-assembled`.
+Consumer groups for horizontal scaling and idempotent handling, so a redelivery does not corrupt
+the data.
+
+**Authentication.** Passwords hashed with bcrypt, sessions in Redis with a TTL, a gRPC interceptor
+and an HTTP middleware that validate the session, and the user identifier forwarded along the call
+chain through gRPC metadata.
+
+**Resilience.** A distributed rate limiter on Redis — one limit shared by every replica, and when
+Redis is unavailable requests are let through instead of being blocked. Graceful shutdown,
+healthchecks, and graceful degradation of telemetry: a broken Elasticsearch does not take the
+service down.
+
+**Observability.** OpenTelemetry across every service: structured logs (slog) written to stdout
+and Elasticsearch at the same time, metrics in Prometheus with business dashboards in Grafana,
+traces in Jaeger. A single `trace_id` links the records of every service, from order creation to
+ship assembly.
+
+**Testing and operations.** Table-driven unit tests with mocks (mockery) running in parallel, API
+tests, concurrency and rate limiter tests, and e2e tests against a real Kafka through
+testcontainers. Load testing with vegeta. The whole system — from the infrastructure to five
+services behind Nginx — starts with a single command, and the images are built in multiple stages
+with a BuildKit cache.
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -19,7 +63,7 @@ flowchart LR
     Nginx --> Order
 
     subgraph Services
-        Order[Order<br/>HTTP, x3 реплики]
+        Order[Order<br/>HTTP, x3 replicas]
         Inventory[Inventory<br/>:50051 gRPC]
         Payment[Payment<br/>:50052 gRPC]
         IAM[IAM<br/>:50053 gRPC]
@@ -44,127 +88,137 @@ flowchart LR
     Services -.OTLP.-> OTel[OTel Collector<br/>:4317]
 ```
 
-### Сервисы
+### Services
 
-| Сервис        | Протокол        | Порт  | Хранилище                  | Назначение                                                                   |
-|---------------|-----------------|-------|----------------------------|------------------------------------------------------------------------------|
-| **order**     | HTTP (OpenAPI)  | 8080  | PostgreSQL `:55432`        | Создание, получение, оплата и отмена заказов; оркестрация остальных сервисов  |
-| **inventory** | gRPC            | 50051 | PostgreSQL `:55433`        | Каталог деталей, проверка совместимости, резервирование/коммит/освобождение   |
-| **payment**   | gRPC            | 50052 | —                          | Проведение оплаты заказа                                                     |
-| **iam**       | gRPC            | 50053 | PostgreSQL `:55434`, Redis | Регистрация, логин, сессии, `Whoami` для остальных сервисов                   |
-| **assembly**  | Kafka consumer  | —     | —                          | Асинхронная «сборка корабля» по событию оплаты                                |
+| Service       | Protocol        | Port  | Storage                    | Purpose                                                                     |
+|---------------|-----------------|-------|----------------------------|-----------------------------------------------------------------------------|
+| **order**     | HTTP (OpenAPI)  | 8080  | PostgreSQL `:55432`        | Creating, fetching, paying for and cancelling orders; orchestrates the rest  |
+| **inventory** | gRPC            | 50051 | PostgreSQL `:55433`        | Part catalogue, compatibility checks, reserve/commit/release                 |
+| **payment**   | gRPC            | 50052 | —                          | Processes the order payment                                                  |
+| **iam**       | gRPC            | 50053 | PostgreSQL `:55434`, Redis | Registration, login, sessions, `Whoami` for the other services               |
+| **assembly**  | Kafka consumer  | —     | —                          | Asynchronous ship assembly triggered by the payment event                    |
 
-В контейнерном режиме (`task up-all`) Order поднимается в трёх репликах за Nginx на `:8080`,
-а входящий HTTP-трафик ограничивается распределённым rate limiter'ом на Redis
-(`redis-ratelimit:6379`, по умолчанию 100 rps при burst 200).
+In container mode (`task up-all`) Order runs as three replicas behind Nginx on `:8080`, and the
+incoming HTTP traffic is capped by a distributed rate limiter on Redis (`redis-ratelimit:6379`,
+100 rps with a burst of 200 by default).
 
-Вспомогательные модули:
+Supporting modules:
 
-- **platform** — переиспользуемая инфраструктура: логгер, трейсинг, метрики, Kafka producer/consumer,
-  Redis-клиент, graceful shutdown (`closer`), gRPC health, auth-контекст, middleware.
-- **shared** — контракты: `.proto` (gRPC), OpenAPI-спека Order API и сгенерированный по ним Go-код.
+- **platform** — reusable infrastructure: logger, tracing, metrics, Kafka producer/consumer,
+  Redis client, graceful shutdown (`closer`), gRPC health, auth context, middleware.
+- **shared** — the contracts: `.proto` (gRPC), the OpenAPI spec of the Order API and the Go code
+  generated from them.
 
-### Бизнес-поток
+### Business flow
 
-1. `POST /api/v1/orders` — Order проверяет сессию в IAM, валидирует совместимость деталей
-   и резервирует их в Inventory. Заказ переходит в `PENDING_PAYMENT`.
-2. `POST /api/v1/orders/{uuid}/pay` — в одной транзакции (с блокировкой заказа `SELECT ... FOR UPDATE`)
-   Order вызывает Payment, переводит заказ в `PAID` и публикует событие `order.paid` в Kafka.
-3. **Assembly** читает `order.paid`, «собирает корабль» и публикует `assembly.ship-assembled`.
-4. Order-консьюмер читает `assembly.ship-assembled`, коммитит резерв деталей в Inventory
-   и переводит заказ в `ASSEMBLED` (идемпотентно — повторные сообщения игнорируются).
-5. `POST /api/v1/orders/{uuid}/cancel` — отмена заказа с освобождением резерва (`CANCELLED`).
+1. `POST /api/v1/orders` — Order validates the session in IAM, checks part compatibility and
+   reserves the parts in Inventory. The order enters `PENDING_PAYMENT`.
+2. `POST /api/v1/orders/{uuid}/pay` — in a single transaction (with the order locked through
+   `SELECT ... FOR UPDATE`) Order calls Payment, moves the order to `PAID` and publishes the
+   `order.paid` event to Kafka.
+3. **Assembly** consumes `order.paid`, assembles the ship and publishes `assembly.ship-assembled`.
+4. The Order consumer reads `assembly.ship-assembled`, commits the part reservation in Inventory
+   and moves the order to `ASSEMBLED` (idempotently — repeated messages are ignored).
+5. `POST /api/v1/orders/{uuid}/cancel` — cancels the order and releases the reservation
+   (`CANCELLED`).
 
-Аутентификация сквозная: клиент передаёт токен сессии, Order-middleware и gRPC-интерсепторы
-пробрасывают его дальше по цепочке вызовов, каждый сервис валидирует сессию через IAM.
+Authentication is end-to-end: the client sends a session token, the Order middleware and the gRPC
+interceptors forward it along the call chain, and every service validates the session through IAM.
 
 ---
 
-## Стек
+## Stack
 
 - **Go 1.26**, multi-module workspace
 - **gRPC** + Protocol Buffers (`buf`, `protoc-gen-go`, `protoc-gen-go-grpc`)
-- **OpenAPI 3** → Go-код через [`ogen`](https://github.com/ogen-go/ogen)
-- **PostgreSQL** + миграции [`goose`](https://github.com/pressly/goose)
-- **Redis** — кэш и хранилище сессий IAM, а также распределённый rate limiter Order API
-- **Nginx** — балансировка HTTP-трафика между репликами OrderService
-- **Kafka** (KRaft, без ZooKeeper) — асинхронные события
-- **OpenTelemetry** → OTel Collector → Jaeger (трейсы), Prometheus + Grafana (метрики),
-  Elasticsearch + Kibana (логи)
-- **Docker Compose** для локальной инфраструктуры, **Task** ([go-task](https://taskfile.dev)) вместо Makefile
-- **mockery**, **testify**, **testcontainers** — тестирование; **vegeta** — нагрузочные тесты
-- **golangci-lint**, **gofumpt**, **gci** — качество кода
+- **OpenAPI 3** → Go code via [`ogen`](https://github.com/ogen-go/ogen)
+- **PostgreSQL** + [`goose`](https://github.com/pressly/goose) migrations
+- **Redis** — cache and IAM session storage, plus the distributed rate limiter of the Order API
+- **Nginx** — HTTP load balancing across the OrderService replicas
+- **Kafka** (KRaft, no ZooKeeper) — asynchronous events
+- **OpenTelemetry** → OTel Collector → Jaeger (traces), Prometheus + Grafana (metrics),
+  Elasticsearch + Kibana (logs)
+- **Docker Compose** for the local infrastructure, **Task** ([go-task](https://taskfile.dev))
+  instead of Make
+- **mockery**, **testify**, **testcontainers** for testing; **vegeta** for load tests
+- **golangci-lint**, **gofumpt**, **gci** for code quality
 
 ---
 
-## Структура репозитория
+## Repository layout
 
 ```
 .
-├── assembly/          # сервис сборки (Kafka consumer + producer)
-├── iam/               # сервис аутентификации и пользователей
-├── inventory/         # сервис каталога деталей
-├── order/             # сервис заказов (HTTP API, оркестратор)
-├── payment/           # сервис оплаты
-├── platform/pkg/      # общая инфраструктура (logger, tracing, metrics, kafka, redis, closer...)
+├── assembly/          # assembly service (Kafka consumer + producer)
+├── iam/               # authentication and user service
+├── inventory/         # part catalogue service
+├── order/             # order service (HTTP API, orchestrator)
+├── payment/           # payment service
+├── platform/pkg/      # shared infrastructure (logger, tracing, metrics, kafka, redis, closer...)
 ├── shared/
-│   ├── proto/         # .proto-контракты (auth, user, inventory, payment, events, common)
-│   ├── api/           # OpenAPI-спека Order API
-│   └── pkg/           # сгенерированный Go-код
-├── migrations/        # SQL-миграции по сервисам (goose)
+│   ├── proto/         # .proto contracts (auth, user, inventory, payment, events, common)
+│   ├── api/           # OpenAPI spec of the Order API
+│   └── pkg/           # generated Go code
+├── migrations/        # SQL migrations per service (goose)
+├── docs/              # engineering notes: why things are built the way they are
 ├── deploy/
 │   ├── compose/       # docker-compose: core, observability, order, inventory, iam, services
-│   ├── dockerfiles/   # образы сервисов + migrator.Dockerfile (goose)
-│   ├── nginx/         # конфигурация load balancer'а перед OrderService
-│   ├── grafana/       # provisioning и дашборды
-│   └── otel/          # конфигурация OTel Collector
-├── .github/workflows/ # CI: build, lint, unit / api / e2e тесты
-└── Taskfile.yaml      # все команды проекта
+│   ├── dockerfiles/   # service images + migrator.Dockerfile (goose)
+│   ├── nginx/         # load balancer configuration in front of OrderService
+│   ├── grafana/       # provisioning and dashboards
+│   └── otel/          # OTel Collector configuration
+├── .github/workflows/ # CI: build, lint, unit / api / e2e tests
+└── Taskfile.yaml      # every project command
 ```
 
-Каждый сервис следует единой структуре:
+Every service follows the same layout:
 
 ```
 <service>/
-├── cmd/               # точка входа
+├── cmd/               # entry point
 ├── internal/
-│   ├── app/           # сборка приложения и DI-контейнер
-│   ├── api/           # транспортный слой (gRPC / HTTP handlers) + конвертеры
-│   ├── service/       # бизнес-логика
-│   ├── repository/    # доступ к данным + конвертеры record ↔ model
-│   ├── client/        # gRPC-клиенты к другим сервисам
-│   ├── model/         # доменные модели
-│   ├── config/        # конфигурация (env + yaml)
-│   └── errors/        # доменные ошибки
+│   ├── app/           # application wiring and the DI container
+│   ├── api/           # transport layer (gRPC / HTTP handlers) + converters
+│   ├── service/       # business logic
+│   ├── repository/    # data access + record ↔ model converters
+│   ├── client/        # gRPC clients of the other services
+│   ├── model/         # domain models
+│   ├── config/        # configuration (env + yaml)
+│   └── errors/        # domain errors
 └── config.{local,staging,production}.yaml
 ```
 
+The non-obvious technical decisions are written up in [docs/](docs/README.md) (in Russian): why the
+transaction lives in the context, why `ORDER BY` is needed before `FOR UPDATE`, how the session
+uuid travels through Kafka, what breaks without an Elasticsearch index template, and why the load
+test hits several part pairs.
+
 ---
 
-## Быстрый старт
+## Quick start
 
-Требования: Go 1.26+, Docker, [Task](https://taskfile.dev/installation/).
+Requirements: Go 1.26+, Docker, [Task](https://taskfile.dev/installation/).
 
-### Вариант 1 — всё в контейнерах
+### Option 1 — everything in containers
 
 ```bash
-task setup           # инструменты разработки (buf, ogen, golangci-lint, gofumpt, gci)
-task hooks:install   # pre-commit hook: формат + линтер (один раз на клон)
-task up-all          # core + observability + БД с миграциями + сервисы за Nginx (order ×3)
+task setup           # development tools (buf, ogen, golangci-lint, gofumpt, gci)
+task hooks:install   # pre-commit hook: format + lint (once per clone)
+task up-all          # core + observability + databases with migrations + services behind Nginx (order ×3)
 ```
 
-`up-all` поднимает БД до healthy и прогоняет одноразовые `migrator-*` контейнеры (goose),
-так что миграции накатываются сами. Observability тоже готовится автоматически внутри `up-core`
-(`observability:init`): index template для логов в Elasticsearch, Data View в Kibana и ожидание Jaeger —
-руками после `up-all` запускать нечего.
+`up-all` brings the databases up to healthy and runs the one-shot `migrator-*` containers (goose),
+so the migrations apply themselves. Observability is prepared automatically inside `up-core`
+(`observability:init`) as well: the log index template in Elasticsearch, the data view in Kibana
+and the Jaeger wait — there is nothing left to run by hand after `up-all`.
 
-### Вариант 2 — инфраструктура в контейнерах, сервисы локально (режим разработки)
+### Option 2 — infrastructure in containers, services locally (development mode)
 
 ```bash
 task setup
-task up-infra        # Kafka + Kafka UI, observability, Redis, PostgreSQL всех сервисов + миграции
+task up-infra        # Kafka + Kafka UI, observability, Redis, PostgreSQL of every service + migrations
 
-# сервисы — каждый в своём терминале или в run-конфигурации IDE
+# services — each in its own terminal or IDE run configuration
 task run:iam         # :50053
 task run:inventory   # :50051
 task run:payment     # :50052
@@ -172,140 +226,141 @@ task run:order       # :8080
 task run:assembly    # Kafka worker
 ```
 
-`up-infra` поднимает всё, кроме самих сервисов: Nginx и контейнеры сервисов не запускаются,
-порты `8080`, `50051`–`50053` остаются свободными для локальных процессов.
+`up-infra` starts everything except the services themselves: Nginx and the service containers stay
+down, so ports `8080` and `50051`–`50053` remain free for local processes.
 
-Из IDE сервис запускается как `go run ./cmd` с рабочей директорией в каталоге сервиса —
-это важно, потому что `main()` подхватывает `<service>/<service>.env` относительно неё,
-а конфиг по умолчанию берётся из `config.local.yaml` рядом. Другой профиль конфига —
-через `CONFIG_PATH=config.staging.yaml` или флаг `-config`.
+From an IDE a service runs as `go run ./cmd` with the working directory set to the service folder —
+this matters because `main()` loads `<service>/<service>.env` relative to it, and the default config
+comes from the neighbouring `config.local.yaml`. A different profile can be selected through
+`CONFIG_PATH=config.staging.yaml` or the `-config` flag.
 
-Остановить: `task down-infra` (или `task down-all`, если поднимали и контейнерные сервисы).
+To stop: `task down-infra` (or `task down-all` if the containerized services were started too).
 
-### Точки доступа
+### Endpoints
 
-| Что                  | URL                                              |
+| What                 | URL                                              |
 |----------------------|--------------------------------------------------|
-| Order API (за Nginx) | http://localhost:8080/api/v1/orders              |
+| Order API (behind Nginx) | http://localhost:8080/api/v1/orders          |
 | Kafka UI             | http://localhost:8090                            |
-| Jaeger (трейсы)      | http://localhost:16686                           |
-| Grafana (метрики)    | http://localhost:3000 — `admin` / `admin`        |
+| Jaeger (traces)      | http://localhost:16686                           |
+| Grafana (metrics)    | http://localhost:3000 — `admin` / `admin`        |
 | Prometheus           | http://localhost:9090                            |
-| Kibana (логи)        | http://localhost:5601                            |
+| Kibana (logs)        | http://localhost:5601                            |
 | Elasticsearch        | http://localhost:9200                            |
 
 ---
 
-## Команды разработки
+## Development commands
 
-Полный список — `task --list`.
+The full list is `task --list`.
 
-### Кодогенерация
+### Code generation
 
 ```bash
-task gen              # весь сгенерированный код (proto + openapi)
-task proto:gen        # Go-код из .proto
-task ogen:gen         # Go-код из OpenAPI
-task mocks:gen        # моки интерфейсов (mockery)
+task gen              # all generated code (proto + openapi)
+task proto:gen        # Go code from .proto
+task ogen:gen         # Go code from OpenAPI
+task mocks:gen        # interface mocks (mockery)
 ```
 
-### Качество кода
+### Code quality
 
 ```bash
 task format           # gofumpt + gci
 task lint             # golangci-lint
-task build            # go build всех модулей
-task hooks:install    # pre-commit hook: формат + линтер перед коммитом
+task build            # go build of every module
+task hooks:install    # pre-commit hook: format + lint before committing
 ```
 
-`task hooks:install` копирует `scripts/pre-commit` в `.git/hooks/` и делает файл исполняемым
-(без бита исполнения git молча пропускает хук). Каталог `.git/hooks` не версионируется,
-поэтому команду выполняет каждый разработчик у себя.
+`task hooks:install` copies `scripts/pre-commit` into `.git/hooks/` and makes it executable
+(without the executable bit git silently skips the hook). The `.git/hooks` directory is not
+versioned, so every developer runs the command locally.
 
-Хук форматирует только те Go-файлы, что попали в индекс, возвращает их в индекс через `git add`
-и прогоняет `task lint` — при замечаниях линтера коммит отменяется.
+The hook formats only the Go files that are staged, puts them back into the index with `git add`
+and runs `task lint` — a linter finding aborts the commit.
 
-### Тесты
+### Tests
 
 ```bash
-task test             # unit-тесты с race-детектором
-task test:coverage    # покрытие бизнес-логики (порог — 40%)
-task coverage:html    # HTML-отчёт покрытия
-task test:api         # API-тесты
-task test:e2e         # e2e order с реальной Kafka (Redpanda) через testcontainers
-task load:http        # нагрузочный тест vegeta: 50 → 500 RPS, результаты — в Grafana
-task load:seed        # завести/пополнить детали под нагрузку (load:http зовёт сам)
+task test             # unit tests with the race detector
+task test:coverage    # business logic coverage (threshold: 40%)
+task coverage:html    # HTML coverage report
+task test:api         # API tests
+task test:e2e         # order e2e against a real Kafka (Redpanda) via testcontainers
+task load:http        # vegeta load test: 50 → 500 RPS, results land in Grafana
+task load:seed        # create/replenish the load test parts (load:http calls it itself)
 ```
 
-### Миграции
+### Migrations
 
-В `up-*` миграции накатывает контейнер `migrator-<сервис>` (goose внутри Docker).
-Эти задачи — для ручной работы с goose с хоста:
+In `up-*` the migrations are applied by the `migrator-<service>` container (goose inside Docker).
+These tasks are for running goose manually from the host:
 
 ```bash
-task migrate:all:up                      # накатить все миграции всех сервисов
+task migrate:all:up                      # apply every migration of every service
 task migrate:order:up                    # / :down / :status
-task migrate:order:create -- <имя>       # новый файл миграции
+task migrate:order:create -- <name>      # new migration file
 ```
 
-Аналогично для `inventory` и `iam`.
+The same applies to `inventory` and `iam`.
 
-### Инфраструктура
+### Infrastructure
 
 ```bash
-task up-core / down-core            # общая сеть, Kafka, observability, Redis rate limiter
-task up-order / down-order          # PostgreSQL + миграции Order
+task up-core / down-core            # shared network, Kafka, observability, Redis rate limiter
+task up-order / down-order          # PostgreSQL + Order migrations
 task up-inventory / down-inventory
-task up-iam / down-iam              # PostgreSQL + Redis + миграции
-task up-all / down-all              # всё сразу + контейнеризованные сервисы за Nginx
+task up-iam / down-iam              # PostgreSQL + Redis + migrations
+task up-all / down-all              # everything at once plus the containerized services behind Nginx
 ```
 
 ---
 
-## Конфигурация
+## Configuration
 
-Конфигурация двухслойная: YAML-файл задаёт базу, переменные окружения её переопределяют
-(`cleanenv`, приоритет **env > yaml > env-default**). Путь к YAML выбирается по цепочке
+Configuration has two layers: a YAML file sets the baseline and environment variables override it
+(`cleanenv`, priority **env > yaml > env-default**). The YAML path is resolved as
 `-config` → `CONFIG_PATH` → `config.local.yaml`.
 
-**Базовый слой — YAML-профили** рядом с сервисом: `config.local.yaml` (запуск с хоста),
-`config.docker.yaml` (запуск в контейнере), `config.staging.yaml`, `config.production.yaml`.
+**The base layer is the YAML profiles** next to each service: `config.local.yaml` (running from the
+host), `config.docker.yaml` (running in a container), `config.staging.yaml`, `config.production.yaml`.
 
-**Слой переопределений — env-файлы**, по одному на способ запуска:
+**The override layer is the env files**, one per way of starting the service:
 
-| Файл | Кто читает | Что внутри |
-|------|------------|------------|
-| `<service>/<service>.env` | сам сервис при локальном запуске (`godotenv` в `cmd/main.go`) | хостовые адреса: `localhost:50051`, `localhost:9092` |
-| `<service>/<service>.docker.env` | контейнер сервиса (`env_file` в `deploy/compose/services/`) | адреса docker-сети: `inventory-service:50051`, `kafka:29092` |
-| `deploy/compose/<service>/compose.env` | только `docker compose` | параметры контейнеров PostgreSQL/Redis и версии образов |
-| `core.env` (в корне) | `docker compose` и `Taskfile` (через `dotenv`) | порты и образы общей инфраструктуры, build args `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION` |
+| File | Who reads it | What is inside |
+|------|--------------|----------------|
+| `<service>/<service>.env` | the service itself when run locally (`godotenv` in `cmd/main.go`) | host addresses: `localhost:50051`, `localhost:9092` |
+| `<service>/<service>.docker.env` | the service container (`env_file` in `deploy/compose/services/`) | docker network addresses: `inventory-service:50051`, `kafka:29092` |
+| `deploy/compose/<service>/compose.env` | `docker compose` only | PostgreSQL/Redis container settings and image versions |
+| `core.env` (in the root) | `docker compose` and the `Taskfile` (through `dotenv`) | ports and images of the shared infrastructure, plus the `GO_IMAGE` / `ALPINE_IMAGE` / `GOOSE_VERSION` build args |
 
-Разделение по способу запуска обязательно: в `<service>.env` лежат хостовые адреса, и если
-передать этот файл в контейнер, он перебьёт `config.docker.yaml` и сервис пойдёт в `localhost`
-вместо соседнего контейнера. Приложение никогда не читает `compose.env`, а `docker compose`
-никогда не читает `<service>.env` — пересечения между слоями нет.
+Splitting them by the way the service starts is mandatory: `<service>.env` holds host addresses, so
+passing that file to a container would override `config.docker.yaml` and send the service to
+`localhost` instead of the neighbouring container. The application never reads `compose.env`, and
+`docker compose` never reads `<service>.env` — the layers do not overlap.
 
-Из `deploy/compose/<service>/compose.env` берут креды и задачи `migrate:*`: DSN для goose
-собирается из `POSTGRES_*`, поэтому goose и контейнер БД не могут разъехаться.
+The `migrate:*` tasks take their credentials from `deploy/compose/<service>/compose.env` as well:
+the goose DSN is assembled from `POSTGRES_*`, so goose and the database container cannot drift apart.
 
-Помните про приоритет: правка в `config.local.yaml` не применится, если та же переменная
-задана в `<service>/<service>.env` — env старше.
+Keep the priority in mind: a change in `config.local.yaml` has no effect when the same variable is
+set in `<service>/<service>.env` — env wins.
 
 ---
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) на каждый PR запускает: `build`, `lint`,
-unit-тесты с покрытием, API-тесты и e2e-тесты.
+GitHub Actions (`.github/workflows/ci.yml`) runs `build`, `lint`, unit tests with coverage, API
+tests and e2e tests on every PR.
 
-Бейдж покрытия в шапке README работает так: после unit-тестов задача `task coverage:badge`
-формирует `coverage/badge.json` в формате [shields.io endpoint](https://shields.io/badges/endpoint-badge),
-а workflow при push в `main` записывает его в gist (нужен секрет `GIST_TOKEN` — PAT со scope `gist`).
-Сам бейдж читает этот gist через shields.io. Локально проверить значение и цвет:
+The coverage badge at the top of this README works like this: after the unit tests the
+`task coverage:badge` job builds `coverage/badge.json` in the
+[shields.io endpoint](https://shields.io/badges/endpoint-badge) format, and on a push to `main` the
+workflow writes it into a gist (this needs the `GIST_TOKEN` secret — a PAT with the `gist` scope).
+The badge itself reads that gist through shields.io. To check the value and colour locally:
 `task test:coverage && task coverage:badge`.
 
 ---
 
-## Лицензия
+## License
 
 [MIT](LICENSE)

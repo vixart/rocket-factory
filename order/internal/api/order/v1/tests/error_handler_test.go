@@ -29,7 +29,7 @@ func TestErrorHandler(t *testing.T) {
 		expected expected
 	}{
 		{
-			name: "ошибка декодирования параметров",
+			name: "parameter decoding error",
 			err: &ogenerrors.DecodeParamsError{
 				Err: errors.New("invalid uuid"),
 			},
@@ -39,7 +39,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка декодирования тела запроса",
+			name: "request body decoding error",
 			err: &ogenerrors.DecodeRequestError{
 				Err: errors.New("invalid body"),
 			},
@@ -49,7 +49,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "заказ не найден",
+			name: "order not found",
 			err:  errs.ErrOrderNotFound,
 			expected: expected{
 				statusCode: http.StatusNotFound,
@@ -57,7 +57,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "деталь не найдена",
+			name: "part not found",
 			err:  errs.ErrPartNotFound,
 			expected: expected{
 				statusCode: http.StatusNotFound,
@@ -65,7 +65,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "не авторизован",
+			name: "unauthorized",
 			err:  errs.ErrUnauthorized,
 			expected: expected{
 				statusCode: http.StatusUnauthorized,
@@ -73,7 +73,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "некорректный статус заказа",
+			name: "invalid order status",
 			err:  errs.ErrInvalidOrderStatus,
 			expected: expected{
 				statusCode: http.StatusConflict,
@@ -81,7 +81,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "несовместимые детали",
+			name: "incompatible parts",
 			err:  errs.ErrIncompatibleParts,
 			expected: expected{
 				statusCode: http.StatusConflict,
@@ -89,7 +89,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "детали нет на складе",
+			name: "part is out of stock",
 			err:  errs.ErrOutOfStock,
 			expected: expected{
 				statusCode: http.StatusConflict,
@@ -97,7 +97,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "некорректный uuid",
+			name: "invalid uuid",
 			err:  errs.ErrInvalidUUID,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
@@ -105,7 +105,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка оплаты заказа",
+			name: "order payment fails",
 			err:  errs.ErrPaymentFailed,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
@@ -113,7 +113,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "несоответствие типа детали",
+			name: "part type mismatch",
 			err:  errs.ErrPartTypeMismatch,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
@@ -121,7 +121,7 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "некорректный способ оплаты",
+			name: "invalid payment method",
 			err:  errs.ErrInvalidPaymentMethod,
 			expected: expected{
 				statusCode: http.StatusBadRequest,
@@ -129,11 +129,11 @@ func TestErrorHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "неизвестная ошибка",
+			name: "unknown error",
 			err:  errors.New("boom"),
 			expected: expected{
 				statusCode: http.StatusInternalServerError,
-				body:       `{"code":500,"message":"внутренняя ошибка"}`,
+				body:       `{"code":500,"message":"internal error"}`,
 			},
 		},
 	}

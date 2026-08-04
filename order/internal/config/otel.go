@@ -1,8 +1,8 @@
 package config
 
-// otelConfig — внутренняя структура пакета config (имя с маленькой буквы),
-// наружу торчит только метод OTel() OTelConfig интерфейса.
+// otelConfig is internal to the config package (hence the lowercase name);
+// only the OTel() method of the OTelConfig interface is exposed.
 type otelConfig struct {
-	Endpoint   string `yaml:"endpoint"` // адрес OTEL Collector (OTLP gRPC)
+	Endpoint   string `yaml:"endpoint"` // OTel Collector address (OTLP gRPC)
 	EnableOTLP bool   `yaml:"enable_otlp" env:"ENABLE_OTLP" env-default:"true"`
 }

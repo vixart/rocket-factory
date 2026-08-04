@@ -19,13 +19,13 @@ func (s *service) Release(ctx context.Context, uuids []uuid.UUID) error {
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
 		if err != nil {
-			return fmt.Errorf("не удалось получить детали: %w", err)
+			return fmt.Errorf("failed to fetch parts: %w", err)
 		}
 
 		for i := range parts {
 			err = parts[i].Release()
 			if err != nil {
-				return fmt.Errorf("не удалось освободить детали: %w", err)
+				return fmt.Errorf("failed to release parts: %w", err)
 			}
 		}
 

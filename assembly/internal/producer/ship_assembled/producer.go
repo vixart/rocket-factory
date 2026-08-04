@@ -34,7 +34,7 @@ func (p *service) ProduceShipAssembled(ctx context.Context, event model.ShipAsse
 
 	payload, err := proto.Marshal(msg)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось сериализовать ShipAssembled", "error", err)
+		slog.ErrorContext(ctx, "failed to marshal ShipAssembled", "error", err)
 		return err
 	}
 

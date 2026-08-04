@@ -19,7 +19,7 @@ func (s *service) List(ctx context.Context, uuids []uuid.UUID, partType valueobj
 
 	parts, err := s.partRepo.List(ctx, partFilter)
 	if err != nil {
-		return []entity.Part{}, fmt.Errorf("не удалось получить детали: %w", err)
+		return []entity.Part{}, fmt.Errorf("failed to fetch parts: %w", err)
 	}
 
 	return parts, nil

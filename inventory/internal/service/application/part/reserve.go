@@ -19,20 +19,20 @@ func (s *service) Reserve(ctx context.Context, uuids []uuid.UUID) error {
 
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
-		slog.Debug("детали получены", slog.Any("parts", parts))
+		slog.Debug("parts fetched", slog.Any("parts", parts))
 		if err != nil {
-			return fmt.Errorf("не удалось получить детали: %w", err)
+			return fmt.Errorf("failed to fetch parts: %w", err)
 		}
 
 		for i := range parts {
 			err = parts[i].Reserve()
 			if err != nil {
-				return fmt.Errorf("не удалось зарезервировать детали детали: %w", err)
+				return fmt.Errorf("failed to reserve parts: %w", err)
 			}
 		}
 
 		err = s.partRepo.UpdateReservedBatch(ctx, parts)
-		slog.Debug("детали обновлены", slog.Any("parts", parts))
+		slog.Debug("parts updated", slog.Any("parts", parts))
 		return err
 	})
 

@@ -31,7 +31,7 @@ func (p *service) ProduceOrderPaid(ctx context.Context, event model.OrderPaidEve
 
 	payload, err := proto.Marshal(msg)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось сериализовать OrderPaid", "error", err)
+		slog.ErrorContext(ctx, "failed to marshal OrderPaid", "error", err)
 		return err
 	}
 

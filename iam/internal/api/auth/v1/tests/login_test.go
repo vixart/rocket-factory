@@ -40,7 +40,7 @@ func TestLogin(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный логин",
+			name: "login succeeds",
 			args: args{
 				req: &authv1.LoginRequest{
 					Login:    "user@example.com",
@@ -63,7 +63,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &authv1.LoginRequest{
 					Login:    "user@example.com",

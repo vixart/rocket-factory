@@ -1,7 +1,7 @@
 package record
 
-// PartPropertiesRecord — структура для десериализации JSONB.
-// Живёт в repository-слое: json-теги не принадлежат доменной модели.
+// PartPropertiesRecord is the structure the JSONB column is unmarshalled into.
+// It lives in the repository layer: json tags do not belong to the domain model.
 type PartPropertiesRecord struct {
 	Hull   *HullPropertiesRecord   `json:"hull,omitempty"`
 	Engine *EnginePropertiesRecord `json:"engine,omitempty"`

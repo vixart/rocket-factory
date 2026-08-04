@@ -57,7 +57,7 @@ func TestGet(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение детали",
+			name: "part fetched successfully",
 			args: args{
 				uuid: partUUID,
 			},
@@ -72,7 +72,7 @@ func TestGet(t *testing.T) {
 			},
 		},
 		{
-			name: "деталь не найдена",
+			name: "part not found",
 			args: args{
 				uuid: partUUID,
 			},
@@ -87,7 +87,7 @@ func TestGet(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка репозитория",
+			name: "repository fails",
 			args: args{
 				uuid: partUUID,
 			},

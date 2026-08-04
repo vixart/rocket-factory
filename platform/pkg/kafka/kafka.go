@@ -4,20 +4,20 @@ import (
 	"context"
 )
 
-// MessageHandler — функция-обработчик входящего Kafka-сообщения
+// MessageHandler processes a single incoming Kafka message.
 //
-// Используется как конечный обработчик в consumer-pipeline:
+// It is the terminal handler of the consumer pipeline:
 //
 //	handler := func(ctx context.Context, msg kafka.Message) error {
-//	    // декодировать msg.Value, обработать, вернуть ошибку при неудаче
+//	    // decode msg.Value, process it, return an error on failure
 //	}
 //
-// При возврате ошибки сообщение НЕ коммитится (at-least-once семантика).
+// When it returns an error the message offset is NOT committed (at-least-once semantics).
 type MessageHandler func(ctx context.Context, msg Message) error
 
-// Middleware — обёртка для MessageHandler, позволяющая добавлять сквозную логику
-// (логирование, метрики, трейсинг) без изменения бизнес-обработчика
+// Middleware wraps a MessageHandler to add cross-cutting behaviour
+// (logging, metrics, tracing) without touching the business handler.
 //
-// Middleware применяются в порядке «снаружи внутрь»: первый добавленный middleware
-// оборачивает всю цепочку, последний — ближайший к бизнес-обработчику.
+// Middlewares are applied outside-in: the first one wraps the whole chain,
+// the last one sits closest to the business handler.
 type Middleware func(next MessageHandler) MessageHandler

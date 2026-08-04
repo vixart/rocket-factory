@@ -19,13 +19,13 @@ func (s *service) Commit(ctx context.Context, uuids []uuid.UUID) error {
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		parts, err := s.partRepo.ListForUpdate(ctx, partFilter)
 		if err != nil {
-			return fmt.Errorf("не удалось получить детали: %w", err)
+			return fmt.Errorf("failed to fetch parts: %w", err)
 		}
 
 		for i := range parts {
 			err = parts[i].Commit()
 			if err != nil {
-				return fmt.Errorf("не удалось использовать детали: %w", err)
+				return fmt.Errorf("failed to commit parts: %w", err)
 			}
 		}
 

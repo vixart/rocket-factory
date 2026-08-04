@@ -56,7 +56,7 @@ func TestGetUser(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение пользователя",
+			name: "user fetched successfully",
 			args: args{
 				req: &userv1.GetUserRequest{
 					UserUuid: userUUID.String(),
@@ -69,7 +69,7 @@ func TestGetUser(t *testing.T) {
 			},
 		},
 		{
-			name: "успешное получение пользователя с updatedAt",
+			name: "user fetched successfully with updatedAt",
 			args: args{
 				req: &userv1.GetUserRequest{
 					UserUuid: userUUID.String(),
@@ -82,7 +82,7 @@ func TestGetUser(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный uuid",
+			name: "invalid uuid",
 			args: args{
 				req: &userv1.GetUserRequest{
 					UserUuid: "not-a-uuid",
@@ -94,7 +94,7 @@ func TestGetUser(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &userv1.GetUserRequest{
 					UserUuid: userUUID.String(),

@@ -6,135 +6,135 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1;inventoryv1";
 
-// InventoryService управляет каталогом деталей для космических кораблей
+// InventoryService manages the catalogue of spaceship parts
 service InventoryService {
-  // GetPart возвращает деталь по UUID
+  // GetPart returns a part by UUID
   rpc GetPart(GetPartRequest) returns (GetPartResponse);
 
-  // ListParts возвращает список деталей с опциональной фильтрацией
+  // ListParts returns a list of parts with optional filtering
   rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
 
-  // ValidateCompatibility проверяет совместимость деталей между собой
+  // ValidateCompatibility checks that the parts are compatible with each other
   rpc ValidateCompatibility(ValidateCompatibilityRequest) returns (ValidateCompatibilityResponse);
 
-  // ReserveParts резервирует детали для заказа
+  // ReserveParts reserves parts for an order
   rpc ReserveParts(ReservePartsRequest) returns (ReservePartsResponse);
 
-  // ReleaseParts освобождает ранее зарезервированные детали
+  // ReleaseParts releases previously reserved parts
   rpc ReleaseParts(ReleasePartsRequest) returns (ReleasePartsResponse);
 
-  // CommitParts списывает детали со склада после успешной сборки корабля
-  // Вызывается OrderService после получения события ShipAssembled из Kafka
-  // stock -= 1, reserved -= 1 для каждой детали
+  // CommitParts writes parts off the stock after a ship has been assembled.
+  // OrderService calls it after receiving the ShipAssembled event from Kafka:
+  // stock -= 1, reserved -= 1 for every part
   rpc CommitParts(CommitPartsRequest) returns (CommitPartsResponse);
 }
 
-// Тип детали
+// Part type
 enum PartType {
-  // Не указан
+  // Unspecified
   PART_TYPE_UNSPECIFIED = 0;
-  // Корпус
+  // Hull
   PART_TYPE_HULL = 1;
-  // Двигатель
+  // Engine
   PART_TYPE_ENGINE = 2;
-  // Щит
+  // Shield
   PART_TYPE_SHIELD = 3;
-  // Оружие
+  // Weapon
   PART_TYPE_WEAPON = 4;
 }
 
-// Part представляет деталь космического корабля
+// Part is a spaceship part
 message Part {
-  // Уникальный идентификатор детали
+  // Unique part identifier
   string uuid = 1;
 
-  // Название детали
+  // Part name
   string name = 2;
 
-  // Описание детали
+  // Part description
   string description = 3;
 
-  // Цена в копейках (5000₽ = 500000)
+  // Price in kopecks (5000 RUB = 500000)
   int64 price = 4;
 
-  // Тип детали
+  // Part type
   PartType part_type = 5;
 
-  // Количество на складе
+  // Quantity in stock
   int64 stock_quantity = 6;
 
-  // Дата создания
+  // Creation date
   google.protobuf.Timestamp created_at = 7;
 }
 
-// Запрос на получение детали по UUID
+// Request to fetch a part by UUID
 message GetPartRequest {
-  // UUID детали
+  // Part UUID
   string uuid = 1;
 }
 
-// Ответ с деталью
+// Response carrying the part
 message GetPartResponse {
-  // Найденная деталь
+  // The part that was found
   Part part = 1;
 }
 
-// Запрос на получение списка деталей
+// Request to list parts
 message ListPartsRequest {
-  // Фильтр по типу детали
+  // Filter by part type
   PartType part_type = 1;
 
-  // Фильтр по UUID
+  // Filter by UUID
   repeated string uuids = 2;
 }
 
-// Ответ со списком деталей
+// Response carrying the list of parts
 message ListPartsResponse {
-  // Список деталей
+  // The parts
   repeated Part parts = 1;
 }
 
-// Запрос на проверку совместимости деталей по слотам корабля
+// Request to validate part compatibility across the ship slots
 message ValidateCompatibilityRequest {
-  // UUID детали в слоте корпуса (обязательный слот)
+  // UUID of the part in the hull slot (required slot)
   string hull_uuid = 1;
 
-  // UUID детали в слоте двигателя (обязательный слот)
+  // UUID of the part in the engine slot (required slot)
   string engine_uuid = 2;
 
-  // UUID детали в слоте щита (опциональный слот, пустая строка — слот не используется)
+  // UUID of the part in the shield slot (optional; an empty string means the slot is unused)
   string shield_uuid = 3;
 
-  // UUID детали в слоте оружия (опциональный слот, пустая строка — слот не используется)
+  // UUID of the part in the weapon slot (optional; an empty string means the slot is unused)
   string weapon_uuid = 4;
 }
 
-// Ответ на проверку совместимости (пустой — значит совместимы)
+// Compatibility response (empty means the parts are compatible)
 message ValidateCompatibilityResponse {}
 
-// Запрос на резервирование деталей
+// Request to reserve parts
 message ReservePartsRequest {
-  // UUID деталей для резервирования
+  // UUIDs of the parts to reserve
   repeated string uuids = 1;
 }
 
-// Ответ на резервирование (пустой — значит успешно)
+// Reservation response (empty means success)
 message ReservePartsResponse {}
 
-// Запрос на освобождение ранее зарезервированных деталей
+// Request to release previously reserved parts
 message ReleasePartsRequest {
-  // UUID деталей для освобождения
+  // UUIDs of the parts to release
   repeated string uuids = 1;
 }
 
-// Ответ на освобождение (пустой — значит успешно)
+// Release response (empty means success)
 message ReleasePartsResponse {}
 
-// Запрос на списание деталей со склада
+// Request to write parts off the stock
 message CommitPartsRequest {
-  // UUID деталей для списания
+  // UUIDs of the parts to write off
   repeated string uuids = 1;
 }
 
-// Ответ на списание (пустой — значит успешно)
+// Write-off response (empty means success)
 message CommitPartsResponse {}

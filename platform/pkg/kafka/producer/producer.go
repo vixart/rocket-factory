@@ -9,18 +9,18 @@ import (
 	"github.com/vixart/rocket-factory/platform/pkg/kafka"
 )
 
-// Producer — обёртка над sarama.SyncProducer для отправки сообщений в конкретный топик
+// Producer wraps sarama.SyncProducer and sends messages to a single topic.
 //
-// ВАЖНО: sarama.SyncProducer требует sarama.Config с Producer.Return.Successes = true,
-// иначе SendMessage зависнет навсегда. Убедитесь, что эта настройка выставлена
-// при создании sarama.Config (обычно в конфигурационном слое сервиса).
+// IMPORTANT: sarama.SyncProducer requires a sarama.Config with
+// Producer.Return.Successes = true, otherwise SendMessage blocks forever. Make sure
+// it is set when the sarama.Config is built (usually in the service config layer).
 type Producer struct {
 	syncProducer sarama.SyncProducer
 	topic        string
 }
 
-// NewProducer создаёт Producer, привязанный к конкретному топику
-// syncProducer должен быть создан с Producer.Return.Successes = true.
+// NewProducer creates a Producer bound to a single topic.
+// syncProducer must be created with Producer.Return.Successes = true.
 func NewProducer(syncProducer sarama.SyncProducer, topic string) *Producer {
 	return &Producer{
 		syncProducer: syncProducer,
@@ -28,8 +28,8 @@ func NewProducer(syncProducer sarama.SyncProducer, topic string) *Producer {
 	}
 }
 
-// Send синхронно отправляет сообщение в Kafka и блокируется до получения ACK от брокера
-// Возвращает ошибку, если брокер не подтвердил запись.
+// Send publishes a message synchronously and blocks until the broker acknowledges it.
+// It returns an error when the write is not acknowledged.
 func (p *Producer) Send(ctx context.Context, msg *kafka.Message) error {
 	saramaMsg := &sarama.ProducerMessage{
 		Topic:   p.topic,
@@ -40,12 +40,12 @@ func (p *Producer) Send(ctx context.Context, msg *kafka.Message) error {
 
 	partition, offset, err := p.syncProducer.SendMessage(saramaMsg)
 	if err != nil {
-		slog.ErrorContext(ctx, "не удалось отправить сообщение", "error", err)
+		slog.ErrorContext(ctx, "failed to send message", "error", err)
 		return err
 	}
 
 	slog.InfoContext(
-		ctx, "сообщение отправлено",
+		ctx, "message sent",
 		"topic", p.topic,
 		"partition", partition,
 		"offset", offset,

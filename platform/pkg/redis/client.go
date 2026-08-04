@@ -15,17 +15,17 @@ const (
 	defaultWriteTimeout = 3 * time.Second
 )
 
-// NewClient создаёт Redis-клиент с принудительными настройками платформы,
-// проверяет подключение и возвращает готовый экземпляр
+// NewClient creates a Redis client with the platform settings enforced,
+// verifies the connection and returns the ready instance.
 //
-// Платформенные гарантии (применяются поверх переданных opts):
-//   - ContextTimeoutEnabled = true (go-redis уважает context deadline)
-//   - Дефолтные таймауты, если не заданы (dial: 5s, read/write: 3s)
+// Platform guarantees (applied on top of the given opts):
+//   - ContextTimeoutEnabled = true (go-redis honours the context deadline)
+//   - default timeouts when unset (dial: 5s, read/write: 3s)
 //
-// Логгер — *slog.Logger из стандартной библиотеки (log/slog)
-// slog — это стандартный фасад логирования в Go (с 1.21+), аналог io.Writer для I/O
-// При смене бэкенда (zap, logrus и т.д.) достаточно подменить slog.Handler при инициализации,
-// сигнатуры потребителей не меняются.
+// The logger is a *slog.Logger from the standard library (log/slog).
+// slog is the standard logging facade in Go (since 1.21), the io.Writer of logging:
+// switching the backend (zap, logrus, ...) only requires replacing the slog.Handler at
+// startup, without touching consumer signatures.
 func NewClient(opts *redis.Options, logger *slog.Logger) (*redis.Client, error) {
 	applyDefaults(opts)
 
@@ -33,20 +33,20 @@ func NewClient(opts *redis.Options, logger *slog.Logger) (*redis.Client, error) 
 
 	err := rdb.Ping(context.Background()).Err()
 	if err != nil {
-		_ = rdb.Close() //nolint:gosec // Закрываем клиент при ошибке Ping, ошибку Close игнорируем
+		_ = rdb.Close() //nolint:gosec // close the client after a failed Ping, ignore the Close error
 
-		return nil, fmt.Errorf("не удалось подключиться к Redis: %w", err)
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	logger.Info("подключение к Redis установлено", "address", opts.Addr)
+	logger.Info("connected to Redis", "address", opts.Addr)
 
 	return rdb, nil
 }
 
-// applyDefaults выставляет принудительные платформенные настройки
-// и дефолтные таймауты, если они не были заданы вызывающим кодом.
+// applyDefaults enforces the platform settings and fills in default timeouts
+// when the caller did not provide them.
 func applyDefaults(opts *redis.Options) {
-	// Принудительно: go-redis уважает context deadline при выполнении команд
+	// Enforced: go-redis honours the context deadline while running commands
 	opts.ContextTimeoutEnabled = true
 
 	if opts.DialTimeout == 0 {

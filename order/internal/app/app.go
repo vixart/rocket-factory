@@ -30,13 +30,13 @@ const (
 	shutdownTimeout   = 10 * time.Second
 )
 
-// App — корневая структура приложения, управляющая жизненным циклом всех компонентов.
+// App is the application root that owns the lifecycle of every component.
 type App struct {
 	diContainer *diContainer
 	httpServer  *http.Server
 }
 
-// New создаёт и инициализирует приложение.
+// New creates and initializes the application.
 func New(ctx context.Context) *App {
 	a := &App{}
 
@@ -45,13 +45,13 @@ func New(ctx context.Context) *App {
 	return a
 }
 
-// Run управляет жизненным циклом приложения: запускает gRPC-сервер,
-// обрабатывает сигналы ОС и выполняет graceful shutdown.
+// Run drives the application lifecycle: it starts the HTTP server, handles OS
+// signals and performs the graceful shutdown.
 //
-// Сервер запускается в отдельной горутине, а main-горутина синхронно ждёт
-// либо сигнал SIGINT/SIGTERM, либо падение сервера. После этого
-// closer.CloseAll вызывается синхронно — main-горутина гарантированно
-// дожидается завершения всех закрытий перед выходом из Run.
+// The server runs in its own goroutine while the main goroutine waits for either
+// SIGINT/SIGTERM or a server failure. closer.CloseAll then runs synchronously, so
+// the main goroutine is guaranteed to wait for every close to finish before Run
+// returns.
 func (a *App) Run() error {
 	ctx, cancel := signal.NotifyContext(
 		context.Background(),
@@ -68,7 +68,7 @@ func (a *App) Run() error {
 
 	go func() {
 		if err := a.runConsumer(ctx); err != nil {
-			errCh <- fmt.Errorf("потребитель упал: %w", err)
+			errCh <- fmt.Errorf("consumer failed: %w", err)
 			return
 		}
 		errCh <- nil
@@ -78,13 +78,13 @@ func (a *App) Run() error {
 
 	select {
 	case err := <-errCh:
-		// сервер упал сам
-		slog.Info("сервер упал", "error", err)
+		// the server failed on its own
+		slog.Info("server stopped", "error", err)
 		if !errors.Is(err, http.ErrServerClosed) {
 			runErr = err
 		}
 	case <-ctx.Done():
-		slog.Info("получен сигнал завершения")
+		slog.Info("shutdown signal received")
 	}
 
 	cancel()
@@ -96,7 +96,7 @@ func (a *App) Run() error {
 	defer shutdownCancel()
 
 	if err := closer.CloseAll(shutdownCtx); err != nil {
-		slog.Error("ошибка graceful shutdown", "error", err)
+		slog.Error("graceful shutdown failed", "error", err)
 
 		if runErr == nil {
 			runErr = err
@@ -106,7 +106,7 @@ func (a *App) Run() error {
 	return runErr
 }
 
-// initDeps последовательно инициализирует все зависимости приложения.
+// initDeps initializes every application dependency in order.
 func (a *App) initDeps(ctx context.Context) {
 	inits := []func(context.Context){
 		a.initDI,
@@ -121,12 +121,12 @@ func (a *App) initDeps(ctx context.Context) {
 	}
 }
 
-// initDI создаёт DI-контейнер.
+// initDI creates the DI container.
 func (a *App) initDI(_ context.Context) {
 	a.diContainer = &diContainer{}
 }
 
-// initLogger настраивает глобальный slog с уровнем из конфига.
+// initLogger configures the global slog logger with the level from the config.
 func (a *App) initLogger(_ context.Context) {
 	cfg := logger.Config{
 		Level:             config.AppConfig().Logger.Level,
@@ -150,7 +150,7 @@ func (a *App) initTracer(ctx context.Context) {
 	}
 	shutdown, err := tracing.InitTracer(ctx, cfg)
 	if err != nil {
-		slog.Error("не удалось инициализировать tracer", "error", err)
+		slog.Error("failed to initialize the tracer", "error", err)
 		os.Exit(1)
 	}
 	closer.Add("Tracer", func(ctx context.Context) error {
@@ -159,11 +159,11 @@ func (a *App) initTracer(ctx context.Context) {
 }
 
 func (a *App) initMetrics(_ context.Context) {
-	// instanceID уникален для каждого контейнера — Docker присваивает
-	// контейнеру hostname = его container ID, если hostname не задан явно
+	// instanceID is unique per container: Docker sets the container hostname to its
+	// container ID unless a hostname is given explicitly
 	instanceID, err := os.Hostname()
 	if err != nil {
-		slog.Error("не удалось инициализировать metrics", "error", err)
+		slog.Error("failed to initialize metrics", "error", err)
 		os.Exit(1)
 	}
 
@@ -192,8 +192,8 @@ func (a *App) initHTTPServer(ctx context.Context) {
 
 	router := a.diContainer.OrderV1Server(ctx)
 
-	// Порядок — от ядра к внешнему слою.
-	// Запрос проходит цепочку в обратном порядке:
+	// Built from the innermost layer outwards.
+	// A request travels the chain in the opposite direction:
 	// otel -> rate limit -> trace ID -> auth -> router.
 	var handler http.Handler = router
 	handler = authMiddleware.AuthMiddleware(handler)
@@ -217,7 +217,7 @@ func (a *App) initHTTPServer(ctx context.Context) {
 
 func (a *App) runHTTPServer() error {
 	slog.Info(
-		"🚀 HTTP-сервер запущен",
+		"🚀 HTTP server started",
 		"port",
 		config.AppConfig().HTTP.Port,
 	)
@@ -225,9 +225,9 @@ func (a *App) runHTTPServer() error {
 	return a.httpServer.ListenAndServe()
 }
 
-// runConsumer запускает Kafka-потребитель ShipAssembledConsumer.
+// runConsumer starts the ShipAssembled Kafka consumer.
 func (a *App) runConsumer(ctx context.Context) error {
-	slog.Info("🚀 Kafka-потребитель ShipAssembled запущен")
+	slog.Info("🚀 ShipAssembled Kafka consumer started")
 
 	return a.diContainer.ShipAssembledConsumerSvc(ctx).RunConsumer(ctx)
 }

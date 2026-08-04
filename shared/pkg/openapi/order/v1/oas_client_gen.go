@@ -29,27 +29,25 @@ func trimTrailingSlashes(u *url.URL) {
 type Invoker interface {
 	// CancelOrder invokes cancelOrder operation.
 	//
-	// Отменяет заказ, который ещё не был оплачен.
+	// Cancels an order that has not been paid yet.
 	//
 	// POST /api/v1/orders/{order_uuid}/cancel
 	CancelOrder(ctx context.Context, params CancelOrderParams) (CancelOrderRes, error)
 	// CreateOrder invokes createOrder operation.
 	//
-	// Создаёт новый заказ на постройку космического
-	// корабля.
+	// Creates a new spaceship build order.
 	//
 	// POST /api/v1/orders
 	CreateOrder(ctx context.Context, request *CreateOrderRequest) (CreateOrderRes, error)
 	// GetOrder invokes getOrder operation.
 	//
-	// Возвращает полную информацию о заказе на постройку
-	// космического корабля.
+	// Returns the full information about a spaceship build order.
 	//
 	// GET /api/v1/orders/{order_uuid}
 	GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error)
 	// PayOrder invokes payOrder operation.
 	//
-	// Проводит оплату заказа.
+	// Pays for an order.
 	//
 	// POST /api/v1/orders/{order_uuid}/pay
 	PayOrder(ctx context.Context, request *PayOrderRequest, params PayOrderParams) (PayOrderRes, error)
@@ -96,7 +94,7 @@ func (c *Client) requestURL(ctx context.Context) *url.URL {
 
 // CancelOrder invokes cancelOrder operation.
 //
-// Отменяет заказ, который ещё не был оплачен.
+// Cancels an order that has not been paid yet.
 //
 // POST /api/v1/orders/{order_uuid}/cancel
 func (c *Client) CancelOrder(ctx context.Context, params CancelOrderParams) (CancelOrderRes, error) {
@@ -189,8 +187,7 @@ func (c *Client) sendCancelOrder(ctx context.Context, params CancelOrderParams) 
 
 // CreateOrder invokes createOrder operation.
 //
-// Создаёт новый заказ на постройку космического
-// корабля.
+// Creates a new spaceship build order.
 //
 // POST /api/v1/orders
 func (c *Client) CreateOrder(ctx context.Context, request *CreateOrderRequest) (CreateOrderRes, error) {
@@ -267,8 +264,7 @@ func (c *Client) sendCreateOrder(ctx context.Context, request *CreateOrderReques
 
 // GetOrder invokes getOrder operation.
 //
-// Возвращает полную информацию о заказе на постройку
-// космического корабля.
+// Returns the full information about a spaceship build order.
 //
 // GET /api/v1/orders/{order_uuid}
 func (c *Client) GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error) {
@@ -360,7 +356,7 @@ func (c *Client) sendGetOrder(ctx context.Context, params GetOrderParams) (res G
 
 // PayOrder invokes payOrder operation.
 //
-// Проводит оплату заказа.
+// Pays for an order.
 //
 // POST /api/v1/orders/{order_uuid}/pay
 func (c *Client) PayOrder(ctx context.Context, request *PayOrderRequest, params PayOrderParams) (PayOrderRes, error) {

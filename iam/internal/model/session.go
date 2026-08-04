@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Session — доменная модель сессии.
-// Хранится в Redis как HashMap с TTL.
+// Session is the domain model of a session.
+// It is stored in Redis as a hash with a TTL.
 type Session struct {
 	UUID      uuid.UUID
 	UserUUID  uuid.UUID

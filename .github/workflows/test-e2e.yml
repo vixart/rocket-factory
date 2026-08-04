@@ -5,7 +5,7 @@ on:
 
 jobs:
   test-e2e:
-    name: "E2E tests (Postgres + Redpanda через testcontainers)"
+    name: "E2E tests (Postgres + Redpanda via testcontainers)"
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

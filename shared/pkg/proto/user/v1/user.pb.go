@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: user/v1/user.proto
 
-// Package user.v1 содержит сервис управления пользователями.
+// Package user.v1 contains the user management service.
 
 package userv1
 
@@ -24,12 +24,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// UserRegistrationInfo данные для регистрации пользователя.
+// UserRegistrationInfo is the data required to register a user.
 type UserRegistrationInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// info основная информация о пользователе.
+	// info is the basic user information.
 	Info *v1.UserInfo `protobuf:"bytes,1,opt,name=info,proto3" json:"info,omitempty"`
-	// password пароль.
+	// password is the password.
 	Password      string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -79,10 +79,10 @@ func (x *UserRegistrationInfo) GetPassword() string {
 	return ""
 }
 
-// RegisterRequest запрос на регистрацию.
+// RegisterRequest is a registration request.
 type RegisterRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// info данные для регистрации.
+	// info is the registration data.
 	Info          *UserRegistrationInfo `protobuf:"bytes,1,opt,name=info,proto3" json:"info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -125,10 +125,10 @@ func (x *RegisterRequest) GetInfo() *UserRegistrationInfo {
 	return nil
 }
 
-// RegisterResponse ответ на регистрацию.
+// RegisterResponse is the registration response.
 type RegisterResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// user_uuid UUID созданного пользователя.
+	// user_uuid is the UUID of the created user.
 	UserUuid      string `protobuf:"bytes,1,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -171,10 +171,10 @@ func (x *RegisterResponse) GetUserUuid() string {
 	return ""
 }
 
-// GetUserRequest запрос на получение пользователя.
+// GetUserRequest is a user lookup request.
 type GetUserRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// user_uuid UUID пользователя.
+	// user_uuid is the user UUID.
 	UserUuid      string `protobuf:"bytes,1,opt,name=user_uuid,json=userUuid,proto3" json:"user_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -217,10 +217,10 @@ func (x *GetUserRequest) GetUserUuid() string {
 	return ""
 }
 
-// GetUserResponse ответ с пользователем.
+// GetUserResponse carries the user.
 type GetUserResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// user найденный пользователь.
+	// user is the user that was found.
 	User          *v1.User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

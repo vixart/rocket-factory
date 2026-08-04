@@ -3,26 +3,26 @@ package logger
 import "time"
 
 const (
-	// defaultOTLPEndpoint — gRPC-адрес OTLP коллектора по умолчанию.
+	// defaultOTLPEndpoint is the default gRPC address of the OTLP collector.
 	defaultOTLPEndpoint = "localhost:4317"
 
-	// defaultShutdownTimeout — таймаут на финальную отправку логов при завершении приложения.
+	// defaultShutdownTimeout bounds the final log flush on application shutdown.
 	defaultShutdownTimeout = 2 * time.Second
 )
 
-// Config — конфигурация для инициализации логгера.
+// Config holds the logger initialization settings.
 type Config struct {
-	// Level — уровень логирования: "debug", "info", "warn", "error".
-	// При невалидном значении используется "info".
+	// Level is the log level: "debug", "info", "warn", "error".
+	// An invalid value falls back to "info".
 	Level string
-	// ServiceName — имя сервиса, прикрепляется к каждому логу через resource (service.name)
+	// ServiceName is attached to every log record through the resource (service.name).
 	ServiceName string
-	// Environment — окружение развёртывания (например, "production", "staging", "development")
+	// Environment is the deployment environment ("production", "staging", "development").
 	Environment string
-	// EnableOTLP — включает отправку логов в OTLP коллектор (помимо stdout)
-	// При false логи пишутся только в stdout в JSON-формате
+	// EnableOTLP also ships logs to the OTLP collector on top of stdout.
+	// When false, logs go to stdout only, in JSON format.
 	EnableOTLP bool
-	// CollectorEndpoint — адрес OTLP-коллектора (например, "localhost:4317")
-	// Если не задан, используется defaultOTLPEndpoint
+	// CollectorEndpoint is the OTLP collector address (for example, "localhost:4317").
+	// Falls back to defaultOTLPEndpoint when empty.
 	CollectorEndpoint string
 }

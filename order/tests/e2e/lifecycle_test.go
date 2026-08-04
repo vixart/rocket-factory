@@ -21,10 +21,10 @@ import (
 	userv1 "github.com/vixart/rocket-factory/shared/pkg/proto/user/v1"
 )
 
-// HTTP DTOs дублируются с api_test намеренно: e2e — самостоятельная сьюта,
-// которая держит свой контракт с HTTP-API явно перед глазами.
-// На неделе 6 user_uuid в теле запроса больше не передаётся: OrderService
-// берёт его из сессии (middleware кладёт в ctx)
+// The HTTP DTOs are duplicated from api_test on purpose: e2e is a standalone suite
+// that keeps its contract with the HTTP API explicit.
+// Since week 6 user_uuid is no longer part of the request body: OrderService takes it
+// from the session (the middleware puts it into ctx).
 
 type createOrderRequest struct {
 	HullUUID   string  `json:"hull_uuid"`
@@ -57,25 +57,25 @@ type orderDTO struct {
 	Status          string  `json:"status"`
 }
 
-// TestE2E_OrderFullLifecycle_Assembled — happy-path через ВСЮ Kafka-цепочку.
+// TestE2E_OrderFullLifecycle_Assembled is the happy path through the WHOLE Kafka chain.
 //
-// Шаги:
-//  1. Регистрируемся и логинимся в IAM — получаем sessionUUID для Bearer
-//  2. POST /orders — создаём заказ (с Authorization: Bearer), ждём 201
-//  3. POST /orders/{uuid}/pay — оплачиваем, ждём 200 и статус PAID
-//  4. order продьюсит OrderPaid → реальный AssemblyService → ShipAssembled
-//  5. order ship-assembled-консьюмер обрабатывает событие, переводит в ASSEMBLED
-//  6. Eventually GET /orders/{uuid} — статус ASSEMBLED, transaction_uuid сохранён
-//  7. Проверяем, что CommitParts действительно списал stock_quantity
+// Steps:
+//  1. Register and log in to IAM to obtain the sessionUUID for the Bearer token
+//  2. POST /orders — create the order (with Authorization: Bearer), expect 201
+//  3. POST /orders/{uuid}/pay — pay for it, expect 200 and status PAID
+//  4. order produces OrderPaid → the real AssemblyService → ShipAssembled
+//  5. the order ship-assembled consumer handles the event and moves it to ASSEMBLED
+//  6. Eventually GET /orders/{uuid} — status ASSEMBLED, transaction_uuid persisted
+//  7. Check that CommitParts really decremented stock_quantity
 func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. Регистрация + логин: один пользователь на весь тест
+	// 1. Register and log in: one user for the whole test
 	sessionUUID := registerAndLogin(t, ctx)
 
-	// Снимок stock_quantity ДО заказа — для проверки CommitParts позже.
-	// Прокидываем session_uuid через ctx — bufconn-клиент Inventory снабжён
-	// SessionForwarder'ом, который положит его в исходящие gRPC metadata
+	// Snapshot of stock_quantity BEFORE the order, to verify CommitParts later.
+	// session_uuid travels through ctx: the bufconn Inventory client carries a
+	// SessionForwarder that puts it into the outgoing gRPC metadata.
 	sessionUUIDParsed, err := uuid.Parse(sessionUUID)
 	require.NoError(t, err)
 	authCtx := auth.WithSessionUUID(ctx, sessionUUIDParsed)
@@ -88,7 +88,7 @@ func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 	})
 	require.Equal(t, int64(HullAluminumPrice+EngineIonCPrice), order.TotalPrice)
 
-	// Сразу после Create — статус PENDING_PAYMENT
+	// Right after Create the status is PENDING_PAYMENT
 	got := mustGetOrder(t, sessionUUID, order.OrderUUID)
 	require.Equal(t, "PENDING_PAYMENT", got.Status)
 	require.Nil(t, got.TransactionUUID)
@@ -97,18 +97,18 @@ func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 	pay := mustPayOrder(t, sessionUUID, order.OrderUUID, &payOrderRequest{PaymentMethod: "CARD"})
 	require.NotEmpty(t, pay.TransactionUUID)
 
-	// Сразу после Pay — статус PAID. ASSEMBLED ещё не наступил, цепочка асинхронная
+	// Right after Pay the status is PAID; ASSEMBLED comes later, the chain is asynchronous
 	got = mustGetOrder(t, sessionUUID, order.OrderUUID)
 	require.Equal(t, "PAID", got.Status)
 	require.NotNil(t, got.TransactionUUID)
 	assert.Equal(t, pay.TransactionUUID, *got.TransactionUUID)
 
-	// 4-6. Ждём ASSEMBLED. Таймаут с запасом: assembly эмулирует сборку 5-15 сек
-	// (захардкожено в week 6), плюс время на rebalance consumer-group и round-trip
-	// сообщений через Redpanda. 60 секунд — комфортный запас
+	// 4-6. Wait for ASSEMBLED. Generous timeout: assembly simulates a 5-15 second build
+	// (hardcoded in week 6), plus consumer group rebalancing and the message round trip
+	// through Redpanda. 60 seconds is a comfortable margin.
 	waitForOrderStatus(t, sessionUUID, order.OrderUUID, "ASSEMBLED", 60*time.Second)
 
-	// Финальная проверка: все ключевые поля сохранены, цепочка прошла полностью
+	// Final check: every key field is persisted and the chain completed
 	final := mustGetOrder(t, sessionUUID, order.OrderUUID)
 	assert.Equal(t, "ASSEMBLED", final.Status)
 	require.NotNil(t, final.TransactionUUID)
@@ -116,23 +116,23 @@ func TestE2E_OrderFullLifecycle_Assembled(t *testing.T) {
 	require.NotNil(t, final.PaymentMethod)
 	assert.Equal(t, "CARD", *final.PaymentMethod)
 
-	// 7. CommitParts должен был списать по 1 от каждой использованной детали.
-	// Это контракт ShipAssembledHandler → InventoryClient.CommitParts —
-	// именно его проверка, которой не хватает в api_test (там noopProducer)
+	// 7. CommitParts must have decremented each used part by 1. This is the contract of
+	// ShipAssembledHandler → InventoryClient.CommitParts, which api_test cannot cover
+	// because it uses a noopProducer.
 	stockAfter := getStock(authCtx, t, []string{HullAluminumUUID, EngineIonCUUID})
 	assert.Equal(t, stockBefore[HullAluminumUUID]-1, stockAfter[HullAluminumUUID],
-		"hull stock должен уменьшиться на 1 после ASSEMBLED")
+		"hull stock must drop by 1 after ASSEMBLED")
 	assert.Equal(t, stockBefore[EngineIonCUUID]-1, stockAfter[EngineIonCUUID],
-		"engine stock должен уменьшиться на 1 после ASSEMBLED")
+		"engine stock must drop by 1 after ASSEMBLED")
 }
 
 // =============================================================================
 // IAM helper
 // =============================================================================
 
-// registerAndLogin регистрирует уникального пользователя и сразу логинится.
-// Возвращает sessionUUID — его кладём в Authorization: Bearer для всех HTTP-запросов
-// и в auth.WithSessionUUID для прямых gRPC-вызовов Inventory
+// registerAndLogin registers a unique user and logs in immediately.
+// It returns the sessionUUID, used both in Authorization: Bearer for HTTP requests
+// and in auth.WithSessionUUID for direct gRPC calls to Inventory.
 func registerAndLogin(t *testing.T, ctx context.Context) string {
 	t.Helper()
 
@@ -225,11 +225,11 @@ func mustGetOrder(t *testing.T, sessionUUID, orderUUID string) *orderDTO {
 	return &out
 }
 
-// waitForOrderStatus поллит GET /orders/{uuid}, пока статус не совпадёт с expected.
-// Используем require.Eventually — это идиоматический паттерн ожидания в Go-тестах:
-// явно описывает «жду конечного состояния», а не «жду фиксированный интервал».
-// 200мс между попытками — компромисс: чаще = лишняя нагрузка, реже = пропустим
-// окно между сменой статуса и тестовой паузой.
+// waitForOrderStatus polls GET /orders/{uuid} until the status matches expected.
+// require.Eventually is the idiomatic waiting pattern in Go tests: it states
+// "wait for a final state" rather than "sleep for a fixed interval".
+// 200ms between attempts is a compromise: more often adds load, less often risks
+// missing the window between the status change and the test pause.
 func waitForOrderStatus(t *testing.T, sessionUUID, orderUUID, expected string, timeout time.Duration) {
 	t.Helper()
 
@@ -247,10 +247,9 @@ func waitForOrderStatus(t *testing.T, sessionUUID, orderUUID, expected string, t
 // Inventory helper
 // =============================================================================
 
-// getStock читает stock_quantity деталей напрямую через bufconn gRPC.
-// Вызывающий код должен предварительно положить session_uuid в ctx
-// (через auth.WithSessionUUID) — SessionForwarder автоматически
-// положит его в outgoing gRPC metadata
+// getStock reads part stock_quantity directly over bufconn gRPC.
+// The caller must put session_uuid into ctx beforehand (via auth.WithSessionUUID):
+// SessionForwarder then copies it into the outgoing gRPC metadata automatically.
 func getStock(ctx context.Context, t *testing.T, partUUIDs []string) map[string]int64 {
 	t.Helper()
 

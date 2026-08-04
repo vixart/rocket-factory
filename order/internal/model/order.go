@@ -18,7 +18,7 @@ const (
 type OrderItem struct {
 	UUID     uuid.UUID
 	PartType PartType
-	Price    int64 // в копейках
+	Price    int64 // in kopecks
 }
 
 type Order struct {

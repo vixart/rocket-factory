@@ -1,131 +1,131 @@
-# Pipeline телеметрии (все три сигнала через один коллектор):
-#   Трейсы:  Go App → OTLP Receiver → memory_limiter + resource + sampler + batch → Jaeger (OTLP)
-#   Метрики: Go App → OTLP Receiver → memory_limiter + resource + batch → Prometheus (Remote Write)
-#   Логи:    Go App → OTLP Receiver → memory_limiter + resource + transform + batch → Elasticsearch
+# Telemetry pipeline (all three signals through one collector):
+#   Traces:  Go App → OTLP receiver → memory_limiter + resource + sampler + batch → Jaeger (OTLP)
+#   Metrics: Go App → OTLP receiver → memory_limiter + resource + batch → Prometheus (remote write)
+#   Logs:    Go App → OTLP receiver → memory_limiter + resource + transform + batch → Elasticsearch
 #
-# Один коллектор обрабатывает все три типа телеметрии (traces, metrics, logs).
-# Каждый тип имеет свой пайплайн с нужными процессорами и экспортером.
+# A single collector handles all three telemetry types (traces, metrics, logs).
+# Each type has its own pipeline with the processors and exporter it needs.
 
-# Секция receivers — откуда коллектор получает данные телеметрии.
-# Один receiver обслуживает все три пайплайна одновременно.
+# receivers — where the collector receives telemetry from.
+# One receiver serves all three pipelines at once.
 receivers:
-  # OTLP (OpenTelemetry Protocol) — стандартный протокол передачи телеметрии.
-  # Приложение подключается к коллектору через SDK и отправляет все сигналы сюда.
+  # OTLP (OpenTelemetry Protocol) is the standard telemetry transport.
+  # Applications connect through the SDK and send every signal here.
   otlp:
     protocols:
       grpc:
-        # 0.0.0.0 — слушать на всех сетевых интерфейсах (нужно для Docker).
-        # 4317 — стандартный порт OTLP gRPC (4318 — для OTLP HTTP).
+        # 0.0.0.0 — listen on every network interface (required in Docker).
+        # 4317 is the standard OTLP gRPC port (4318 is OTLP HTTP).
         endpoint: 0.0.0.0:4317
 
-# Секция processors — обработка данных между приёмом и отправкой.
-# Порядок в пайплайне важен: данные проходят через процессоры последовательно.
-# Один процессор может использоваться в нескольких пайплайнах.
+# processors — what happens to the data between receiving and exporting.
+# Order matters: data flows through the processors sequentially.
+# The same processor can be used by several pipelines.
 processors:
-  # Ограничивает потребление памяти коллектором — защита от OOM при всплесках нагрузки.
-  # Должен быть ПЕРВЫМ процессором в каждом пайплайне, чтобы отбрасывать данные
-  # до того, как они попадут в другие процессоры и займут ещё больше памяти.
+  # Caps the collector memory usage, protecting it from OOM during load spikes.
+  # It must be the FIRST processor in every pipeline so that data is dropped before it
+  # reaches the other processors and takes up even more memory.
   memory_limiter:
-    check_interval: 1s    # как часто проверять потребление памяти
-    limit_mib: 256        # жёсткий лимит памяти — при превышении данные отбрасываются
-                          # MiB (мебибайт) = 1024² байт, в отличие от MB (мегабайт) = 1000² байт
-    spike_limit_mib: 64   # допустимый всплеск между проверками
+    check_interval: 1s    # how often memory usage is checked
+    limit_mib: 256        # hard memory limit; data is dropped above it
+                          # MiB = 1024² bytes, unlike MB = 1000² bytes
+    spike_limit_mib: 64   # spike allowance between checks
 
-  # Resource processor — добавляет атрибуты ресурса ко всем сигналам (трейсы, метрики, логи).
-  # Атрибуты ресурса описывают источник телеметрии (сервис, окружение, регион и т.д.)
-  # и позволяют фильтровать/группировать данные в Jaeger, Grafana и Kibana.
+  # Resource processor — adds resource attributes to every signal (traces, metrics, logs).
+  # Resource attributes describe the telemetry source (service, environment, region) and
+  # make the data filterable and groupable in Jaeger, Grafana and Kibana.
   resource:
     attributes:
       - key: deployment.environment
         value: dev
-        action: insert      # insert — добавить только если атрибут ещё не задан приложением
+        action: insert      # insert — only add when the application has not set it
 
-  # Batch processor — группирует данные в батчи перед отправкой в экспортеры.
-  # Снижает количество сетевых запросов и повышает пропускную способность.
-  # Должен быть ПОСЛЕДНИМ процессором: сначала фильтруем/обогащаем, потом батчуем.
+  # Batch processor — groups data into batches before exporting.
+  # It reduces the number of network requests and raises throughput.
+  # It must be the LAST processor: filter and enrich first, batch afterwards.
   batch:
-    send_batch_size: 1000   # отправить батч при накоплении N элементов (дефолт 8192)
-    timeout: 5s             # или по таймауту, если батч не набрался (дефолт 200ms)
+    send_batch_size: 1000   # flush once N items pile up (default 8192)
+    timeout: 5s             # or on timeout if the batch is not full (default 200ms)
 
-  # Вероятностное (head-based) семплирование трейсов.
-  # Решение о сохранении/отбрасывании принимается на основе TraceID,
-  # поэтому все спаны одного трейса гарантированно попадают в одну группу.
-  # 100% = все трейсы (для разработки), в продакшене обычно 1-10%.
+  # Probabilistic (head-based) trace sampling.
+  # The keep/drop decision is made from the TraceID, so every span of a trace
+  # is guaranteed to end up in the same group.
+  # 100% keeps every trace (development); production usually runs 1-10%.
   probabilistic_sampler:
     sampling_percentage: 100
 
-  # Transform processor — модифицирует данные телеметрии с помощью OTTL-выражений
+  # Transform processor — rewrites telemetry with OTTL expressions.
   # (OpenTelemetry Transformation Language).
-  # Здесь устанавливаем режим маппинга ECS (Elastic Common Schema) — стандартную схему
-  # данных Elasticsearch, которая обеспечивает совместимость с Kibana дашбордами.
+  # Here it sets the ECS (Elastic Common Schema) mapping mode, the standard Elasticsearch
+  # data schema that keeps Kibana dashboards compatible.
   transform:
     log_statements:
-      - context: scope      # контекст scope — атрибуты инструментации (библиотеки/модуля)
+      - context: scope      # the scope context — instrumentation (library/module) attributes
         statements:
           - set(attributes["elastic.mapping.mode"], "ecs")
 
-# Секция exporters — куда коллектор отправляет обработанные данные.
-# Каждый экспортер привязан к своему пайплайну.
+# exporters — where the collector sends the processed data.
+# Each exporter belongs to its own pipeline.
 exporters:
-  # Jaeger принимает данные по OTLP gRPC на порту 4317 (нативная поддержка с Jaeger v2).
-  # Формат otlp/<имя> позволяет создавать несколько экспортеров одного типа
-  # с разными настройками (например, otlp/jaeger и otlp/tempo).
+  # Jaeger accepts OTLP gRPC on port 4317 (natively since Jaeger v2).
+  # The otlp/<name> form allows several exporters of the same type with different
+  # settings (otlp/jaeger and otlp/tempo, for example).
   otlp/jaeger:
-    endpoint: jaeger:4317   # имя хоста из Docker Compose сети
+    endpoint: jaeger:4317   # host name inside the Docker Compose network
     tls:
-      insecure: true        # без TLS — допустимо для локальной разработки
+      insecure: true        # no TLS — acceptable for local development
 
-  # Prometheus Remote Write — push-модель доставки метрик.
-  # Коллектор сам отправляет метрики в Prometheus, а не ждёт, пока Prometheus их заберёт.
+  # Prometheus remote write — a push delivery model.
+  # The collector pushes metrics to Prometheus instead of waiting to be scraped.
   prometheusremotewrite:
     endpoint: "http://prometheus:9090/api/v1/write"   # Remote Write API endpoint
     tls:
       insecure: true
 
-  # Elasticsearch exporter — отправляет логи в Elasticsearch по HTTP.
-  # Логи индексируются в указанный индекс и доступны для поиска в Kibana.
+  # Elasticsearch exporter — ships logs to Elasticsearch over HTTP.
+  # They are indexed into the configured index and searchable in Kibana.
   elasticsearch:
     endpoints: ["http://elasticsearch:9200"]
     tls:
       insecure: true
-    logs_index: "otel-logs"   # имя индекса в Elasticsearch для логов
+    logs_index: "otel-logs"   # Elasticsearch index for the logs
 
-# Секция extensions — дополнительные возможности коллектора, не связанные с пайплайнами.
+# extensions — collector capabilities unrelated to the pipelines.
 extensions:
-  # Health check endpoint — позволяет Docker/Kubernetes проверять, жив ли коллектор.
+  # Health check endpoint — lets Docker/Kubernetes probe the collector.
   health_check:
     endpoint: 0.0.0.0:13133  # GET http://localhost:13133/ → 200 OK
 
-# Секция service — связывает всё воедино: какие extensions включить
-# и как соединить receivers → processors → exporters в пайплайны.
+# service — ties everything together: which extensions to enable
+# and how receivers → processors → exporters are wired into pipelines.
 service:
-  # Телеметрия самого коллектора — его собственные метрики для мониторинга.
+  # The collector's own telemetry: its metrics, for monitoring it.
   telemetry:
     metrics:
-      level: basic          # basic — базовые метрики коллектора (обработано/отброшено)
+      level: basic          # basic — core collector metrics (processed/dropped)
 
   extensions: [health_check]
 
-  # Три пайплайна — по одному на каждый тип телеметрии.
-  # Общий паттерн порядка процессоров:
-  #   1. memory_limiter — защита от OOM (всегда первый!)
-  #   2. resource — обогащение атрибутами окружения
-  #   3. [специфичные] — семплирование (трейсы) или трансформация (логи)
-  #   4. batch — группировка перед отправкой (всегда последний!)
+  # Three pipelines, one per telemetry type.
+  # The common processor order:
+  #   1. memory_limiter — OOM protection (always first!)
+  #   2. resource — enrichment with environment attributes
+  #   3. [signal specific] — sampling (traces) or transformation (logs)
+  #   4. batch — grouping before export (always last!)
   pipelines:
-    # Трейсы → Jaeger
+    # Traces → Jaeger
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resource, probabilistic_sampler, batch]
       exporters: [otlp/jaeger]
 
-    # Метрики → Prometheus
+    # Metrics → Prometheus
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
       exporters: [prometheusremotewrite]
 
-    # Логи → Elasticsearch → Kibana
+    # Logs → Elasticsearch → Kibana
     logs:
       receivers: [otlp]
       processors: [memory_limiter, resource, transform, batch]

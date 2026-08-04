@@ -53,7 +53,7 @@ func TestLogin(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешный логин",
+			name: "login succeeds",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "user@example.com",
@@ -70,7 +70,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой логин",
+			name: "empty login",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "",
@@ -83,7 +83,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой пароль",
+			name: "empty password",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "user@example.com",
@@ -96,7 +96,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "пользователь не найден",
+			name: "user not found",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "user@example.com",
@@ -113,7 +113,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "неверный пароль",
+			name: "wrong password",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "user@example.com",
@@ -130,7 +130,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сохранения сессии",
+			name: "session storage fails",
 			args: args{
 				input: input.UserLoginInput{
 					Login:    "user@example.com",

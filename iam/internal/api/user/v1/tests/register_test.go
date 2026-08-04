@@ -49,7 +49,7 @@ func TestRegister(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная регистрация",
+			name: "registration succeeds",
 			args: args{
 				req: &userv1.RegisterRequest{
 					Info: &userv1.UserRegistrationInfo{
@@ -73,7 +73,7 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса",
+			name: "service fails",
 			args: args{
 				req: &userv1.RegisterRequest{
 					Info: &userv1.UserRegistrationInfo{

@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: common/v1/common.proto
 
-// Package common.v1 содержит общие структуры для IAM-сервисов.
+// Package common.v1 contains the shared structures of the IAM services.
 
 package commonv1
 
@@ -24,16 +24,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Session информация о сессии пользователя.
+// Session describes a user session.
 type Session struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// uuid уникальный идентификатор сессии.
+	// uuid is the unique session identifier.
 	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	// created_at время создания сессии.
+	// created_at is when the session was created.
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// updated_at время последнего обновления сессии.
+	// updated_at is when the session was last updated.
 	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// expires_at время истечения сессии.
+	// expires_at is when the session expires.
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -97,10 +97,10 @@ func (x *Session) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// UserInfo базовая информация о пользователе.
+// UserInfo is the basic user information.
 type UserInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// login логин пользователя.
+	// login is the user login.
 	Login         string `protobuf:"bytes,1,opt,name=login,proto3" json:"login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -143,16 +143,16 @@ func (x *UserInfo) GetLogin() string {
 	return ""
 }
 
-// User полная информация о пользователе.
+// User is the full user information.
 type User struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// uuid уникальный идентификатор пользователя.
+	// uuid is the unique user identifier.
 	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	// info базовая информация.
+	// info is the basic information.
 	Info *UserInfo `protobuf:"bytes,2,opt,name=info,proto3" json:"info,omitempty"`
-	// created_at дата создания.
+	// created_at is the creation date.
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// updated_at дата обновления.
+	// updated_at is the update date.
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

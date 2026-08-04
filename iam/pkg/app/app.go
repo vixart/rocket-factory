@@ -20,13 +20,13 @@ import (
 )
 
 const (
-	// gRPC keepalive параметры.
-	grpcMaxConnectionIdle     = 15 * time.Minute // Закрыть idle-соединения (нет активных RPC)
-	grpcMaxConnectionAge      = 30 * time.Minute // Принудительная ротация для балансировки
-	grpcMaxConnectionAgeGrace = 5 * time.Second  // Время на завершение активных RPC
-	grpcKeepaliveTime         = 5 * time.Minute  // Интервал ping'ов для обнаружения мёртвых соединений
-	grpcKeepaliveTimeout      = 1 * time.Second  // Тайм-аут ожидания pong
-	grpcMinPingInterval       = 5 * time.Second  // Минимальный интервал ping'ов от клиента (должен быть меньше keepalive.Time клиентов — 10s, иначе сервер шлёт GOAWAY too_many_pings)
+	// gRPC keepalive parameters.
+	grpcMaxConnectionIdle     = 15 * time.Minute // close idle connections (no active RPCs)
+	grpcMaxConnectionAge      = 30 * time.Minute // forced rotation, helps load balancing
+	grpcMaxConnectionAgeGrace = 5 * time.Second  // grace period for in-flight RPCs
+	grpcKeepaliveTime         = 5 * time.Minute  // ping interval to detect dead connections
+	grpcKeepaliveTimeout      = 1 * time.Second  // pong wait timeout
+	grpcMinPingInterval       = 5 * time.Second  // minimum client ping interval (must be below the client keepalive.Time)
 )
 
 func NewGRPCServer(
@@ -55,7 +55,7 @@ func NewGRPCServer(
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             grpcMinPingInterval,
-			PermitWithoutStream: true, // Клиенты пингуют без активных RPC (PermitWithoutStream: true), иначе соединение рвётся
+			PermitWithoutStream: true, // clients ping without active RPCs, otherwise the connection is dropped
 		}),
 		grpc.UnaryInterceptor(interceptor.ErrorInterceptor),
 	)

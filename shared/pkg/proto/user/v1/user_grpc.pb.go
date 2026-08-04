@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: user/v1/user.proto
 
-// Package user.v1 содержит сервис управления пользователями.
+// Package user.v1 contains the user management service.
 
 package userv1
 
@@ -29,11 +29,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserService сервис управления пользователями (регистрация, получение).
+// UserService manages users: registration and lookup.
 type UserServiceClient interface {
-	// Register регистрирует нового пользователя.
+	// Register creates a new user.
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
-	// GetUser возвращает пользователя по UUID.
+	// GetUser returns a user by UUID.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 }
 
@@ -69,11 +69,11 @@ func (c *userServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opt
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
-// UserService сервис управления пользователями (регистрация, получение).
+// UserService manages users: registration and lookup.
 type UserServiceServer interface {
-	// Register регистрирует нового пользователя.
+	// Register creates a new user.
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
-	// GetUser возвращает пользователя по UUID.
+	// GetUser returns a user by UUID.
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }

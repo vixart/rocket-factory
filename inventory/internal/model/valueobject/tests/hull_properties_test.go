@@ -24,35 +24,35 @@ func TestNewHullProperties(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "валидная прочность минимальная граница",
+			name: "valid strength, lower bound",
 			args: args{
 				strength: 30,
 			},
 			wantStr: 30,
 		},
 		{
-			name: "валидная прочность максимальная граница",
+			name: "valid strength, upper bound",
 			args: args{
 				strength: 200,
 			},
 			wantStr: 200,
 		},
 		{
-			name: "валидная средняя прочность",
+			name: "valid strength, middle of the range",
 			args: args{
 				strength: 100,
 			},
 			wantStr: 100,
 		},
 		{
-			name: "прочность ниже минимальной",
+			name: "strength below the minimum",
 			args: args{
 				strength: 29,
 			},
 			wantErr: errs.ErrInvalidProperties,
 		},
 		{
-			name: "прочность выше максимальной",
+			name: "strength above the maximum",
 			args: args{
 				strength: 201,
 			},

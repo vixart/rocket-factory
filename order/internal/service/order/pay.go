@@ -20,31 +20,31 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		var err error
-		// 1. Читаем заказ в транзакции
+		// 1. Read the order inside the transaction
 		order, err = s.orderRepository.GetForUpdate(ctx, orderUUID)
 		if err != nil {
-			return fmt.Errorf("получить заказ: %w", err)
+			return fmt.Errorf("fetch order: %w", err)
 		}
 
-		// 2. Проверяем статус
+		// 2. Check the status
 		if order.Status != model.OrderStatusPendingPayment {
 			return errs.ErrInvalidOrderStatus
 		}
 
-		// 3. Вызываем PaymentService (gRPC внутри транзакции — учебный пример)
+		// 3. Call PaymentService (a gRPC call inside a transaction: educational example)
 		transactionUUID, err = s.paymentClient.PayOrder(ctx, orderUUID, paymentMethod)
 		if err != nil {
-			return fmt.Errorf("оплатить заказ: %w", err)
+			return fmt.Errorf("pay for the order: %w", err)
 		}
 
-		// 4. Обновляем заказ
+		// 4. Update the order
 		order.Status = model.OrderStatusPaid
 		order.TransactionUUID = &transactionUUID
 		order.PaymentMethod = &paymentMethod
 
 		err = s.orderRepository.Update(ctx, order)
 		if err != nil {
-			return fmt.Errorf("обновить заказ: %w", err)
+			return fmt.Errorf("update order: %w", err)
 		}
 
 		event := model.OrderPaidEvent{
@@ -55,7 +55,7 @@ func (s *service) Pay(ctx context.Context, orderUUID uuid.UUID, paymentMethod mo
 
 		err = s.orderPaidProducer.ProduceOrderPaid(ctx, event)
 		if err != nil {
-			return fmt.Errorf("отправить OrderPaid: %w", err)
+			return fmt.Errorf("send OrderPaid: %w", err)
 		}
 
 		return nil

@@ -11,13 +11,13 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load("assembly.env") //nolint:gosec // .env файл опционален — ошибка загрузки допустима
+	_ = godotenv.Load("assembly.env") //nolint:gosec // the .env file is optional, a load error is fine
 
 	config.MustLoad()
 
 	a := app.New(context.Background())
 
 	if err := a.Run(); err != nil {
-		slog.Error("ошибка при работе приложения", "error", err)
+		slog.Error("application failed", "error", err)
 	}
 }

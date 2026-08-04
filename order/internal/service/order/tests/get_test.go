@@ -44,7 +44,7 @@ func TestGet(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешное получение заказа",
+			name: "order fetched successfully",
 			args: args{
 				orderUUID: orderUUID,
 			},
@@ -58,7 +58,7 @@ func TestGet(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка репозитория",
+			name: "repository fails",
 			args: args{
 				orderUUID: orderUUID,
 			},

@@ -12,7 +12,7 @@ import (
 func decodeOrderPaid(data []byte) (model.OrderPaidEvent, error) {
 	var pb eventsv1.OrderPaid
 	if err := proto.Unmarshal(data, &pb); err != nil {
-		return model.OrderPaidEvent{}, fmt.Errorf("не удалось десериализовать protobuf: %w", err)
+		return model.OrderPaidEvent{}, fmt.Errorf("failed to unmarshal protobuf: %w", err)
 	}
 
 	return model.OrderPaidEvent{

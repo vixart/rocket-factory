@@ -20,32 +20,32 @@ func TestNewPartType(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:  "валидный HULL",
+			name:  "valid HULL",
 			input: "HULL",
 			want:  valueobject.PartTypeHull,
 		},
 		{
-			name:  "валидный ENGINE",
+			name:  "valid ENGINE",
 			input: "ENGINE",
 			want:  valueobject.PartTypeEngine,
 		},
 		{
-			name:  "валидный SHIELD",
+			name:  "valid SHIELD",
 			input: "SHIELD",
 			want:  valueobject.PartTypeShield,
 		},
 		{
-			name:  "валидный WEAPON",
+			name:  "valid WEAPON",
 			input: "WEAPON",
 			want:  valueobject.PartTypeWeapon,
 		},
 		{
-			name:    "неизвестный тип детали",
+			name:    "unknown part type",
 			input:   "FUEL",
 			wantErr: errs.ErrInvalidProperties,
 		},
 		{
-			name:    "пустая строка",
+			name:    "empty string",
 			input:   "",
 			wantErr: errs.ErrInvalidProperties,
 		},

@@ -25,22 +25,22 @@ func Auth(iamService IAMService) grpc.UnaryServerInterceptor {
 	) (any, error) {
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "отсутствует metadata")
+			return nil, status.Error(codes.Unauthenticated, "metadata is missing")
 		}
 
 		values := md.Get(auth.SessionTokenKey)
 		if len(values) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "отсутствует session-uuid")
+			return nil, status.Error(codes.Unauthenticated, "session-uuid is missing")
 		}
 
 		sessionUUID, err := uuid.Parse(values[0])
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "неверный формат session-uuid")
+			return nil, status.Error(codes.Unauthenticated, "invalid session-uuid format")
 		}
 
 		userUUID, sessionUUID, err := iamService.Whoami(ctx, sessionUUID)
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "сессия не действительна")
+			return nil, status.Error(codes.Unauthenticated, "session is not valid")
 		}
 
 		ctx = auth.WithUserUUID(ctx, userUUID)

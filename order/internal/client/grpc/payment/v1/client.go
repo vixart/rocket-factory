@@ -44,22 +44,22 @@ func (c *client) PayOrder(
 
 	txUuid, err := uuid.Parse(resp.TransactionUuid)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("из сервиса payment вернулся неверный uuid: %w", errs.ErrInvalidUUID)
+		return uuid.Nil, fmt.Errorf("payment service returned an invalid uuid: %w", errs.ErrInvalidUUID)
 	}
 
 	return txUuid, nil
 }
 
 func mapErrors(err error) error {
-	slog.Error("ошибка при обращении к payment", "error", err)
+	slog.Error("payment service call failed", "error", err)
 	if st, ok := status.FromError(err); ok {
 		switch st.Code() {
 		case codes.InvalidArgument:
-			return fmt.Errorf("в сервис payment был передан неверный набор аргументов: %s | %w", st.Message(), errs.ErrPaymentFailed)
+			return fmt.Errorf("payment service received invalid arguments: %s | %w", st.Message(), errs.ErrPaymentFailed)
 		default:
-			return fmt.Errorf("ошибка при обращении к payment сервису: %s | %w", st.Message(), errs.ErrInternalError)
+			return fmt.Errorf("payment service call failed: %s | %w", st.Message(), errs.ErrInternalError)
 		}
 	}
 
-	return fmt.Errorf("ошибка при обращении к payment сервису: %w", errs.ErrInternalError)
+	return fmt.Errorf("payment service call failed: %w", errs.ErrInternalError)
 }

@@ -3,17 +3,17 @@ package errs
 import "github.com/go-faster/errors"
 
 var (
-	ErrInvalidUUID          = errors.New("некорректный uuid")
-	ErrPaymentFailed        = errors.New("не удалось оплатить заказ")
-	ErrInvalidPaymentMethod = errors.New("некорректный способ оплаты")
-	ErrInvalidOrderStatus   = errors.New("заказ имеет недопустимый статус")
-	ErrOrderNotFound        = errors.New("заказ не найден")
-	ErrInternalError        = errors.New("внутренняя ошибка")
+	ErrInvalidUUID          = errors.New("invalid uuid")
+	ErrPaymentFailed        = errors.New("failed to pay for the order")
+	ErrInvalidPaymentMethod = errors.New("invalid payment method")
+	ErrInvalidOrderStatus   = errors.New("order is in an invalid status")
+	ErrOrderNotFound        = errors.New("order not found")
+	ErrInternalError        = errors.New("internal error")
 
-	ErrPartNotFound      = errors.New("деталь не найдена")
-	ErrOutOfStock        = errors.New("детали нет на складе")
-	ErrIncompatibleParts = errors.New("детали несовместимы")
-	ErrPartTypeMismatch  = errors.New("неверный тип детали")
+	ErrPartNotFound      = errors.New("part not found")
+	ErrOutOfStock        = errors.New("part is out of stock")
+	ErrIncompatibleParts = errors.New("parts are incompatible")
+	ErrPartTypeMismatch  = errors.New("invalid part type")
 
-	ErrUnauthorized = errors.New("не удалось авторизоваться")
+	ErrUnauthorized = errors.New("authentication failed")
 )

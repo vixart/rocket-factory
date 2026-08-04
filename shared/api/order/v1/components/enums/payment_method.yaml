@@ -5,5 +5,5 @@ enum:
   - SBP
   - CREDIT_CARD
   - INVESTOR_MONEY
-description: Способ оплаты
+description: Payment method
 example: CARD

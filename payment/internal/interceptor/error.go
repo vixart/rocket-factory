@@ -22,6 +22,6 @@ func ErrorInterceptor(
 	case errors.Is(err, errs.ErrPaymentMethodNotSpecified), errors.Is(err, errs.ErrInvalidUUID):
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	default:
-		return nil, status.Error(codes.Internal, "внутренняя ошибка")
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 }

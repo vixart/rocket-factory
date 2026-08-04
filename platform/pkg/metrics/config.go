@@ -1,14 +1,14 @@
 package metrics
 
-// Config — конфигурация для инициализации логгера.
+// Config holds the metrics initialization settings.
 type Config struct {
-	// ServiceName — имя сервиса, прикрепляется к каждому логу через resource (service.name)
+	// ServiceName is attached to every metric through the resource (service.name).
 	ServiceName string
-	// Environment — окружение развёртывания (например, "production", "staging", "development")
+	// Environment is the deployment environment ("production", "staging", "development").
 	Environment string
-	// InstanceID - имя хоста
+	// InstanceID is the host name.
 	InstanceID string
-	// CollectorEndpoint — адрес OTLP-коллектора (например, "localhost:4317")
-	// Если не задан, используется defaultOTLPEndpoint
+	// CollectorEndpoint is the OTLP collector address (for example, "localhost:4317").
+	// Falls back to defaultOTLPEndpoint when empty.
 	CollectorEndpoint string
 }

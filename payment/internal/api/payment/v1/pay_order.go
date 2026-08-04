@@ -17,12 +17,12 @@ func (a *api) PayOrder(
 	req *paymentv1.PayOrderRequest,
 ) (*paymentv1.PayOrderResponse, error) {
 	if req.GetOrderUuid() == "" {
-		return nil, fmt.Errorf("order_uuid не может быть пустым, %w", errs.ErrInvalidUUID)
+		return nil, fmt.Errorf("order_uuid must not be empty, %w", errs.ErrInvalidUUID)
 	}
 
 	parsedUuid, err := uuid.Parse(req.GetOrderUuid())
 	if err != nil {
-		return nil, fmt.Errorf("неверный формат order_uuid: %s, %w", req.GetOrderUuid(), errs.ErrInvalidUUID)
+		return nil, fmt.Errorf("invalid order_uuid format: %s, %w", req.GetOrderUuid(), errs.ErrInvalidUUID)
 	}
 
 	txUuid, err := a.paymentService.PayOrder(ctx, parsedUuid, converter.PaymentMethodProtoToModel(req.GetPaymentMethod()))
@@ -30,7 +30,7 @@ func (a *api) PayOrder(
 		return nil, err
 	}
 
-	slog.Info("оплата прошла успешно",
+	slog.Info("payment succeeded",
 		"order_uuid", req.GetOrderUuid(),
 		"transaction_uuid", txUuid,
 	)

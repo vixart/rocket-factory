@@ -1,5 +1,5 @@
 version: v2
-# Удаляет сгенеренное ранее, то что находится в out каждого плагина.
+# Removes previously generated files from the out directory of every plugin.
 clean: true
 
 plugins:

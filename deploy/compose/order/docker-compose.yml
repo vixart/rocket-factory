@@ -1,53 +1,53 @@
-services: # Раздел, описывающий контейнеры, которые требуются для работы Order-сервиса
+services: # Containers required by the Order service
 
-  postgres-order: # Контейнер с PostgreSQL, используемый для хранения данных заказов
+  postgres-order: # PostgreSQL container holding the order data
     image: ${POSTGRES_IMAGE}
-    # Используем официальный образ PostgreSQL на базе Alpine Linux
-    # Это лёгкая и быстрая сборка, которая экономит ресурсы
+    # The official Alpine-based PostgreSQL image: small and fast, it saves resources
+
 
     container_name: postgres-order
-    # Устанавливаем уникальное имя контейнера, чтобы было удобно обращаться к нему в CLI и при отладке
+    # A unique container name makes it convenient to address in the CLI and while debugging
 
     env_file:
       - compose.env
-      # POSTGRES_DB/USER/PASSWORD для контейнера БД (см. compose.env рядом)
-      # Это позволяет переиспользовать одни и те же переменные в docker-compose, Taskfile и тестах
+      # POSTGRES_DB/USER/PASSWORD for the database container (see compose.env next to it),
+      # so the same variables are reused by compose, the Taskfile and the tests
 
     volumes:
       - postgres_order_data:/var/lib/postgresql
-      # Определяем том, который будет использоваться для хранения данных PostgreSQL
-      # Он сохраняет данные между перезапусками контейнера
+      # Volume holding the PostgreSQL data, so it survives container restarts
+
 
     ports:
       - "${POSTGRES_PORT}:5432"
-      # Пробрасываем внутренний порт PostgreSQL (5432) на порт хоста (POSTGRES_PORT из order.env)
-      # Это нужно, чтобы другие сервисы или инструменты могли подключиться к базе
+      # Publish the internal PostgreSQL port (5432) on the host port (POSTGRES_PORT from
+      # order.env), so other services and tools can reach the database
 
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      # Настраиваем проверку готовности контейнера — pg_isready проверяет, принимает ли база подключения
-      # Интервал маленький: на этой проверке ждёт `up --wait` в задаче up-order,
-      # а при interval=10s первая проверка идёт через 10 секунд после старта,
-      # хотя postgres готов за 1–2 секунды.
-      interval: 2s        # Интервал между проверками — каждые 2 секунды
-      timeout: 3s         # Время ожидания ответа от проверки
-      retries: 15         # После 15 неудачных попыток подряд контейнер считается "unhealthy"
-      start_period: 5s    # Пока БД инициализируется, неудачные проверки не считаются за отказ
+      # Readiness probe: pg_isready checks whether the database accepts connections.
+      # The interval is small because `up --wait` in the up-order task waits on this probe,
+      # and with interval=10s the first check happens 10 seconds after start even though
+      # postgres is ready in 1-2 seconds.
+      interval: 2s        # Check every 2 seconds
+      timeout: 3s         # How long to wait for a probe response
+      retries: 15         # After 15 consecutive failures the container is "unhealthy"
+      start_period: 5s    # Failures during database initialization do not count
 
     restart: unless-stopped
-    # Автоматически перезапускаем контейнер, если он аварийно завершился
-    # Если контейнер был остановлен вручную — не перезапускаем
+    # Restart the container automatically after a crash,
+    # but not after a manual stop
 
     networks:
       - microservices-net
-      # Подключаемся к общей сети, чтобы другие микросервисы могли найти этот контейнер по имени "postgres-order"
+      # Join the shared network so other microservices can find this container by name "postgres-order"
 
-  migrator-order: # Одноразовый контейнер goose — накатывает SQL-миграции и завершается (exit 0)
+  migrator-order: # One-shot goose container: applies the SQL migrations and exits with 0
     build:
       context: ../../..
       dockerfile: deploy/dockerfiles/migrator.Dockerfile
       args:
-        # Версии образов и goose — из core.env (единый источник истины)
+        # Image and goose versions come from core.env (a single source of truth)
         GO_IMAGE: ${GO_IMAGE}
         ALPINE_IMAGE: ${ALPINE_IMAGE}
         GOOSE_VERSION: ${GOOSE_VERSION}
@@ -55,15 +55,15 @@ services: # Раздел, описывающий контейнеры, кото�
     depends_on:
       postgres-order:
         condition: service_healthy
-        # Не стартуем миграции, пока PostgreSQL не пройдёт healthcheck
+        # Do not start the migrations until PostgreSQL passes its healthcheck
 
     volumes:
       - ../../../migrations/order:/migrations:ro
-      # Монтируем SQL-миграции внутрь контейнера в /migrations
+      # Mount the SQL migrations into the container at /migrations
 
     command:
-      # Внутри docker-сети база доступна по имени контейнера postgres-order:5432,
-      # а не по хостовому порту. Креды берём из POSTGRES_* (интерполяция из order.env).
+      # Inside the docker network the database is reachable at postgres-order:5432 rather
+      # than through the host port. Credentials come from POSTGRES_* (order.env).
       - -dir
       - /migrations
       - postgres
@@ -73,13 +73,13 @@ services: # Раздел, описывающий контейнеры, кото�
     networks:
       - microservices-net
 
-volumes: # Раздел с томами — определяем, какие дисковые ресурсы создаёт и использует Docker
+volumes: # Volumes Docker creates and uses
   postgres_order_data:
-  # Именованный том для хранения данных Order-сервиса в PostgreSQL
-  # Позволяет сохранять состояние базы даже после перезапуска контейнера
+  # Named volume with the PostgreSQL data of the Order service,
+  # so the database state survives container restarts
 
-networks: # Сетевые настройки
+networks: # Network settings
   microservices-net:
     external: true
-    # Мы не создаём новую сеть, а подключаемся к уже существующей общей сети "microservices-net"
-    # Эта сеть создаётся через task up-core (docker network create microservices-net)
+    # We do not create a network but join the existing shared "microservices-net"
+    # It is created by task up-core (docker network create microservices-net)

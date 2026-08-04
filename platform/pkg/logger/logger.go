@@ -1,12 +1,12 @@
-// Package logger — платформенный компонент логирования: stdout (JSON) + OTLP → Elasticsearch
+// Package logger is the platform logging component: stdout (JSON) + OTLP → Elasticsearch.
 //
-// Архитектура: slog с fanout-handler'ом, который дублирует каждую запись
-// в два направления:
-//  1. stdout — JSON-формат для локальной разработки и kubectl logs
-//  2. OTLP gRPC → OTel Collector → Elasticsearch → Kibana — централизованное хранилище
+// Design: slog with a fanout handler that duplicates every record into two
+// destinations:
+//  1. stdout — JSON format for local development and kubectl logs
+//  2. OTLP gRPC → OTel Collector → Elasticsearch → Kibana — centralized storage
 //
-// Компонент следует тому же паттерну, что tracing и metrics:
-// Init + Close, конфигурация через Config, graceful degradation при недоступности коллектора.
+// The component follows the same pattern as tracing and metrics: Init + Close,
+// configuration through Config, graceful degradation when the collector is unavailable.
 package logger
 
 import (
@@ -27,19 +27,19 @@ import (
 )
 
 var (
-	// otelProvider хранится для корректного завершения (Close).
+	// otelProvider is kept for a clean shutdown (Close).
 	otelProvider *otelLogSdk.LoggerProvider
 
-	// initOnce гарантирует, что Init вызовется только один раз (потокобезопасность).
+	// initOnce guarantees Init runs exactly once (thread safety).
 	initOnce sync.Once
 )
 
-// Init создаёт глобальный slog-логгер и устанавливает его через slog.SetDefault
+// Init builds the global slog logger and installs it via slog.SetDefault.
 //
-// При cfg.EnableOTLP=true логи дополнительно отправляются в OTLP коллектор
-// (обычно OTel Collector → Elasticsearch → Kibana)
+// With cfg.EnableOTLP=true logs are additionally shipped to the OTLP collector
+// (usually OTel Collector → Elasticsearch → Kibana).
 //
-// Пример использования:
+// Example:
 //
 //	logger.Init(logger.Config{
 //	    Level:             "info",
@@ -53,24 +53,24 @@ func Init(cfg Config) {
 	initOnce.Do(func() {
 		level := parseLevel(cfg.Level)
 
-		// Основной handler — JSON-вывод в stdout (всегда включён)
-		// AddSource: true добавляет в каждый лог файл и строку вызова
+		// Primary handler — JSON output to stdout, always enabled.
+		// AddSource: true adds the calling file and line to every record.
 		stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level:     level, // минимальный уровень логирования (DEBUG, INFO, WARN, ERROR)
-			AddSource: true,  // включает поле "source" с файлом/строкой вызова
+			Level:     level, // minimum log level (DEBUG, INFO, WARN, ERROR)
+			AddSource: true,  // enables the "source" field with file and line
 		})
 
-		// Итоговый handler: либо только stdout, либо fanout (stdout + OTLP)
+		// Resulting handler: stdout only, or a fanout of stdout + OTLP.
 		handler := slog.Handler(stdoutHandler)
 
-		// Если OTLP включён и доступен — Fanout дублирует каждую запись в оба handler'а
+		// When OTLP is enabled and reachable, Fanout duplicates every record into both handlers.
 		if cfg.EnableOTLP {
 			otelHandler := newOTLPExportHandler(cfg)
-			// Graceful degradation: если OTLP недоступен, otelHandler == nil — остаёмся на stdout
+			// Graceful degradation: if OTLP is unavailable otelHandler is nil and we stay on stdout.
 			if otelHandler != nil {
-				// otelslog.Handler пропускает записи всех уровней, поэтому фильтр по cfg.Level
-				// вешаем сами: иначе при level=info в Kibana всё равно улетают DEBUG-логи,
-				// которых нет в stdout.
+				// otelslog.Handler lets records of every level through, so the cfg.Level filter
+				// is applied here: otherwise DEBUG records would reach Kibana at level=info
+				// even though stdout does not show them.
 				handler = slogmulti.Fanout(stdoutHandler, withMinLevel(otelHandler, level))
 			}
 		}
@@ -79,8 +79,8 @@ func Init(cfg Config) {
 	})
 }
 
-// Close завершает работу OTLP provider, отправляя оставшиеся логи
-// Вызывайте при остановке приложения (обычно через defer).
+// Close shuts the OTLP provider down, flushing the remaining logs.
+// Call it when the application stops, usually via defer.
 func Close() error {
 	if otelProvider == nil {
 		return nil
@@ -92,27 +92,27 @@ func Close() error {
 	return otelProvider.Shutdown(ctx)
 }
 
-// newOTLPExportHandler создаёт OTLP handler с gRPC экспортером
-// При ошибке возвращает nil (graceful degradation — логи продолжат идти в stdout).
+// newOTLPExportHandler creates an OTLP handler with a gRPC exporter.
+// It returns nil on error (graceful degradation — logs keep going to stdout).
 func newOTLPExportHandler(cfg Config) slog.Handler {
 	ctx := context.Background()
 
 	endpoint := cmp.Or(cfg.CollectorEndpoint, defaultOTLPEndpoint)
 
-	// gRPC-экспортер — отправляет логи в OTLP коллектор (OTel Collector и т.д.)
+	// gRPC exporter — ships logs to an OTLP collector (OTel Collector and friends).
 	exporter, err := otlploggrpc.New(
 		ctx,
-		otlploggrpc.WithEndpoint(endpoint), // адрес коллектора (host:port)
-		otlploggrpc.WithInsecure(),         // без TLS (для локальной разработки)
+		otlploggrpc.WithEndpoint(endpoint), // collector address (host:port)
+		otlploggrpc.WithInsecure(),         // no TLS (local development)
 	)
 	if err != nil {
-		// slog ещё может быть не инициализирован, пишем в stderr напрямую
+		// slog may not be initialized yet, so write to stderr directly
 		fmt.Fprintf(os.Stderr, "logger: failed to create OTLP exporter: %v\n", err)
 		return nil
 	}
 
-	// Resource — метаданные сервиса, которые прикрепляются к каждому логу
-	// По ним можно фильтровать в Kibana: service.name, deployment.environment
+	// Resource — service metadata attached to every log record.
+	// Used for filtering in Kibana: service.name, deployment.environment.
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(
@@ -125,36 +125,36 @@ func newOTLPExportHandler(cfg Config) slog.Handler {
 		return nil
 	}
 
-	// LoggerProvider — управляет жизненным циклом экспортера и батчингом логов
+	// LoggerProvider owns the exporter lifecycle and log batching.
 	//
-	// BatchProcessor копит записи в очереди и отправляет пачками, а не по одной
-	// Дефолтные параметры (из OTel SDK):
-	//   - MaxExportBatchSize = 512   — максимум записей в одной пачке
-	//   - ExportInterval     = 1s    — как часто сбрасывать накопленные записи
-	//   - ExportTimeout      = 30s   — таймаут на одну отправку пачки
-	//   - MaxQueueSize       = 2048  — размер внутренней очереди (при переполнении записи теряются)
+	// BatchProcessor queues records and ships them in batches instead of one by one.
+	// Defaults from the OTel SDK:
+	//   - MaxExportBatchSize = 512   — maximum records per batch
+	//   - ExportInterval     = 1s    — how often the queue is flushed
+	//   - ExportTimeout      = 30s   — timeout of a single batch export
+	//   - MaxQueueSize       = 2048  — internal queue size; records are dropped on overflow
 	provider := otelLogSdk.NewLoggerProvider(
 		otelLogSdk.WithResource(res),
 		otelLogSdk.WithProcessor(otelLogSdk.NewBatchProcessor(exporter)),
 	)
-	otelProvider = provider // сохраняем для Shutdown при завершении приложения
+	otelProvider = provider // kept for Shutdown on application exit
 
-	// otelslog.NewHandler — официальный бридж из OpenTelemetry, который конвертирует
-	// slog-записи в OTel Log Records (маппинг severity, атрибутов и т.д.)
+	// otelslog.NewHandler is the official OpenTelemetry bridge that converts slog
+	// records into OTel Log Records (severity and attribute mapping).
 	return otelslog.NewHandler(
 		"app",
 		otelslog.WithLoggerProvider(provider),
 	)
 }
 
-// minLevelHandler — обёртка, отсекающая записи ниже заданного уровня.
-// Нужна для handler'ов, у которых нет собственной настройки уровня (otelslog).
+// minLevelHandler is a wrapper that drops records below the given level.
+// Needed for handlers without their own level setting (otelslog).
 type minLevelHandler struct {
 	slog.Handler
 	level slog.Level
 }
 
-// withMinLevel оборачивает handler фильтром по минимальному уровню.
+// withMinLevel wraps a handler with a minimum level filter.
 func withMinLevel(h slog.Handler, level slog.Level) slog.Handler {
 	return minLevelHandler{Handler: h, level: level}
 }
@@ -163,8 +163,8 @@ func (h minLevelHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return level >= h.level && h.Handler.Enabled(ctx, level)
 }
 
-// WithAttrs и WithGroup обязаны возвращать обёртку, иначе slog потеряет фильтр
-// на дочерних логгерах (slog.With(...)).
+// WithAttrs and WithGroup must return the wrapper as well, otherwise slog loses the
+// filter on derived loggers (slog.With(...)).
 func (h minLevelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return minLevelHandler{Handler: h.Handler.WithAttrs(attrs), level: h.level}
 }
@@ -173,8 +173,8 @@ func (h minLevelHandler) WithGroup(name string) slog.Handler {
 	return minLevelHandler{Handler: h.Handler.WithGroup(name), level: h.level}
 }
 
-// parseLevel парсит строковый уровень ("debug", "info", "warn", "error") в slog.Level
-// При невалидном значении возвращает INFO как безопасный дефолт.
+// parseLevel converts a textual level ("debug", "info", "warn", "error") into slog.Level.
+// An invalid value falls back to INFO as a safe default.
 func parseLevel(s string) slog.Level {
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(s)); err != nil {

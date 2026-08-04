@@ -31,7 +31,7 @@ func TestPayOrder(t *testing.T) {
 		expected expected
 	}{
 		{
-			name: "успешная оплата",
+			name: "payment succeeds",
 			args: args{
 				orderID:       uuid.New(),
 				paymentMethod: model.PaymentMethodCard,
@@ -41,7 +41,7 @@ func TestPayOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "не указан способ оплаты",
+			name: "payment method is not specified",
 			args: args{
 				orderID:       uuid.New(),
 				paymentMethod: model.PaymentMethodUnspecified,

@@ -42,7 +42,7 @@ func TestRegister(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная регистрация",
+			name: "registration succeeds",
 			args: args{
 				input: input.UserRegisterInput{
 					Login:    "user@example.com",
@@ -60,7 +60,7 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой логин",
+			name: "empty login",
 			args: args{
 				input: input.UserRegisterInput{
 					Login:    "",
@@ -73,7 +73,7 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "пустой пароль",
+			name: "empty password",
 			args: args{
 				input: input.UserRegisterInput{
 					Login:    "user@example.com",
@@ -86,7 +86,7 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "слабый пароль",
+			name: "weak password",
 			args: args{
 				input: input.UserRegisterInput{
 					Login:    "user@example.com",
@@ -99,7 +99,7 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка репозитория при создании",
+			name: "repository fails on create",
 			args: args{
 				input: input.UserRegisterInput{
 					Login:    "user@example.com",

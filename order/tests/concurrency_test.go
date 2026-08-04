@@ -19,20 +19,20 @@ import (
 	inventoryv1 "github.com/vixart/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
-// Concurrency-тесты унаследованы из week_4 (где они флапали из-за отсутствия
-// SELECT FOR UPDATE) и week_5 (где они были введены вместе с FOR UPDATE).
-// Здесь они продолжают работать — пессимистичные блокировки в Inventory
-// сохраняются: ListForUpdate берёт row lock на чтении, второй вызов ждёт
-// и видит изменённое состояние.
+// The concurrency tests come from week_4 (where they flaked because SELECT FOR UPDATE
+// was missing) and week_5 (where FOR UPDATE was introduced). They still hold: the
+// pessimistic locks in Inventory remain — ListForUpdate takes a row lock on read, so
+// the second call waits and observes the updated state.
 //
-// Прямой gRPC-сценарий с ReserveParts покрыт TestInventory_ReserveParts_Concurrent_LastPart
-// в api_test.go; тесты ниже добавляют HTTP-цепочку через Order и сценарий
-// атомарности транзакции при mixed-stock.
+//
+// The direct gRPC scenario for ReserveParts is covered by
+// TestInventory_ReserveParts_Concurrent_LastPart in api_test.go; the tests below add the
+// HTTP chain through Order and the transaction atomicity case with mixed stock.
 
-// TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds: два горутина
-// одновременно создают заказ на одну и ту же деталь со stock=1.
-// FOR UPDATE в Inventory.ReserveParts должен пропустить ровно один —
-// второй получит 409 (ErrOutOfStock из inventory маппится в HTTP 409 в
+// TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds: two goroutines create an
+// order for the same part with stock=1 at the same time. FOR UPDATE in
+// Inventory.ReserveParts must let exactly one through; the other gets 409
+// (inventory's ErrOutOfStock maps to HTTP 409 in the order error handler).
 // error_handler.go).
 func TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds(t *testing.T) {
 	hullUUID := uuid.New().String()
@@ -83,14 +83,14 @@ func TestConcurrent_CreateOrder_LastUnit_ExactlyOneSucceeds(t *testing.T) {
 			conflict++
 		}
 	}
-	assert.Equal(t, 1, created, "должен создаться ровно один заказ (statuses=%v)", statuses)
-	assert.Equal(t, 1, conflict, "второй создаваемый заказ должен получить Conflict (statuses=%v)", statuses)
+	assert.Equal(t, 1, created, "exactly one order must be created (statuses=%v)", statuses)
+	assert.Equal(t, 1, conflict, "the second order must get Conflict (statuses=%v)", statuses)
 }
 
-// TestConcurrent_Reserve_MixedStock: гонка ReserveParts с батчем из двух
-// деталей, где одна доступна, а вторая — out-of-stock (HullOutOfStockUUID,
-// stock=0 в seed). Цель — показать целостность транзакции ReserveParts:
-// при провале хотя бы одной детали никакие резервы не сохраняются.
+// TestConcurrent_Reserve_MixedStock: concurrent ReserveParts with a batch of two parts
+// where one is available and the other is out of stock (HullOutOfStockUUID, stock=0 in
+// the seed). The point is transaction integrity in ReserveParts: if a single part fails,
+// no reservation is persisted at all.
 func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 	availableUUID := uuid.New().String()
 	_, err := inventoryDBPool.Exec(
@@ -124,7 +124,7 @@ func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 					Uuids: []string{availableUUID, HullOutOfStockUUID},
 				})
 			require.Error(t, err)
-			// Inventory маппит ErrOutOfStock в ResourceExhausted (interceptor/error.go).
+			// Inventory maps ErrOutOfStock to ResourceExhausted (interceptor/error.go).
 			if status.Code(err) == codes.ResourceExhausted {
 				exhausted.Add(1)
 			} else {
@@ -135,17 +135,17 @@ func TestConcurrent_Reserve_MixedStock(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, int64(0), others.Load(),
-		"все вызовы должны падать с ResourceExhausted, других ошибок быть не должно")
+		"every call must fail with ResourceExhausted and nothing else")
 	assert.Equal(t, int64(workers), exhausted.Load(),
-		"все батчи должны падать целиком из-за HullOutOfStockUUID")
+		"every batch must fail as a whole because of HullOutOfStockUUID")
 
-	// Главное: ни одна доступная деталь не должна остаться зарезервированной,
-	// потому что транзакция откатилась. Поле reserved нет в proto (это
-	// внутренняя детализация Inventory) — читаем напрямую из БД.
+	// The key assertion: no available part may stay reserved, because the transaction
+	// rolled back. The reserved field is not in the proto (it is an Inventory internal),
+	// so it is read directly from the database.
 	var reserved int
 	err = inventoryDBPool.QueryRow(context.Background(),
 		`SELECT reserved FROM parts WHERE uuid = $1`, availableUUID).Scan(&reserved)
 	require.NoError(t, err)
 	assert.Equal(t, 0, reserved,
-		"availableUUID не должна быть зарезервирована: транзакция откатилась")
+		"availableUUID must not stay reserved: the transaction rolled back")
 }

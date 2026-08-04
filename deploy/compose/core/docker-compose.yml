@@ -1,69 +1,69 @@
-services: # Раздел, в котором описываются все контейнеры общей инфраструктуры для всех микросервисов
+services: # Containers of the shared infrastructure used by every microservice
 
-  kafka: # Сервис Kafka
-    image: ${KAFKA_IMAGE} # Образ Kafka от компании Confluent, версия 7.9.0 (современная, с поддержкой KRaft)
-    container_name: kafka # Явное имя контейнера, чтобы легче обращаться к нему
+  kafka: # The Kafka service
+    image: ${KAFKA_IMAGE} # Confluent Kafka image, a recent version with KRaft support
+    container_name: kafka # Explicit container name, easier to address
     ports:
-      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}" # Пробрасываем порт ${KAFKA_EXTERNAL_PORT} наружу — для доступа с хост-машины. Через этот порт будем подключаться клиентами с локального компьютера.
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}" # Publish ${KAFKA_EXTERNAL_PORT} so clients on the host machine can connect
 
-    environment: # Список переменных окружения для конфигурации Kafka
-      # === Основные параметры KRaft (Kafka без Zookeeper) ===
-      KAFKA_KRAFT_MODE: "true" # Включаем работу в режиме KRaft (Kafka Raft Metadata Mode), без ZooKeeper.
+    environment: # Environment variables that configure Kafka
+      # === Core KRaft settings (Kafka without ZooKeeper) ===
+      KAFKA_KRAFT_MODE: "true" # Run in KRaft mode (Kafka Raft Metadata Mode), without ZooKeeper
 
-      KAFKA_PROCESS_ROLES: controller,broker # Роль текущего процесса: одновременно controller (управляет metadata) и broker (обрабатывает сообщения).
+      KAFKA_PROCESS_ROLES: controller,broker # This process is both controller (metadata) and broker (messages)
 
-      KAFKA_NODE_ID: 1 # Уникальный идентификатор ноды в кластере Kafka. В кластере должно быть уникальным для каждой ноды.
+      KAFKA_NODE_ID: 1 # Node id, unique within the Kafka cluster
 
       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:${KAFKA_CONTROLLER_PORT}"
-      # Указываем список участников controller quorum для Raft —
-      # в формате "ID@адрес:порт". У нас один узел: ID=1, адрес kafka, порт ${KAFKA_CONTROLLER_PORT}.
-      # Это необходимо для распределённого консенсуса Kafka Metadata.
+      # Members of the Raft controller quorum, in the form "ID@host:port".
+      # We have a single node: ID=1, host kafka, port ${KAFKA_CONTROLLER_PORT}.
+      # It is required for Kafka metadata consensus.
 
-      # === Listeners (слушатели сети) ===
+      # === Listeners ===
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT},PLAINTEXT_EXTERNAL://0.0.0.0:${KAFKA_EXTERNAL_PORT},CONTROLLER://kafka:${KAFKA_CONTROLLER_PORT}
-      # Настраиваем, на каких интерфейсах и портах Kafka будет слушать подключения.
-      # - PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT} — внутренний listener для контейнерной сети Docker.
-      # - PLAINTEXT_EXTERNAL://0.0.0.0:${KAFKA_EXTERNAL_PORT} — внешний listener для подключения с локальной машины.
-      # - CONTROLLER://kafka:${KAFKA_CONTROLLER_PORT} — служебный listener для связи контроллера и брокера внутри Kafka.
+      # Which interfaces and ports Kafka listens on.
+      # - PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT} — internal listener for the Docker network.
+      # - PLAINTEXT_EXTERNAL://0.0.0.0:${KAFKA_EXTERNAL_PORT} — external listener for the host machine.
+      # - CONTROLLER://kafka:${KAFKA_CONTROLLER_PORT} — internal controller-to-broker listener.
 
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-      # Определяем, какие протоколы безопасности используются для каждого listener.
-      # В данном случае все listener'ы используют незашифрованный PLAINTEXT (для локальной разработки).
+      # Security protocol of each listener. All of them use unencrypted PLAINTEXT here,
+      # which is fine for local development.
 
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # Указываем, какой listener используется для связи между брокерами (у нас один broker, но указать нужно).
-      # PLAINTEXT — это внутренний listener на ${KAFKA_INTERNAL_PORT}.
+      # Which listener brokers use to talk to each other (one broker here, but it must be set).
+      # setting is required). PLAINTEXT is the internal listener on ${KAFKA_INTERNAL_PORT}.
 
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # Указываем, какой listener Kafka будет использовать для связи с controller (служебный трафик Raft).
+      # Which listener carries controller traffic (Raft).
 
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT},PLAINTEXT_EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT},CONTROLLER://kafka:${KAFKA_CONTROLLER_PORT}
-      # Важно! Kafka сообщает клиентам, по каким адресам её можно найти.
-      # - Внутри Docker сети Kafka объявляет адрес kafka:${KAFKA_INTERNAL_PORT}.
-      # - Для подключения с хоста Kafka объявляет localhost:${KAFKA_EXTERNAL_PORT}.
-      # - Контроллеру Kafka сообщает адрес kafka:${KAFKA_CONTROLLER_PORT}.
+      # Important: Kafka advertises the addresses clients should use.
+      # - Inside the Docker network it advertises kafka:${KAFKA_INTERNAL_PORT}.
+      # - For host connections it advertises localhost:${KAFKA_EXTERNAL_PORT}.
+      # - To the controller it advertises kafka:${KAFKA_CONTROLLER_PORT}.
 
-      # === Поведение кластера ===
+      # === Cluster behaviour ===
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # Kafka автоматически создаёт топик при первом обращении producer/consumer.
-      # Имена топиков задаются в конфигурации сервисов (config.local.yaml).
+      # Kafka creates a topic on first producer/consumer access.
+      # Topic names come from the service configuration (config.local.yaml).
 
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      # Количество реплик для системного топика offset'ов (у нас один брокер, поэтому 1).
+      # Replication factor of the internal offsets topic (one broker, so 1).
 
       KAFKA_LOG_RETENTION_HOURS: 168
-      # Хранить сообщения в топиках 168 часов (7 дней).
+      # Keep topic messages for 168 hours (7 days).
 
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # Устанавливаем задержку перед начальной балансировкой consumer group в 0 мс (ускоряем старт).
+      # No delay before the initial consumer group rebalance (speeds up startup).
 
       CLUSTER_ID: "Mk3OEYBSD34fcwNTJENDM2Qk"
-      # Уникальный идентификатор кластера Kafka.
+      # Unique Kafka cluster id.
 
     volumes:
       - kafka_data:/var/lib/kafka/data
-      # Подключаем volume для хранения данных Kafka (логи и сообщения).
-      # Это позволяет сохранять данные между перезапусками контейнера.
+      # Volume holding the Kafka data (logs and messages), so it survives container
+      # restarts.
 
     healthcheck:
       test:
@@ -77,63 +77,63 @@ services: # Раздел, в котором описываются все кон
       timeout: 5s
       retries: 10
       start_period: 20s
-      # Проверяем, доступен ли порт ${KAFKA_INTERNAL_PORT} внутри контейнера.
-      # Если порт недоступен — Kafka считается неготовой.
-      # start_period: 20s — ждём 20 секунд перед началом проверки.
+      # Check that port ${KAFKA_INTERNAL_PORT} is reachable inside the container.
+      # If it is not, Kafka counts as not ready.
+      # start_period: 20s — wait 20 seconds before the first check.
 
     restart: unless-stopped
-    # Автоматически перезапускаем контейнер при сбоях, но не при ручной остановке
+    # Restart automatically on failure, but not after a manual stop
 
     networks:
       - microservices-net
-      # Подключаем контейнер к общей сети, в которой живут все сервисы микросервисной архитектуры
+      # Join the shared network where all microservices live
 
-  kafka-ui: # Веб-интерфейс Kafka UI для управления брокером и топиками.
+  kafka-ui: # Kafka UI web interface for managing the broker and topics
     image: ${KAFKA_UI_IMAGE}
     container_name: kafka-ui
     ports:
       - "${KAFKA_UI_PORT}:8080"
-      # Пробрасываем порт веб-интерфейса на хост-машину.
+      # Publish the web interface port to the host machine.
 
     environment:
       KAFKA_CLUSTERS_0_NAME: "local-cluster"
-      # Имя кластера, которое отобразится в UI.
+      # Cluster name shown in the UI.
 
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:${KAFKA_INTERNAL_PORT}"
-      # Адрес Kafka брокера внутри контейнерной сети для подключения UI.
+      # Broker address inside the container network, used by the UI.
 
     depends_on:
       kafka:
         condition: service_healthy
-      # Гарантируем, что Kafka UI стартует только после того, как Kafka станет healthy.
+      # Make sure Kafka UI starts only once Kafka is healthy.
 
     healthcheck:
-      # wget, а не curl: в образе kafbat/kafka-ui есть busybox-wget, но нет curl —
-      # с curl проверка падает с "executable file not found" и контейнер вечно unhealthy.
+      # wget rather than curl: the kafbat/kafka-ui image ships busybox wget but no curl,
+      # so a curl check fails with "executable file not found" and the container stays unhealthy.
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
-      # Проверяем состояние UI по HTTP endpoint /actuator/health.
-      # UI будет считаться healthy только после успешного ответа от сервера.
+      # Probe the UI through the /actuator/health HTTP endpoint.
+      # It counts as healthy only after a successful response.
 
     restart: unless-stopped
-    # Автоматически перезапускаем контейнер при сбоях, но не при ручной остановке
+    # Restart automatically on failure, but not after a manual stop
 
     networks:
       - microservices-net
-      # Подключаем контейнер к общей сети, в которой живут все сервисы микросервисной архитектуры
+      # Join the shared network where all microservices live
 
-  # --- Redis для distributed rate limiter (неделя 8) ---
+  # --- Redis for the distributed rate limiter (week 8) ---
 
   redis-ratelimit:
     image: ${REDIS_RATELIMIT_IMAGE}
     container_name: redis-ratelimit
     ports:
       - "${REDIS_RATELIMIT_PORT}:6379"
-      # Пробрасываем порт Redis наружу — нужно, чтобы локальные сервисы (config.local.yaml)
-      # могли подключаться к rate limiter по localhost:${REDIS_RATELIMIT_PORT}.
+      # Publish the Redis port so locally run services (config.local.yaml) can reach the
+      # rate limiter at localhost:${REDIS_RATELIMIT_PORT}.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -143,13 +143,13 @@ services: # Раздел, в котором описываются все кон
     networks:
       - microservices-net
 
-volumes: # Раздел с определением томов
-  kafka_data: # Именованный том для хранения данных Kafka
-  # Docker сам управляет этим хранилищем, данные сохраняются между перезапусками контейнеров.
+volumes: # Volume definitions
+  kafka_data: # Named volume holding the Kafka data.
+  # Docker manages it and the data survives container restarts.
 
 networks:
   microservices-net:
     name: microservices-net
     external: true
-    # Сеть создаётся в Taskfile через docker network create
-    # Все docker-compose файлы подключаются к ней с external: true
+    # The network is created by the Taskfile via docker network create
+    # Every compose file joins it with external: true

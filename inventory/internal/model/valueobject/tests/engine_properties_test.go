@@ -26,7 +26,7 @@ func TestNewEngineProperties(t *testing.T) {
 		wantErr   error
 	}{
 		{
-			name: "валидный A класс",
+			name: "valid class A",
 			args: args{
 				class:            valueobject.EngineClassA,
 				requiredStrength: 100,
@@ -35,7 +35,7 @@ func TestNewEngineProperties(t *testing.T) {
 			wantStr:   100,
 		},
 		{
-			name: "валидный B класс",
+			name: "valid class B",
 			args: args{
 				class:            valueobject.EngineClassB,
 				requiredStrength: 150,
@@ -44,7 +44,7 @@ func TestNewEngineProperties(t *testing.T) {
 			wantStr:   150,
 		},
 		{
-			name: "валидный C класс",
+			name: "valid class C",
 			args: args{
 				class:            valueobject.EngineClassC,
 				requiredStrength: 200,
@@ -53,7 +53,7 @@ func TestNewEngineProperties(t *testing.T) {
 			wantStr:   200,
 		},
 		{
-			name: "невалидный класс двигателя",
+			name: "invalid engine class",
 			args: args{
 				class:            valueobject.EngineClass("X"),
 				requiredStrength: 100,

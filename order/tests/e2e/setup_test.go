@@ -1,22 +1,22 @@
 //go:build e2e
 
-// Package e2e содержит сквозные тесты OrderService с реальной Kafka (Redpanda).
+// Package e2e holds the end-to-end tests of OrderService against a real Kafka (Redpanda).
 //
-// Цель отдельной сьюты — проверить асинхронную цепочку:
+// The suite exists to exercise the asynchronous chain:
 //
 //	HTTP Pay → orderProducer (Kafka topic order.paid)
-//	         → реальный AssemblyService
+//	         → the real AssemblyService
 //	         → Kafka topic assembly.ship-assembled
 //	         → order/internal/consumer/assembly_consumer
 //	         → CommitParts + UPDATE orders SET status=ASSEMBLED
 //
-// На неделе 6 в цепочке появилась session-авторизация: HTTP защищён Bearer-middleware,
-// Inventory gRPC — auth-interceptor, а session_uuid пробрасывается через Kafka headers
-// (см. platform/pkg/middleware/kafka). Поэтому в setup поднят ещё IAM (Postgres + Redis
-// + bufconn-сервер), а bufconn-клиент Inventory снабжён SessionForwarder
+// Since week 6 the chain is session-authenticated: HTTP is guarded by the Bearer
+// middleware, Inventory gRPC by an auth interceptor, and session_uuid travels through
+// Kafka headers (see platform/pkg/middleware/kafka). That is why the setup also starts
+// IAM (Postgres + Redis + a bufconn server) and gives the Inventory bufconn client a
 //
-// Запускается только под тегом сборки e2e (см. solutions/week_6/Taskfile.yaml).
-// В обычном go test ./... не собирается, чтобы не платить временем старта Redpanda
+// SessionForwarder. The suite only builds under the e2e build tag, so a plain
+// go test ./... does not pay the Redpanda startup cost.
 package e2e
 
 import (
@@ -68,9 +68,9 @@ import (
 	userv1 "github.com/vixart/rocket-factory/shared/pkg/proto/user/v1"
 )
 
-// Предзагруженные UUID и цены деталей (из migrations/inventory/00002_seed_parts.sql).
-// Дублируются с tests/api_test.go намеренно: e2e — самостоятельная сьюта,
-// которая не должна зависеть от соседнего пакета.
+// Seeded part UUIDs and prices (from migrations/inventory/00002_seed_parts.sql).
+// They are duplicated from tests/api_test.go on purpose: e2e is a standalone suite
+// that must not depend on a neighbouring package.
 const (
 	HullAluminumUUID = "550e8400-e29b-41d4-a716-446655440001" // 500000 kopecks
 	EngineIonCUUID   = "550e8400-e29b-41d4-a716-446655440003" // 300000 kopecks
@@ -82,18 +82,18 @@ const (
 const (
 	bufSize = 1024 * 1024
 
-	// Redpanda на macOS поднимается ~5-10 секунд, оставим запас
+	// Redpanda takes ~5-10 seconds to start on macOS, leave some margin
 	redpandaImage = "docker.redpanda.com/redpandadata/redpanda:v25.1.7"
 
-	// Redis для IAM-сессий — версия совпадает с solutions/week_6/iam.env
+	// Redis for IAM sessions — the version matches solutions/week_6/iam.env
 	redisImage = "redis:8.6.3-alpine3.23"
 
-	// numPartitions=1 достаточно: тесту важен факт доставки, не масштабирование
+	// numPartitions=1 is enough: the test cares about delivery, not scaling
 	topicPartitions        = 1
 	topicReplicationFactor = 1
 
-	// sessionTTL — для e2e достаточно часа: тест короткий, сессия не успеет
-	// протухнуть, повторных логинов между шагами не делаем
+	// sessionTTL: an hour is plenty for e2e — the test is short, the session cannot
+	// expire, and no re-login happens between steps
 	sessionTTL = time.Hour
 )
 
@@ -101,28 +101,28 @@ var (
 	httpClient = &http.Client{Timeout: 10 * time.Second}
 	ts         *httptest.Server
 
-	// Уникальные топики и group-id на прогон — изолируют параллельные CI-сборки,
-	// которые могут шарить один и тот же Redpanda-кластер
+	// Unique topics and group ids per run isolate parallel CI builds that may share
+	// the same Redpanda cluster
 	orderPaidTopic     string
 	shipAssembledTopic string
 	assemblyGroupID    string
 	orderGroupID       string
 
-	// Прямой пул к БД order — нужен в редких случаях для проверки состояния,
-	// которое не выставляется через API (например, аудит конкретных полей)
+	// A direct pool to the order database, needed in the rare cases where state is not
+	// exposed through the API (auditing specific fields, for example)
 	orderDBPool     *pgxpool.Pool
 	inventoryDBPool *pgxpool.Pool
 
 	inventoryClient inventoryv1.InventoryServiceClient
 
-	// IAM-клиенты экспортируем для lifecycle_test — там делаем Register/Login,
-	// чтобы получить sessionUUID для Bearer-заголовка
+	// The IAM clients are exported for lifecycle_test, which performs Register/Login to
+	// obtain the sessionUUID for the Bearer header
 	authSvcClient authv1.AuthServiceClient
 	userSvcClient userv1.UserServiceClient
 )
 
-// runMain — обёртка над m.Run, чтобы defer-cleanup отработал даже при panic в setup.
-// os.Exit обходит defer, поэтому Exit зовём из TestMain отдельно
+// runMain wraps m.Run so that the deferred cleanup runs even if the setup panics.
+// os.Exit skips defers, so Exit is called separately from TestMain.
 func TestMain(m *testing.M) {
 	os.Exit(runMain(m))
 }
@@ -134,7 +134,7 @@ func runMain(m *testing.M) int {
 	cleanups := newCleanupStack()
 	defer cleanups.run(context.Background())
 
-	// 1-3. PostgreSQL × 3 (order + inventory + iam) — три отдельных контейнера
+	// 1-3. PostgreSQL × 3 (order + inventory + iam) — three separate containers
 	orderPool := startPostgresAndMigrate(ctx, cleanups, "order-service", "../../../migrations/order")
 	inventoryPool := startPostgresAndMigrate(ctx, cleanups, "inventory-service", "../../../migrations/inventory")
 	iamPool := startPostgresAndMigrate(ctx, cleanups, "iam-service", "../../../migrations/iam")
@@ -143,33 +143,33 @@ func runMain(m *testing.M) int {
 
 	txManager := mustNew(manager.New(trmpgx.NewDefaultFactory(orderPool)))
 
-	// 4. Redis — стораж сессий IAM
+	// 4. Redis — the IAM session storage
 	redisClient := startRedis(ctx, cleanups)
 
-	// 5. IAM gRPC через bufconn — нужен и Inventory-серверу (auth-interceptor),
-	// и Order HTTP-обработчику (middleware), и тесту (Register/Login).
-	// bcrypt.MinCost критичен — иначе тест становится в разы медленнее
+	// 5. IAM gRPC over bufconn — needed by the Inventory server (auth interceptor), by
+	// the Order HTTP handler (middleware) and by the test itself (Register/Login).
+	// bcrypt.MinCost is critical, otherwise the test becomes several times slower
 	iamConn := startBufconnGRPCIAM(ctx, cleanups, iamPool, redisClient)
 	authSvcClient = authv1.NewAuthServiceClient(iamConn)
 	userSvcClient = userv1.NewUserServiceClient(iamConn)
 
-	// 6. Inventory + Payment gRPC через bufconn — Kafka их не касается,
-	// поэтому остаются in-memory (быстрее, чем поднимать ещё контейнеры).
-	// Inventory снабжён auth-interceptor'ом на сервере и SessionForwarder'ом
-	// на клиенте — иначе CommitParts из assembly_consumer и GetPart из теста
-	// не прошли бы аутентификацию
+	// 6. Inventory + Payment gRPC over bufconn — Kafka does not touch them, so they stay
+	// in memory (faster than starting more containers). Inventory carries an auth
+	// interceptor on the server and a SessionForwarder on the client, otherwise
+	// CommitParts from assembly_consumer and GetPart from the test would fail
+	// authentication
 	invConn := startBufconnGRPCInventory(ctx, cleanups, inventoryPool, authSvcClient)
 	payConn := startBufconnGRPCPayment(ctx, cleanups)
 
 	inventoryClient = inventoryv1.NewInventoryServiceClient(invConn)
 	paymentClient := paymentv1.NewPaymentServiceClient(payConn)
 
-	// 7. Redpanda — реальная Kafka-совместимая инфраструктура
+	// 7. Redpanda — real Kafka-compatible infrastructure
 	broker := startRedpanda(ctx, cleanups)
 
-	// 8. Уникальные топики на прогон + явное создание через AdminClient.
-	// Sarama-консьюмер падает, если топика ещё нет, поэтому полагаться на
-	// auto-create нельзя — нужно дождаться готовности
+	// 8. Unique topics per run, created explicitly through the AdminClient. A sarama
+	// consumer fails when the topic does not exist yet, so auto-create cannot be relied
+	// upon — the topics must be ready first
 	suffix := time.Now().UnixNano()
 	orderPaidTopic = fmt.Sprintf("e2e-%d-order.paid", suffix)
 	shipAssembledTopic = fmt.Sprintf("e2e-%d-assembly.ship-assembled", suffix)
@@ -177,28 +177,28 @@ func runMain(m *testing.M) int {
 	orderGroupID = fmt.Sprintf("e2e-%d-order-service", suffix)
 	createTopics(broker, orderPaidTopic, shipAssembledTopic)
 
-	// 9. Реальный Sarama-продьюсер для order — отправляет OrderPaid в Kafka
+	// 9. A real sarama producer for order — publishes OrderPaid to Kafka
 	syncProducer := mustNew(sarama.NewSyncProducer([]string{broker}, producerConfig()))
 	cleanups.add("order sarama producer", func(_ context.Context) error { return syncProducer.Close() })
 
 	orderPaidKafkaProducer := wrappedKafkaProducer.NewProducer(syncProducer, orderPaidTopic)
 	realOrderProducer := orderProducer.New(orderPaidKafkaProducer)
 
-	// 10. Order HTTP-сервер с реальным продьюсером (НЕ noopProducer как в api_test).
-	// Дополнительно подключаем authSvcClient — на неделе 6 HTTP-обработчик обёрнут
-	// в Bearer-middleware
+	// 10. The Order HTTP server with the real producer (NOT the noopProducer of api_test).
+	// authSvcClient is wired in as well: since week 6 the HTTP handler is wrapped in the
+	// Bearer middleware
 	handler := mustNew(app.NewHTTPHandlerWithProducer(orderPool, txManager, inventoryClient, paymentClient, authSvcClient, realOrderProducer))
 	ts = httptest.NewServer(handler)
 	cleanups.add("httptest server", func(_ context.Context) error { ts.Close(); return nil })
 
-	// 11. Order ShipAssembled-консьюмер — реальный код из internal/consumer/assembly_consumer.
-	// Слушает топик ShipAssembled и переводит заказ в ASSEMBLED через CommitParts
+	// 11. The Order ShipAssembled consumer — the real code from internal/consumer/assembly_consumer.
+	// It listens on the ShipAssembled topic and moves the order to ASSEMBLED via CommitParts
 	startOrderShipAssembledConsumer(ctx, cleanups, broker, orderPool, txManager, inventoryClient)
 
-	// 12. Реальный AssemblyService — тот же код, что в проде.
-	// Используется тот же код, что и в проде: consumer/order_paid → service/assembly →
-	// producer/ship_assembled. Контракт обоих proto-сообщений проверяется через
-	// реальные decode.go / encode-логику assembly-сервиса
+	// 12. The real AssemblyService — the same code that runs in production:
+	// consumer/order_paid → service/assembly → producer/ship_assembled. The contract of
+	// both proto messages is exercised through the real decode/encode logic of the
+	// assembly service
 	startAssemblyService(ctx, cleanups, broker)
 
 	return m.Run()
@@ -268,8 +268,8 @@ func runMigrations(dsn, migrationsDir string) error {
 	return goose.Up(db, absDir)
 }
 
-// startRedis поднимает Redis-контейнер для сессий IAM. Возвращает уже подключённый
-// redis-клиент: и контейнер, и клиент закрываются через cleanups
+// startRedis starts the Redis container for IAM sessions and returns a connected
+// redis client; both the container and the client are closed through cleanups.
 func startRedis(ctx context.Context, cleanups *cleanupStack) *redis.Client {
 	container, err := tcredis.Run(ctx, redisImage)
 	if err != nil {
@@ -332,8 +332,8 @@ func createTopics(broker string, topics ...string) {
 	}
 }
 
-// startBufconnGRPCIAM поднимает IAM gRPC-сервер через bufconn и возвращает
-// клиентское соединение. bcrypt.MinCost — критичен для скорости тестов
+// startBufconnGRPCIAM starts the IAM gRPC server over bufconn and returns the client
+// connection. bcrypt.MinCost is critical for test speed.
 func startBufconnGRPCIAM(ctx context.Context, cleanups *cleanupStack, pool *pgxpool.Pool, redisClient *redis.Client) *grpc.ClientConn {
 	lis := bufconn.Listen(bufSize)
 	server := iamApp.NewGRPCServer(pool, redisClient, sessionTTL, bcrypt.MinCost)
@@ -372,9 +372,9 @@ func startBufconnGRPCInventory(ctx context.Context, cleanups *cleanupStack, pool
 	}()
 	cleanups.add("inventory grpc server", func(_ context.Context) error { server.Stop(); return nil })
 
-	// SessionForwarder автоматически пробрасывает session-uuid из контекста
-	// в исходящие gRPC metadata — нужен и assembly_consumer'у для CommitParts,
-	// и helper'у getStock в тесте
+	// SessionForwarder copies the session-uuid from the context into the outgoing gRPC
+	// metadata — needed both by assembly_consumer for CommitParts and by the getStock
+	// helper in the test
 	conn, err := grpc.NewClient(
 		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
@@ -431,9 +431,9 @@ func startOrderShipAssembledConsumer(
 	cg := mustNew(sarama.NewConsumerGroup([]string{broker}, orderGroupID, consumerConfig()))
 	cleanups.add("order ship-assembled consumer group", func(_ context.Context) error { return cg.Close() })
 
-	// ConsumerSession middleware вытаскивает session_uuid из Kafka-заголовка
-	// и кладёт в контекст — иначе assembly_consumer не сможет вызвать защищённый
-	// Inventory.CommitParts (тот требует session-uuid в gRPC metadata)
+	// The ConsumerSession middleware pulls session_uuid out of the Kafka header and puts
+	// it into the context; without it assembly_consumer cannot call the protected
+	// Inventory.CommitParts, which requires session-uuid in the gRPC metadata
 	wrappedConsumer := wrappedKafkaConsumer.NewConsumer(
 		cg,
 		[]string{shipAssembledTopic},
@@ -442,9 +442,9 @@ func startOrderShipAssembledConsumer(
 		),
 	)
 
-	// Реальный код из order/internal/consumer/assembly_consumer.
-	// Репозиторий и inventory-клиент берём из тех же internal-пакетов,
-	// что использует прод-DI (order/internal/app/di.go)
+	// The real code from order/internal/consumer/assembly_consumer. The repository and
+	// the inventory client come from the same internal packages the production DI uses
+	// (order/internal/app/di.go)
 	svc := assemblyconsumer.NewService(
 		wrappedConsumer,
 		orderRepoPkg.New(pool, txManager),
@@ -454,20 +454,20 @@ func startOrderShipAssembledConsumer(
 
 	go func() {
 		if err := svc.RunConsumer(ctx); err != nil {
-			// При cancel ctx Consume вернёт ошибку — это нормально, не паникуем.
-			// Логируем для диагностики, если падение настоящее
+			// On ctx cancellation Consume returns an error, which is expected — do not panic.
+			// Log it for diagnostics in case the failure is real
 			_, _ = fmt.Fprintf(os.Stderr, "order ship-assembled consumer stopped: %v\n", err)
 		}
 	}()
 }
 
-// startAssemblyService поднимает реальный AssemblyService через assembly/pkg/app.
-// Используется тот же код, что и в проде: consumer/order_paid → service/assembly →
-// producer/ship_assembled. ConsumerSession middleware подключается внутри pkg/app —
-// без неё session_uuid не пробросится в ShipAssembled-сообщение
+// startAssemblyService starts the real AssemblyService through assembly/pkg/app.
+// It is the same code as in production: consumer/order_paid → service/assembly →
+// producer/ship_assembled. The ConsumerSession middleware is wired inside pkg/app;
+// without it session_uuid would not reach the ShipAssembled message.
 //
-// На неделе 6 build_time зашит константами 5-15 сек, поэтому таймаут ожидания
-// ASSEMBLED в тесте увеличен — см. waitForOrderStatus в lifecycle_test
+// Since week 6 build_time is hardcoded to 5-15 seconds, so the ASSEMBLED wait timeout
+// in the test is larger — see waitForOrderStatus in lifecycle_test.
 func startAssemblyService(ctx context.Context, cleanups *cleanupStack, broker string) {
 	cg := mustNew(sarama.NewConsumerGroup([]string{broker}, assemblyGroupID, consumerConfig()))
 	cleanups.add("assembly consumer group", func(_ context.Context) error { return cg.Close() })
@@ -502,7 +502,7 @@ func consumerConfig() *sarama.Config {
 }
 
 // =============================================================================
-// Cleanup stack — LIFO порядок shutdown без портянки defer'ов в TestMain
+// Cleanup stack — LIFO shutdown order without a pile of defers in TestMain.
 // =============================================================================
 
 type cleanupStack struct {

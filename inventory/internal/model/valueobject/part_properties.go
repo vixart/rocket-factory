@@ -1,7 +1,7 @@
 package valueobject
 
-// PartProperties — типоспецифичные свойства детали.
-// Ровно одно поле non-nil — определяется типом детали.
+// PartProperties holds the type-specific properties of a part.
+// Exactly one field is non-nil, decided by the part type.
 type PartProperties struct {
 	hull   *HullProperties
 	engine *EngineProperties

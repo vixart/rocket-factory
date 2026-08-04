@@ -37,7 +37,7 @@ func TestOrderPaidHandler(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная обработка сообщения",
+			name: "message handled successfully",
 			message: kafka.Message{
 				Value: mustMarshalOrderPaid(
 					t,
@@ -52,14 +52,14 @@ func TestOrderPaidHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "не удалось декодировать сообщение",
+			name: "message cannot be decoded",
 			message: kafka.Message{
 				Value: []byte("invalid protobuf"),
 			},
 			setupMock: func(_ *mocks.ShipAssembleService) {},
 		},
 		{
-			name: "невалидный OrderUUID",
+			name: "invalid OrderUUID",
 			message: kafka.Message{
 				Value: mustMarshalOrderPaid(
 					t,
@@ -70,7 +70,7 @@ func TestOrderPaidHandler(t *testing.T) {
 			setupMock: func(_ *mocks.ShipAssembleService) {},
 		},
 		{
-			name: "невалидный UserUUID",
+			name: "invalid UserUUID",
 			message: kafka.Message{
 				Value: mustMarshalOrderPaid(
 					t,
@@ -81,7 +81,7 @@ func TestOrderPaidHandler(t *testing.T) {
 			setupMock: func(_ *mocks.ShipAssembleService) {},
 		},
 		{
-			name: "ошибка сборки корабля",
+			name: "ship assembly fails",
 			message: kafka.Message{
 				Value: mustMarshalOrderPaid(
 					t,

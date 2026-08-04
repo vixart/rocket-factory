@@ -3,23 +3,23 @@ info:
   title: Order Service API
   version: 1.0.0
   description: |
-    API для управления заказами на постройку космических кораблей.
+    API for managing spaceship build orders.
 
-    Позволяет создавать заказы, получать информацию о них,
-    оплачивать и отменять заказы.
+    It allows creating orders, fetching their details,
+    paying for them and cancelling them.
 
-# servers - опциональная секция, указывает базовые URL для API.
-# Используется:
-# - при генерации клиента (дефолтный baseURL)
-# - в Swagger UI / Redoc (выбор окружения)
-# - для документирования доступных окружений (dev, staging, prod)
+# servers is an optional section listing the base URLs of the API.
+# Used:
+# - when generating a client, as the default baseURL
+# - in Swagger UI / Redoc, to switch environments
+# - to document the available environments (dev, staging, prod)
 servers:
   - url: http://localhost:8080
     description: Local development server
 
 tags:
   - name: Orders
-    description: Операции с заказами — создание, получение, оплата и отмена
+    description: Order operations — create, fetch, pay and cancel
 
 paths:
   /api/v1/orders:

@@ -25,7 +25,7 @@ func (c EngineClass) IsValid() bool {
 	}
 }
 
-// EngineProperties — свойства двигателя (Value Object).
+// EngineProperties are the engine properties (value object).
 type EngineProperties struct {
 	class            EngineClass
 	requiredStrength int
@@ -35,10 +35,10 @@ func (e *EngineProperties) Class() EngineClass { return e.class }
 
 func (e *EngineProperties) RequiredStrength() int { return e.requiredStrength }
 
-// NewEngineProperties создаёт свойства двигателя.
+// NewEngineProperties creates engine properties.
 func NewEngineProperties(class EngineClass, requiredStrength int) (PartProperties, error) {
 	if !class.IsValid() {
-		return PartProperties{}, fmt.Errorf("недопустимый класс двигателя, получено %s: %w", class, errs.ErrInvalidProperties)
+		return PartProperties{}, fmt.Errorf("invalid engine class, got %s: %w", class, errs.ErrInvalidProperties)
 	}
 
 	return PartProperties{

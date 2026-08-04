@@ -22,17 +22,17 @@ func (w WeaponType) IsValid() bool {
 	}
 }
 
-// WeaponProperties — свойства двигателя (Value Object).
+// WeaponProperties are the weapon properties (value object).
 type WeaponProperties struct {
 	weaponType WeaponType
 }
 
 func (w *WeaponProperties) Type() WeaponType { return w.weaponType }
 
-// NewWeaponProperties создаёт свойства двигателя.
+// NewWeaponProperties creates weapon properties.
 func NewWeaponProperties(weaponType WeaponType) (PartProperties, error) {
 	if !weaponType.IsValid() {
-		return PartProperties{}, fmt.Errorf("недопустимый тип оружия, получено %s: %w", weaponType, errs.ErrInvalidProperties)
+		return PartProperties{}, fmt.Errorf("invalid weapon type, got %s: %w", weaponType, errs.ErrInvalidProperties)
 	}
 
 	return PartProperties{

@@ -10,27 +10,25 @@ import (
 type Handler interface {
 	// CancelOrder implements cancelOrder operation.
 	//
-	// Отменяет заказ, который ещё не был оплачен.
+	// Cancels an order that has not been paid yet.
 	//
 	// POST /api/v1/orders/{order_uuid}/cancel
 	CancelOrder(ctx context.Context, params CancelOrderParams) (CancelOrderRes, error)
 	// CreateOrder implements createOrder operation.
 	//
-	// Создаёт новый заказ на постройку космического
-	// корабля.
+	// Creates a new spaceship build order.
 	//
 	// POST /api/v1/orders
 	CreateOrder(ctx context.Context, req *CreateOrderRequest) (CreateOrderRes, error)
 	// GetOrder implements getOrder operation.
 	//
-	// Возвращает полную информацию о заказе на постройку
-	// космического корабля.
+	// Returns the full information about a spaceship build order.
 	//
 	// GET /api/v1/orders/{order_uuid}
 	GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error)
 	// PayOrder implements payOrder operation.
 	//
-	// Проводит оплату заказа.
+	// Pays for an order.
 	//
 	// POST /api/v1/orders/{order_uuid}/pay
 	PayOrder(ctx context.Context, req *PayOrderRequest, params PayOrderParams) (PayOrderRes, error)

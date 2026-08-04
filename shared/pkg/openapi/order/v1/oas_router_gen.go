@@ -287,7 +287,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 				switch method {
 				case "POST":
 					r.name = CreateOrderOperation
-					r.summary = "Создать заказ"
+					r.summary = "Create an order"
 					r.operationID = "createOrder"
 					r.operationGroup = ""
 					r.pathPattern = "/api/v1/orders"
@@ -320,7 +320,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 					switch method {
 					case "GET":
 						r.name = GetOrderOperation
-						r.summary = "Получить заказ по UUID"
+						r.summary = "Get an order by UUID"
 						r.operationID = "getOrder"
 						r.operationGroup = ""
 						r.pathPattern = "/api/v1/orders/{order_uuid}"
@@ -357,7 +357,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							switch method {
 							case "POST":
 								r.name = CancelOrderOperation
-								r.summary = "Отменить заказ"
+								r.summary = "Cancel an order"
 								r.operationID = "cancelOrder"
 								r.operationGroup = ""
 								r.pathPattern = "/api/v1/orders/{order_uuid}/cancel"
@@ -382,7 +382,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							switch method {
 							case "POST":
 								r.name = PayOrderOperation
-								r.summary = "Оплатить заказ"
+								r.summary = "Pay for an order"
 								r.operationID = "payOrder"
 								r.operationGroup = ""
 								r.pathPattern = "/api/v1/orders/{order_uuid}/pay"

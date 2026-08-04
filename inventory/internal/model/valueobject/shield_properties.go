@@ -22,17 +22,17 @@ func (s ShieldType) IsValid() bool {
 	}
 }
 
-// ShieldProperties — свойства двигателя (Value Object).
+// ShieldProperties are the shield properties (value object).
 type ShieldProperties struct {
 	shieldType ShieldType
 }
 
 func (s *ShieldProperties) Type() ShieldType { return s.shieldType }
 
-// NewShieldProperties создаёт свойства двигателя.
+// NewShieldProperties creates shield properties.
 func NewShieldProperties(shieldType ShieldType) (PartProperties, error) {
 	if !shieldType.IsValid() {
-		return PartProperties{}, fmt.Errorf("недопустимый тип щита, получено %s: %w", shieldType, errs.ErrInvalidProperties)
+		return PartProperties{}, fmt.Errorf("invalid shield type, got %s: %w", shieldType, errs.ErrInvalidProperties)
 	}
 
 	return PartProperties{
@@ -40,7 +40,7 @@ func NewShieldProperties(shieldType ShieldType) (PartProperties, error) {
 	}, nil
 }
 
-// ConflictsWith проверяет, выдержит ли корпус нагрузку двигателя.
+// ConflictsWith reports whether the shield conflicts with the weapon.
 func (s *ShieldProperties) ConflictsWith(w *WeaponProperties) bool {
 	if s.Type() == PlasmaShield && w.Type() == LaserWeapon {
 		return true

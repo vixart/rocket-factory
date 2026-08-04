@@ -9,14 +9,14 @@ var meter = otel.Meter("order-service")
 
 var (
 	ordersCreatedTotal, _ = meter.Int64Counter("orders_created",
-		metric.WithDescription("Количество созданных заказов"),
+		metric.WithDescription("Number of created orders"),
 	)
 
 	ordersPaidTotal, _ = meter.Int64Counter("orders_paid",
-		metric.WithDescription("Количество оплаченных заказов"),
+		metric.WithDescription("Number of paid orders"),
 	)
 
 	ordersRevenueTotal, _ = meter.Int64Counter("orders_revenue",
-		metric.WithDescription("Суммарная выручка (в копейках)"),
+		metric.WithDescription("Total revenue in kopecks"),
 	)
 )

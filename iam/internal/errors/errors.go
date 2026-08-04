@@ -3,18 +3,18 @@ package errs
 import "errors"
 
 var (
-	// Ошибки пользователей.
-	ErrUserNotFound       = errors.New("пользователь не найден")
-	ErrUserAlreadyExists  = errors.New("пользователь с таким логином уже существует")
-	ErrInvalidCredentials = errors.New("неверный логин или пароль")
+	// User errors.
+	ErrUserNotFound       = errors.New("user not found")
+	ErrUserAlreadyExists  = errors.New("a user with this login already exists")
+	ErrInvalidCredentials = errors.New("invalid login or password")
 
-	// Ошибки сессий.
-	ErrSessionNotFound = errors.New("сессия не найдена или истекла")
+	// Session errors.
+	ErrSessionNotFound = errors.New("session not found or expired")
 
-	// Ошибки валидации.
-	ErrInvalidLogin    = errors.New("логин обязателен")
-	ErrWeakPassword    = errors.New("пароль должен содержать минимум 8 символов")
-	ErrEmptyCredential = errors.New("логин и пароль обязательны")
-	ErrEmptySessionID  = errors.New("session_uuid обязателен")
-	ErrInvalidUUID     = errors.New("неверный формат UUID")
+	// Validation errors.
+	ErrInvalidLogin    = errors.New("login is required")
+	ErrWeakPassword    = errors.New("password must be at least 8 characters long")
+	ErrEmptyCredential = errors.New("login and password are required")
+	ErrEmptySessionID  = errors.New("session_uuid is required")
+	ErrInvalidUUID     = errors.New("invalid UUID format")
 )

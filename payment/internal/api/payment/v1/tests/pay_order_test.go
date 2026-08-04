@@ -39,7 +39,7 @@ func TestPayOrder(t *testing.T) {
 		check     func(t *testing.T, res *paymentv1.PayOrderResponse, err error)
 	}{
 		{
-			name: "пустой order_uuid",
+			name: "empty order_uuid",
 			args: args{
 				req: &paymentv1.PayOrderRequest{
 					OrderUuid: "",
@@ -54,7 +54,7 @@ func TestPayOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "невалидный order_uuid",
+			name: "invalid order_uuid",
 			args: args{
 				req: &paymentv1.PayOrderRequest{
 					OrderUuid: "not-a-uuid",
@@ -69,7 +69,7 @@ func TestPayOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка сервиса оплаты",
+			name: "payment service fails",
 			args: args{
 				req: &paymentv1.PayOrderRequest{
 					OrderUuid:     validUUID.String(),
@@ -93,7 +93,7 @@ func TestPayOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "успешная оплата заказа",
+			name: "order paid successfully",
 			args: args{
 				req: &paymentv1.PayOrderRequest{
 					OrderUuid:     validUUID.String(),

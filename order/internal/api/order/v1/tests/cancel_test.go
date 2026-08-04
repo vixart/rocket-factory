@@ -40,7 +40,7 @@ func TestCancelOrder(t *testing.T) {
 		expected  expected
 	}{
 		{
-			name: "успешная отмена заказа",
+			name: "order cancelled successfully",
 			args: args{
 				params: orderv1.CancelOrderParams{
 					OrderUUID: orderUUID,
@@ -53,7 +53,7 @@ func TestCancelOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "ошибка отмены заказа",
+			name: "order cancellation fails",
 			args: args{
 				params: orderv1.CancelOrderParams{
 					OrderUUID: orderUUID,

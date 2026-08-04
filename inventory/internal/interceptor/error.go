@@ -45,6 +45,6 @@ func ErrorInterceptor(
 		return nil, err
 
 	default:
-		return nil, status.Error(codes.Internal, "внутренняя ошибка")
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 }

@@ -25,8 +25,7 @@ type CancelOrderNotFound Error
 
 func (*CancelOrderNotFound) cancelOrderRes() {}
 
-// Пустой ответ при успешной отмене (успех определяется
-// кодом 200).
+// Empty response on a successful cancellation (success is signalled by code 200).
 // Ref: #
 type CancelOrderResponse struct{}
 
@@ -50,13 +49,13 @@ func (*CreateOrderNotFound) createOrderRes() {}
 
 // Ref: #
 type CreateOrderRequest struct {
-	// UUID корпуса (обязательный, v4).
+	// Hull UUID (required, v4).
 	HullUUID uuid.UUID `json:"hull_uuid"`
-	// UUID двигателя (обязательный, v4).
+	// Engine UUID (required, v4).
 	EngineUUID uuid.UUID `json:"engine_uuid"`
-	// UUID щита (опциональный, v4).
+	// Shield UUID (optional, v4).
 	ShieldUUID OptNilUUID `json:"shield_uuid"`
-	// UUID вооружения (опциональный, v4).
+	// Weapon UUID (optional, v4).
 	WeaponUUID OptNilUUID `json:"weapon_uuid"`
 }
 
@@ -102,9 +101,9 @@ func (s *CreateOrderRequest) SetWeaponUUID(val OptNilUUID) {
 
 // Ref: #
 type CreateOrderResponse struct {
-	// UUID созданного заказа (v4).
+	// UUID of the created order (v4).
 	OrderUUID uuid.UUID `json:"order_uuid"`
-	// Итоговая стоимость в копейках.
+	// Total price in kopecks.
 	TotalPrice int64 `json:"total_price"`
 }
 
@@ -136,9 +135,9 @@ func (*CreateOrderUnauthorized) createOrderRes() {}
 
 // Ref: #
 type Error struct {
-	// HTTP-код ошибки.
+	// HTTP error code.
 	Code int `json:"code"`
-	// Человекочитаемое описание ошибки.
+	// Human-readable error description.
 	Message string `json:"message"`
 }
 
@@ -302,26 +301,26 @@ func (o OptNilUUID) Or(d uuid.UUID) uuid.UUID {
 
 // Ref: #
 type OrderDto struct {
-	// UUID заказа (v4).
+	// Order UUID (v4).
 	OrderUUID uuid.UUID `json:"order_uuid"`
-	// UUID пользователя (v4).
+	// User UUID (v4).
 	UserUUID uuid.UUID `json:"user_uuid"`
-	// UUID корпуса (v4).
+	// Hull UUID (v4).
 	HullUUID uuid.UUID `json:"hull_uuid"`
-	// UUID двигателя (v4).
+	// Engine UUID (v4).
 	EngineUUID uuid.UUID `json:"engine_uuid"`
-	// UUID щита (опциональный, v4).
+	// Shield UUID (optional, v4).
 	ShieldUUID OptNilUUID `json:"shield_uuid"`
-	// UUID вооружения (опциональный, v4).
+	// Weapon UUID (optional, v4).
 	WeaponUUID OptNilUUID `json:"weapon_uuid"`
-	// Итоговая стоимость в копейках.
+	// Total price in kopecks.
 	TotalPrice int64 `json:"total_price"`
-	// UUID транзакции (после оплаты, v4).
+	// Transaction UUID after payment (v4).
 	TransactionUUID OptNilUUID `json:"transaction_uuid"`
-	// Способ оплаты (после оплаты).
+	// Payment method used.
 	PaymentMethod OptNilPaymentMethod `json:"payment_method"`
 	Status        OrderStatus         `json:"status"`
-	// Дата создания заказа.
+	// Order creation date.
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -437,7 +436,7 @@ func (s *OrderDto) SetCreatedAt(val time.Time) {
 
 func (*OrderDto) getOrderRes() {}
 
-// Статус заказа.
+// Order status.
 // Ref: #
 type OrderStatus string
 
@@ -527,7 +526,7 @@ func (s *PayOrderRequest) SetPaymentMethod(val PaymentMethod) {
 
 // Ref: #
 type PayOrderResponse struct {
-	// UUID транзакции оплаты (v4).
+	// Payment transaction UUID (v4).
 	TransactionUUID uuid.UUID `json:"transaction_uuid"`
 }
 
@@ -543,7 +542,7 @@ func (s *PayOrderResponse) SetTransactionUUID(val uuid.UUID) {
 
 func (*PayOrderResponse) payOrderRes() {}
 
-// Способ оплаты.
+// Payment method.
 // Ref: #
 type PaymentMethod string
 

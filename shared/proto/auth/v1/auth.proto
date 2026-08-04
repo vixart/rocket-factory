@@ -1,59 +1,59 @@
 syntax = "proto3";
 
-// Package auth.v1 содержит сервис аутентификации.
+// Package auth.v1 contains the authentication service.
 package auth.v1;
 
 import "common/v1/common.proto";
 
 option go_package = "github.com/vixart/rocket-factory/shared/pkg/proto/auth/v1;authv1";
 
-// AuthService сервис аутентификации (вход, проверка сессии).
+// AuthService handles authentication: login and session validation.
 service AuthService {
-  // Login выполняет вход в систему и создаёт сессию.
+  // Login signs a user in and creates a session.
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Whoami проверяет текущую сессию и возвращает информацию о пользователе.
+  // Whoami validates the current session and returns the user information.
   rpc Whoami(WhoamiRequest) returns (WhoamiResponse);
 
-  // Logout завершает сессию пользователя.
+  // Logout terminates the user session.
   rpc Logout(LogoutRequest) returns (LogoutResponse);
 }
 
-// LoginRequest запрос на вход в систему.
+// LoginRequest is a sign-in request.
 message LoginRequest {
-  // login логин пользователя.
+  // login is the user login.
   string login = 1;
 
-  // password пароль пользователя.
+  // password is the user password.
   string password = 2;
 }
 
-// LoginResponse ответ на вход в систему.
+// LoginResponse is the sign-in response.
 message LoginResponse {
-  // session_uuid UUID созданной сессии.
+  // session_uuid is the UUID of the created session.
   string session_uuid = 1;
 }
 
-// WhoamiRequest запрос на проверку сессии.
+// WhoamiRequest is a session validation request.
 message WhoamiRequest {
-  // session_uuid UUID активной сессии.
+  // session_uuid is the UUID of the active session.
   string session_uuid = 1;
 }
 
-// WhoamiResponse ответ с информацией о сессии и пользователе.
+// WhoamiResponse carries the session and user information.
 message WhoamiResponse {
-  // session информация о текущей сессии.
+  // session is the current session.
   common.v1.Session session = 1;
 
-  // user владелец сессии.
+  // user is the session owner.
   common.v1.User user = 2;
 }
 
-// LogoutRequest запрос на завершение сессии.
+// LogoutRequest is a session termination request.
 message LogoutRequest {
-  // session_uuid UUID сессии для завершения.
+  // session_uuid is the UUID of the session to terminate.
   string session_uuid = 1;
 }
 
-// LogoutResponse ответ на завершение сессии.
+// LogoutResponse is the session termination response.
 message LogoutResponse {}
